@@ -1,0 +1,11 @@
+[profile.default]
+src = 'src'
+test = 'test'
+out = 'out'
+libs = ['lib']
+
+optimizer = true
+optimizer_runs = 800
+gas_reports = []
+
+# See more config options https://github.com/foundry-rs/foundry/tree/master/config
