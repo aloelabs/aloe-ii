@@ -62,7 +62,7 @@ contract TokenPlus is ERC20, ReentrancyGuard {
 
         // Pull in tokens from sender
         asset.safeTransferFrom(msg.sender, address(this), amount); // TODO use callback with before/after balance checks to support fee-on-transfer tokens
-        
+
         // Mint shares
         _mint(msg.sender, shares);
         // TODO emit Deposit event
