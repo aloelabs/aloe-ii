@@ -1,32 +1,32 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import "@rari-capital/solmate/src/tokens/ERC20.sol";
-import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
-import "@rari-capital/solmate/src/utils/ReentrancyGuard.sol";
-
-import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
-import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+// import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+// import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import {Uniswap} from "src/libraries/Uniswap.sol";
 import {TokenPlus} from "src/TokenPlus.sol";
+import "src/UniswapHelper.sol";
 
 interface IManager {
     function callback(bytes calldata data) external returns (Uniswap.Position[] memory positions);
 }
 
-contract MarginAccount is ReentrancyGuard, IUniswapV3MintCallback {
-    using SafeTransferLib for ERC20;
+contract MarginAccount is UniswapHelper {
+    using SafeERC20 for IERC20;
 
-    IUniswapV3Pool public immutable pool;
+    TokenPlus public immutable KITTY0;
 
-    TokenPlus public immutable token0;
+    TokenPlus public immutable KITTY1;
 
-    TokenPlus public immutable token1;
+    address public immutable OWNER;
 
-    address public immutable owner;
+    struct PackedSlot {
+        bool isInCallback;
+        bool isLocked;
+    }
 
-    bool inCallback = false;
+    PackedSlot public packedSlot;
 
     Uniswap.Position[] uniswapPositions;
 
@@ -35,11 +35,10 @@ contract MarginAccount is ReentrancyGuard, IUniswapV3MintCallback {
         TokenPlus _token0,
         TokenPlus _token1,
         address _owner
-    ) {
-        pool = _pool;
-        token0 = _token0;
-        token1 = _token1;
-        owner = _owner;
+    ) UniswapHelper(_pool) {
+        KITTY0 = _token0;
+        KITTY1 = _token1;
+        OWNER = _owner;
     }
 
     // TODO liquidations
@@ -48,39 +47,42 @@ contract MarginAccount is ReentrancyGuard, IUniswapV3MintCallback {
         address callee,
         bytes calldata data,
         uint256[4] calldata allowances
-    ) external nonReentrant {
-        require(msg.sender == owner, "Aloe: only owner");
+    ) external {
+        require(msg.sender == OWNER, "Aloe: only owner");
+        require(!packedSlot.isLocked);
+        packedSlot.isLocked = true;
 
-        if (allowances[0] != 0) token0.approve(owner, allowances[0]);
-        if (allowances[1] != 0) token1.approve(owner, allowances[1]);
-        if (allowances[2] != 0) token0.asset().approve(owner, allowances[2]);
-        if (allowances[3] != 0) token1.asset().approve(owner, allowances[3]);
+        if (allowances[0] != 0) KITTY0.approve(OWNER, allowances[0]);
+        if (allowances[1] != 0) KITTY1.approve(OWNER, allowances[1]);
+        if (allowances[2] != 0) TOKEN0.approve(OWNER, allowances[2]);
+        if (allowances[3] != 0) TOKEN1.approve(OWNER, allowances[3]);
 
-        inCallback = true;
+        packedSlot.isInCallback = true;
         Uniswap.Position[] memory _uniswapPositions = IManager(callee).callback(data);
-        inCallback = false;
+        packedSlot.isInCallback = false;
 
-        if (allowances[0] != 0) token0.approve(owner, 0);
-        if (allowances[1] != 0) token1.approve(owner, 0);
-        if (allowances[2] != 0) token0.asset().approve(owner, 0);
-        if (allowances[3] != 0) token1.asset().approve(owner, 0);
+        if (allowances[0] != 0) KITTY0.approve(OWNER, 0);
+        if (allowances[1] != 0) KITTY1.approve(OWNER, 0);
+        if (allowances[2] != 0) TOKEN0.approve(OWNER, 0);
+        if (allowances[3] != 0) TOKEN1.approve(OWNER, 0);
 
         // TODO solvency check
         // TODO copy _uniswapPositions to uniswapPositions
+        packedSlot.isLocked = false;
     }
 
     function borrow(uint256 amount0, uint256 amount1) external {
-        require(inCallback);
+        require(packedSlot.isInCallback);
 
-        if (amount0 != 0) token0.borrow(amount0);
-        if (amount1 != 0) token1.borrow(amount1);
+        if (amount0 != 0) KITTY0.borrow(amount0);
+        if (amount1 != 0) KITTY1.borrow(amount1);
     }
 
     function repay(uint256 amount0, uint256 amount1) external {
-        require(inCallback);
+        require(packedSlot.isInCallback);
 
-        if (amount0 != 0) token0.repay(amount0);
-        if (amount1 != 0) token1.repay(amount1);
+        if (amount0 != 0) KITTY0.repay(amount0);
+        if (amount1 != 0) KITTY1.repay(amount1);
     }
 
     function uniswapDeposit(
@@ -88,9 +90,9 @@ contract MarginAccount is ReentrancyGuard, IUniswapV3MintCallback {
         int24 upper,
         uint128 liquidity
     ) external returns (uint256 amount0, uint256 amount1) {
-        require(inCallback);
+        require(packedSlot.isInCallback);
 
-        (amount0, amount1) = pool.mint(address(this), lower, upper, liquidity, "");
+        (amount0, amount1) = UNISWAP_POOL.mint(address(this), lower, upper, liquidity, "");
     }
 
     function uniswapWithdraw(
@@ -106,12 +108,12 @@ contract MarginAccount is ReentrancyGuard, IUniswapV3MintCallback {
             uint256 collected1
         )
     {
-        require(inCallback);
+        require(packedSlot.isInCallback);
 
-        (burned0, burned1) = pool.burn(lower, upper, liquidity);
+        (burned0, burned1) = UNISWAP_POOL.burn(lower, upper, liquidity);
 
         // Collect all owed tokens including earned fees
-        (collected0, collected1) = pool.collect(
+        (collected0, collected1) = UNISWAP_POOL.collect(
             address(this),
             lower,
             upper,
@@ -120,14 +122,7 @@ contract MarginAccount is ReentrancyGuard, IUniswapV3MintCallback {
         );
     }
 
-    /// @dev Callback for Uniswap V3 pool.
-    function uniswapV3MintCallback(
-        uint256 amount0,
-        uint256 amount1,
-        bytes calldata
-    ) external {
-        require(msg.sender == address(pool));
-        if (amount0 != 0) token0.asset().safeTransfer(msg.sender, amount0);
-        if (amount1 != 0) token1.asset().safeTransfer(msg.sender, amount1);
-    }
+    // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
+    // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
+    // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 }

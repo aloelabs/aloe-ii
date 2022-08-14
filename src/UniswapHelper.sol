@@ -11,7 +11,7 @@ contract UniswapHelper is IUniswapV3MintCallback {
     using SafeERC20 for IERC20;
 
     /// @notice The Uniswap pair in which the vault will manage positions
-    IUniswapV3Pool public immutable UNI_POOL;
+    IUniswapV3Pool public immutable UNISWAP_POOL;
 
     /// @notice The first token of the Uniswap pair
     IERC20 public immutable TOKEN0;
@@ -23,7 +23,7 @@ contract UniswapHelper is IUniswapV3MintCallback {
     int24 internal immutable TICK_SPACING;
 
     constructor(IUniswapV3Pool _pool) {
-        UNI_POOL = _pool;
+        UNISWAP_POOL = _pool;
         TOKEN0 = IERC20(_pool.token0());
         TOKEN1 = IERC20(_pool.token1());
         TICK_SPACING = _pool.tickSpacing();
@@ -35,7 +35,7 @@ contract UniswapHelper is IUniswapV3MintCallback {
         uint256 _amount1,
         bytes calldata
     ) external {
-        require(msg.sender == address(UNI_POOL));
+        require(msg.sender == address(UNISWAP_POOL));
         if (_amount0 != 0) TOKEN0.safeTransfer(msg.sender, _amount0);
         if (_amount1 != 0) TOKEN1.safeTransfer(msg.sender, _amount1);
     }
