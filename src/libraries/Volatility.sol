@@ -159,7 +159,7 @@ library Volatility {
         tick = TickMath.floor(tick, tickSpacing);
 
         // both value0 and value1 fit in uint192
-        (uint256 value0, uint256 value1) = _getValuesOfLiquidity(
+        (uint256 value0, uint256 value1) = _getValueOfLiquidity(
             sqrtPriceX96,
             TickMath.getSqrtRatioAtTick(tick),
             TickMath.getSqrtRatioAtTick(tick + tickSpacing),
@@ -178,7 +178,7 @@ library Volatility {
      * @return value0 The value of amount0 underlying `liquidity`, in terms of token1
      * @return value1 The amount of token1
      */
-    function _getValuesOfLiquidity(
+    function _getValueOfLiquidity(
         uint160 sqrtRatioX96,
         uint160 sqrtRatioAX96,
         uint160 sqrtRatioBX96,

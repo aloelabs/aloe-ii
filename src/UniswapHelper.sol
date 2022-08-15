@@ -19,7 +19,7 @@ contract UniswapHelper is IUniswapV3MintCallback {
     /// @notice The second token of the Uniswap pair
     IERC20 public immutable TOKEN1;
 
-    /// @dev The Uniswap pair's tick spacing
+    /// @dev The Uniswap pool's tick spacing
     int24 internal immutable TICK_SPACING;
 
     constructor(IUniswapV3Pool _pool) {
