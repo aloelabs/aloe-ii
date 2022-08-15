@@ -25,7 +25,7 @@ library LiquidityAmounts {
         uint160 sqrtRatioBX96,
         uint256 amount0
     ) internal pure returns (uint128 liquidity) {
-        if (sqrtRatioAX96 > sqrtRatioBX96) (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
+        assert(sqrtRatioAX96 < sqrtRatioBX96);
         uint256 intermediate = FullMath.mulDiv(sqrtRatioAX96, sqrtRatioBX96, FixedPoint96.Q96);
         liquidity = toUint128(FullMath.mulDiv(amount0, intermediate, sqrtRatioBX96 - sqrtRatioAX96));
     }
@@ -41,7 +41,7 @@ library LiquidityAmounts {
         uint160 sqrtRatioBX96,
         uint256 amount1
     ) internal pure returns (uint128 liquidity) {
-        if (sqrtRatioAX96 > sqrtRatioBX96) (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
+        assert(sqrtRatioAX96 < sqrtRatioBX96);
         liquidity = toUint128(FullMath.mulDiv(amount1, FixedPoint96.Q96, sqrtRatioBX96 - sqrtRatioAX96));
     }
 
@@ -60,7 +60,7 @@ library LiquidityAmounts {
         uint256 amount0,
         uint256 amount1
     ) internal pure returns (uint128 liquidity) {
-        if (sqrtRatioAX96 > sqrtRatioBX96) (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
+        assert(sqrtRatioAX96 < sqrtRatioBX96);
 
         if (sqrtRatioX96 <= sqrtRatioAX96) {
             liquidity = getLiquidityForAmount0(sqrtRatioAX96, sqrtRatioBX96, amount0);
@@ -84,7 +84,7 @@ library LiquidityAmounts {
         uint160 sqrtRatioBX96,
         uint128 liquidity
     ) internal pure returns (uint256 amount0) {
-        if (sqrtRatioAX96 > sqrtRatioBX96) (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
+        assert(sqrtRatioAX96 <= sqrtRatioBX96);
 
         amount0 =
             FullMath.mulDiv(
@@ -105,7 +105,7 @@ library LiquidityAmounts {
         uint160 sqrtRatioBX96,
         uint128 liquidity
     ) internal pure returns (uint256 amount1) {
-        if (sqrtRatioAX96 > sqrtRatioBX96) (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
+        assert(sqrtRatioAX96 <= sqrtRatioBX96);
 
         amount1 = FullMath.mulDiv(liquidity, sqrtRatioBX96 - sqrtRatioAX96, FixedPoint96.Q96);
     }
@@ -124,7 +124,7 @@ library LiquidityAmounts {
         uint160 sqrtRatioBX96,
         uint128 liquidity
     ) internal pure returns (uint256 amount0, uint256 amount1) {
-        if (sqrtRatioAX96 > sqrtRatioBX96) (sqrtRatioAX96, sqrtRatioBX96) = (sqrtRatioBX96, sqrtRatioAX96);
+        assert(sqrtRatioAX96 < sqrtRatioBX96);
 
         if (sqrtRatioX96 <= sqrtRatioAX96) {
             amount0 = getAmount0ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, liquidity);
@@ -150,13 +150,31 @@ library LiquidityAmounts {
         uint160 sqrtRatioBX96,
         uint128 liquidity
     ) internal pure returns (uint256 value0, uint256 value1) {
-        assert(sqrtRatioAX96 <= sqrtRatioX96 && sqrtRatioX96 <= sqrtRatioBX96);
+        assert(sqrtRatioAX96 < sqrtRatioBX96);
 
         unchecked {
-            uint224 numerator = uint224(FullMath.mulDiv(sqrtRatioX96, sqrtRatioBX96 - sqrtRatioX96, FixedPoint96.Q96));
+            if (sqrtRatioX96 <= sqrtRatioAX96) {
+                uint224 priceX96 = uint224(FullMath.mulDiv(sqrtRatioX96, sqrtRatioX96, FixedPoint96.Q96));
 
-            value0 = FullMath.mulDiv(liquidity, numerator, sqrtRatioBX96);
-            value1 = FullMath.mulDiv(liquidity, sqrtRatioX96 - sqrtRatioAX96, FixedPoint96.Q96);
+                value0 = FullMath.mulDiv(
+                    priceX96,
+                    FullMath.mulDiv(
+                        uint256(liquidity) << FixedPoint96.RESOLUTION,
+                        sqrtRatioBX96 - sqrtRatioAX96,
+                        sqrtRatioBX96
+                    ),
+                    uint256(sqrtRatioAX96) << FixedPoint96.RESOLUTION
+                );
+            } else if (sqrtRatioX96 < sqrtRatioBX96) {
+                uint224 numerator = uint224(
+                    FullMath.mulDiv(sqrtRatioX96, sqrtRatioBX96 - sqrtRatioX96, FixedPoint96.Q96)
+                );
+
+                value0 = FullMath.mulDiv(liquidity, numerator, sqrtRatioBX96);
+                value1 = FullMath.mulDiv(liquidity, sqrtRatioX96 - sqrtRatioAX96, FixedPoint96.Q96);
+            } else {
+                value1 = FullMath.mulDiv(liquidity, sqrtRatioBX96 - sqrtRatioAX96, FixedPoint96.Q96);
+            }
         }
     }
 }
