@@ -11,6 +11,7 @@
   "scripts": {
     "lint": "prettier --write **.sol",
     "test": "./forge.sh test -vv --gas-report --fork-url FOUNDRY_ETH_RPC_URL --fork-block-number 13806816",
+    "test-uniswap": "./forge.sh test -vv --match-contract Uniswap --fork-url FOUNDRY_ETH_RPC_URL --fork-block-number 15348451",
     "snapshot": "./forge.sh snapshot --fork-url FOUNDRY_ETH_RPC_URL --fork-block-number 13806816"
   }
 }
