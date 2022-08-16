@@ -124,7 +124,7 @@ library LiquidityAmounts {
         uint160 sqrtRatioBX96,
         uint128 liquidity
     ) internal pure returns (uint256 amount0, uint256 amount1) {
-        assert(sqrtRatioAX96 < sqrtRatioBX96);
+        assert(sqrtRatioAX96 <= sqrtRatioBX96);
 
         if (sqrtRatioX96 <= sqrtRatioAX96) {
             amount0 = getAmount0ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, liquidity);
@@ -150,7 +150,7 @@ library LiquidityAmounts {
         uint160 sqrtRatioBX96,
         uint128 liquidity
     ) internal pure returns (uint256 value0, uint256 value1) {
-        assert(sqrtRatioAX96 < sqrtRatioBX96);
+        assert(sqrtRatioAX96 <= sqrtRatioBX96);
 
         unchecked {
             if (sqrtRatioX96 <= sqrtRatioAX96) {

@@ -10,8 +10,7 @@
   },
   "scripts": {
     "lint": "prettier --write **.sol",
-    "test": "./forge.sh test -vv --no-match-contract Lens --gas-report --fork-url FOUNDRY_ETH_RPC_URL --fork-block-number 13806816",
-    "test-events": "./forge.sh test -vv --match-contract Lens --fork-url FOUNDRY_ETH_RPC_URL --fork-block-number 14890000",
-    "snapshot": "./forge.sh snapshot --no-match-contract Lens --fork-url FOUNDRY_ETH_RPC_URL --fork-block-number 13806816"
+    "test": "./forge.sh test -vv --gas-report --fork-url FOUNDRY_ETH_RPC_URL --fork-block-number 13806816",
+    "snapshot": "./forge.sh snapshot --fork-url FOUNDRY_ETH_RPC_URL --fork-block-number 13806816"
   }
 }

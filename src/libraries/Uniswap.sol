@@ -29,40 +29,6 @@ library Uniswap {
         uint128 tokensOwed1;
     }
 
-    /// @dev Do zero-burns to poke the Uniswap pools so earned fees are updated
-    function poke(IUniswapV3Pool pool, Position memory position) internal {
-        if (position.lower == position.upper) return;
-        (uint128 liquidity, , , , ) = info(pool, position);
-        if (liquidity != 0) {
-            pool.burn(position.lower, position.upper, 0);
-        }
-    }
-
-    /**
-     * @notice Amounts of TOKEN0 and TOKEN1 held in vault's position. Includes
-     * owed fees, except those accrued since last poke.
-     */
-    function collectableAmountsAsOfLastPoke(
-        IUniswapV3Pool pool,
-        Position memory position,
-        uint160 sqrtPriceX96
-    )
-        internal
-        view
-        returns (
-            uint256,
-            uint256,
-            uint128
-        )
-    {
-        if (position.lower == position.upper) return (0, 0, 0);
-
-        (uint128 liquidity, , , uint128 earnable0, uint128 earnable1) = info(pool, position);
-        (uint256 burnable0, uint256 burnable1) = amountsForLiquidity(position, sqrtPriceX96, liquidity);
-
-        return (burnable0 + earnable0, burnable1 + earnable1, liquidity);
-    }
-
     /// @dev Wrapper around `IUniswapV3Pool.positions()`.
     function info(IUniswapV3Pool pool, Position memory position)
         internal
