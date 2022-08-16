@@ -3,9 +3,9 @@ pragma solidity ^0.8.15;
 
 import "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
 
-import "./FixedPoint96.sol";
-import "./FullMath.sol";
-import "./TickMath.sol";
+import {FixedPoint96} from "./FixedPoint96.sol";
+import {FullMath} from "./FullMath.sol";
+import {TickMath} from "./TickMath.sol";
 
 /// @title Volatility
 /// @notice Provides functions that use Uniswap v3 to compute price volatility

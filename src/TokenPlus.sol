@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import "@rari-capital/solmate/src/tokens/ERC20.sol";
-import {SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
+import {ERC20, SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
 import "@rari-capital/solmate/src/utils/ReentrancyGuard.sol";
 
-import "src/libraries/FullMath.sol";
-import "src/InterestModel.sol";
+import {FullMath} from "src/libraries/FullMath.sol";
+
+import {InterestModel} from "src/InterestModel.sol";
 
 /**
  * TODO: reentrancy checks

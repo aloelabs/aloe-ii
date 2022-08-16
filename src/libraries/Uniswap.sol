@@ -3,9 +3,10 @@ pragma solidity ^0.8.15;
 
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import "./FixedPoint128.sol";
-import "./LiquidityAmounts.sol";
-import "./TickMath.sol";
+import {FixedPoint128} from "./FixedPoint128.sol";
+import {FullMath} from "./FullMath.sol";
+import {LiquidityAmounts} from "./LiquidityAmounts.sol";
+import {TickMath} from "./TickMath.sol";
 
 library Uniswap {
     struct Position {
