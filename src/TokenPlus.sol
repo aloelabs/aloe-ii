@@ -129,6 +129,10 @@ contract TokenPlus is ERC20, ReentrancyGuard {
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
+    function borrowBalanceCurrent(address account) external view returns (uint256) {
+        return FullMath.mulDiv(borrows[account], borrowIndex, 1e18);
+    }
+
     function _getInventory() private view returns (uint256) {
         return asset.balanceOf(address(this)) + totalBorrows;
     }
