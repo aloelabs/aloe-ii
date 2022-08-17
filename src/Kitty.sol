@@ -12,7 +12,7 @@ import {InterestModel} from "src/InterestModel.sol";
  * TODO: reentrancy checks
  * TODO: enable flash loans
  */
-contract TokenPlus is ERC20, ReentrancyGuard {
+contract Kitty is ERC20, ReentrancyGuard {
     using SafeTransferLib for ERC20;
 
     ERC20 public immutable asset;
@@ -46,7 +46,7 @@ contract TokenPlus is ERC20, ReentrancyGuard {
     }
 
     modifier onlyBorrowAccount() {
-        // TODO
+        // TODO verify that borrow account comes from official factory and matches this Kitty's props
         _;
     }
 
@@ -128,6 +128,12 @@ contract TokenPlus is ERC20, ReentrancyGuard {
     }
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
+
+    // TODO use ERC4626-style function names
+    function balanceOfUnderlying(address account) external view returns (uint256) {
+        // TODO this should probably accrueInterest
+        return FullMath.mulDiv(_getInventory(), balanceOf[account], totalSupply);
+    }
 
     function borrowBalanceCurrent(address account) external view returns (uint256) {
         return FullMath.mulDiv(borrows[account], borrowIndex, 1e18);
