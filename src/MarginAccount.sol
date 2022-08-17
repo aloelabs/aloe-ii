@@ -134,26 +134,25 @@ contract MarginAccount is UniswapHelper {
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
-    function isSolventAt(int24 arithmeticMeanTick, uint256 sigma) public view returns (bool) {
-        Uniswap.Position[] memory _uniswapPositions = uniswapPositions;
-        (uint160 lower, uint160 upper) = _getInterrogationPrices(TickMath.getSqrtRatioAtTick(arithmeticMeanTick), sigma);
+    function _isSolvent(
+        Uniswap.Position[] memory _uniswapPositions,
+        int24 _arithmeticMeanTick,
+        uint256 _feeGrowthGlobal0X128,
+        uint256 _feeGrowthGlobal1X128,
+        uint256 _sigma
+    ) private view returns (bool) {
+        (uint160 a, uint160 b) = _computeProbePrices(TickMath.getSqrtRatioAtTick(_arithmeticMeanTick), _sigma);
         // TODO lots of for-loop optimization to be done across getFixedAssets and the 2 calls to getFluidAssets
 
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-        (uint256 fixedAssets0, uint256 fixedAssets1) = _getFixedAssets(
+        (uint256 fixedAssets0, uint256 fixedAssets1, uint256 fluidAssets1A, uint256 fluidAssets1B) = _getAssets(
             _uniswapPositions,
-            arithmeticMeanTick,
-            UNISWAP_POOL.feeGrowthGlobal0X128(),
-            UNISWAP_POOL.feeGrowthGlobal1X128(),
+            _arithmeticMeanTick,
+            _feeGrowthGlobal0X128,
+            _feeGrowthGlobal1X128,
+            a,
+            b,
             true // TODO
-        );
-        uint256 fluidAssets1Lower = _getFluidAssets(
-            _uniswapPositions,
-            lower
-        );
-        uint256 fluidAssets1Upper = _getFluidAssets(
-            _uniswapPositions,
-            upper
         );
 
         // liquidation incentive
@@ -165,25 +164,17 @@ contract MarginAccount is UniswapHelper {
         uint256 liabilities;
         uint256 assets;
 
-        priceX96 = uint224(FullMath.mulDiv(lower, lower, FixedPoint96.Q96));
+        priceX96 = uint224(FullMath.mulDiv(a, a, FixedPoint96.Q96));
         liabilities = liabilities1 + FullMath.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
-        assets = fluidAssets1Lower + fixedAssets1 + FullMath.mulDiv(
-            fixedAssets0,
-            priceX96,
-            FixedPoint96.Q96
-        );
-        if (liabilities > assets) return true;
-        
-        priceX96 = uint224(FullMath.mulDiv(upper, upper, FixedPoint96.Q96));
-        liabilities = liabilities1 + FullMath.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
-        assets = fluidAssets1Upper + fixedAssets1 + FullMath.mulDiv(
-            fixedAssets0,
-            priceX96,
-            FixedPoint96.Q96
-        );
-        if (liabilities > assets) return true;
+        assets = fluidAssets1A + fixedAssets1 + FullMath.mulDiv(fixedAssets0, priceX96, FixedPoint96.Q96);
+        if (liabilities > assets) return false;
 
-        return false;
+        priceX96 = uint224(FullMath.mulDiv(b, b, FixedPoint96.Q96));
+        liabilities = liabilities1 + FullMath.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
+        assets = fluidAssets1B + fixedAssets1 + FullMath.mulDiv(fixedAssets0, priceX96, FixedPoint96.Q96);
+        if (liabilities > assets) return false;
+
+        return true;
     }
 
     function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
@@ -191,77 +182,63 @@ contract MarginAccount is UniswapHelper {
         amount1 = KITTY1.borrowBalanceCurrent(address(this));
     }
 
-    function _getFixedAssets(
+    function _getAssets(
         Uniswap.Position[] memory _uniswapPositions,
         int24 _arithmeticMeanTick,
         uint256 _feeGrowthGlobal0X128,
         uint256 _feeGrowthGlobal1X128,
-        bool _includeKittyTokens
-    ) private view returns (uint256 amount0, uint256 amount1) {
-        amount0 = TOKEN0.balanceOf(address(this));
-        amount1 = TOKEN1.balanceOf(address(this));
-        if (_includeKittyTokens) {
-            amount0 += KITTY0.balanceOfUnderlying(address(this));
-            amount1 += KITTY1.balanceOfUnderlying(address(this));
+        uint160 _a,
+        uint160 _b,
+        bool _includeKittyReceipts
+    )
+        private
+        view
+        returns (
+            uint256 fixed0,
+            uint256 fixed1,
+            uint256 fluid1A,
+            uint256 fluid1B
+        )
+    {
+        fixed0 = TOKEN0.balanceOf(address(this));
+        fixed1 = TOKEN1.balanceOf(address(this));
+        if (_includeKittyReceipts) {
+            fixed0 += KITTY0.balanceOfUnderlying(address(this));
+            fixed1 += KITTY1.balanceOfUnderlying(address(this));
         }
 
         for (uint256 i; i < _uniswapPositions.length; i++) {
+            Uniswap.PositionInfo memory info = _uniswapPositions[i].info(UNISWAP_POOL);
+
             (uint256 temp0, uint256 temp1) = _uniswapPositions[i].fees(
                 UNISWAP_POOL,
-                _uniswapPositions[i].info(UNISWAP_POOL),
+                info,
                 _arithmeticMeanTick,
                 _feeGrowthGlobal0X128,
                 _feeGrowthGlobal1X128
             );
-            amount0 += temp0;
-            amount1 += temp1;
-        }
-    }
+            fixed0 += temp0;
+            fixed1 += temp1;
 
-    function _getFluidAssets(
-        Uniswap.Position[] memory _uniswapPositions,
-        uint160 sqrtPriceX96
-    ) private view returns (uint256 amount1) {
-        for (uint256 i; i < _uniswapPositions.length; i++) {
-            Uniswap.PositionInfo memory info = _uniswapPositions[i].info(UNISWAP_POOL);
-            amount1 += _uniswapPositions[i].valueOfLiquidity(sqrtPriceX96, info.liquidity);
+            fluid1A += _uniswapPositions[i].valueOfLiquidity(_a, info.liquidity);
+            fluid1B += _uniswapPositions[i].valueOfLiquidity(_b, info.liquidity);
         }
     }
 
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
     // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
-    // TODO test this vs the prices version
-    function _getInterrogationTicks(int24 arithmeticMeanTick, uint256 sigma)
+    function _computeProbePrices(uint160 _sqrtMeanPriceX96, uint256 _sigma)
         private
         pure
-        returns (int24 lower, int24 upper)
+        returns (uint160 a, uint160 b)
     {
-        sigma *= B;
+        _sigma *= B;
 
-        if (sigma < MIN_SIGMA) sigma = MIN_SIGMA;
-        else if (sigma > MAX_SIGMA) sigma = MAX_SIGMA;
+        if (_sigma < MIN_SIGMA) _sigma = MIN_SIGMA;
+        else if (_sigma > MAX_SIGMA) _sigma = MAX_SIGMA;
 
-        lower =
-            arithmeticMeanTick -
-            (TickMath.getTickAtSqrtRatio(uint160(FixedPoint96.Q96 - FixedPoint96.Q96 * sigma)) >> 1);
-        upper =
-            arithmeticMeanTick +
-            (TickMath.getTickAtSqrtRatio(uint160(FixedPoint96.Q96 + FixedPoint96.Q96 * sigma)) >> 1);
-    }
-
-    // TODO test this vs the ticks version
-    function _getInterrogationPrices(uint160 sqrtMeanPriceX96, uint256 sigma)
-        private
-        pure
-        returns (uint160 lower, uint160 upper)
-    {
-        sigma *= B;
-
-        if (sigma < MIN_SIGMA) sigma = MIN_SIGMA;
-        else if (sigma > MAX_SIGMA) sigma = MAX_SIGMA;
-
-        lower = uint160(FullMath.mulDiv(sqrtMeanPriceX96, FixedPointMathLib.sqrt(1e18 - sigma), 1e9)); // TODO don't need FullMath here. more gas efficient to use standard * and / ?
-        upper = uint160(FullMath.mulDiv(sqrtMeanPriceX96, FixedPointMathLib.sqrt(1e18 + sigma), 1e9));
+        a = uint160(FullMath.mulDiv(_sqrtMeanPriceX96, FixedPointMathLib.sqrt(1e18 - _sigma), 1e9)); // TODO don't need FullMath here. more gas efficient to use standard * and / ?
+        b = uint160(FullMath.mulDiv(_sqrtMeanPriceX96, FixedPointMathLib.sqrt(1e18 + _sigma), 1e9));
     }
 }

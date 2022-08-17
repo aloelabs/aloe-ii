@@ -57,7 +57,7 @@ contract Kitty is ERC20, ReentrancyGuard {
         accrueInterest();
 
         uint256 inventory = _getInventory();
-        shares = _computeShares(totalSupply, inventory, amount);
+        shares = _computeShares(totalSupply, amount, inventory);
         require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
 
         // Pull in tokens from sender
