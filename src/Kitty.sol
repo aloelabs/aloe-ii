@@ -70,6 +70,7 @@ contract Kitty is ERC20, ReentrancyGuard {
 
     function withdraw(uint256 shares) external nonReentrant returns (uint256 amount) {
         require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
+        // TODO make it so that specifying type(uint256).max will withdraw everything
 
         // Poke
         accrueInterest();

@@ -220,6 +220,7 @@ contract MarginAccount is UniswapHelper {
             fixed0 += temp0;
             fixed1 += temp1;
 
+            // TODO there are duplicate calls to getTickAtSqrtRatio within valueOfLiquidity
             fluid1A += _uniswapPositions[i].valueOfLiquidity(_a, info.liquidity);
             fluid1B += _uniswapPositions[i].valueOfLiquidity(_b, info.liquidity);
         }
