@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
+
 contract InterestModel {
     function getAccrualFactor(uint256 elapsedTime, uint256 utilization) external returns (uint256 accrualFactor) {
-        // TODO could use exp{APY * deltaT / 360.}
         // TODO use utilization to update PID controller
 
-        accrualFactor = (utilization > 0.5e18 ? 0.00004e8 : 0.00002e8) * elapsedTime;
+        // If utilization > 50%, use 4% APY. 2% APY otherwise.
+        uint256 interestRate = utilization > 0.5e18 ? 1.24e9 : 6.27e8; // ((1 + r) ^ (1 / SECONDS_IN_YEAR) - 1) * 1e18
+
+        unchecked {
+            accrualFactor = FixedPointMathLib.rpow(1e18 + interestRate, elapsedTime, 1e18) - 1e18;
+        }
     }
 }

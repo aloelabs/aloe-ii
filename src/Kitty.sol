@@ -113,11 +113,11 @@ contract Kitty is ERC20, ReentrancyGuard {
             FullMath.mulDiv(1e8, totalBorrows, inventory)
         );
 
-        uint256 accruedInterest = FullMath.mulDiv(totalBorrows, accrualFactor, 1e8);
+        uint256 accruedInterest = FullMath.mulDiv(totalBorrows, accrualFactor, 1e18);
         totalBorrows += accruedInterest;
         inventory += accruedInterest;
-        // borrowIndex += FullMath.mulDiv(borrowIndex, accrualFactor, 1e8); // 2 reads, 1 write
-        borrowIndex = FullMath.mulDiv(borrowIndex, 1e8 + accrualFactor, 1e8); // 1 read, 1 write
+        // borrowIndex += FullMath.mulDiv(borrowIndex, accrualFactor, 1e18); // 2 reads, 1 write
+        borrowIndex = FullMath.mulDiv(borrowIndex, 1e18 + accrualFactor, 1e18); // 1 read, 1 write
         borrowIndexTimestamp = block.timestamp;
 
         uint256 newTotalSupply = FullMath.mulDiv(
