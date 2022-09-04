@@ -5,6 +5,7 @@ import "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
 
 import {FixedPoint96} from "src/libraries/FixedPoint96.sol";
 import {FullMath} from "src/libraries/FullMath.sol";
+import {Oracle} from "src/libraries/Oracle.sol";
 import {TickMath} from "src/libraries/TickMath.sol";
 import {Uniswap} from "src/libraries/Uniswap.sol";
 
@@ -12,7 +13,7 @@ import {Kitty} from "src/Kitty.sol";
 import "src/UniswapHelper.sol";
 
 interface IManager {
-    function callback(bytes calldata data) external returns (Uniswap.Position[] memory positions);
+    function callback(bytes calldata data) external returns (Uniswap.Position[] memory positions, bool includeKittyReceipts);
 }
 
 contract MarginAccount is UniswapHelper {
@@ -32,6 +33,7 @@ contract MarginAccount is UniswapHelper {
     address public immutable OWNER;
 
     struct PackedSlot {
+        bool includeKittyReceipts;
         bool isInCallback;
         bool isLocked;
     }
@@ -68,7 +70,7 @@ contract MarginAccount is UniswapHelper {
         if (allowances[3] != 0) TOKEN1.approve(OWNER, allowances[3]);
 
         packedSlot.isInCallback = true;
-        Uniswap.Position[] memory _uniswapPositions = IManager(callee).callback(data);
+        (Uniswap.Position[] memory _uniswapPositions, bool includeKittyReceipts) = IManager(callee).callback(data);
         packedSlot.isInCallback = false;
 
         if (allowances[0] != 0) KITTY0.approve(OWNER, 0);
@@ -76,8 +78,26 @@ contract MarginAccount is UniswapHelper {
         if (allowances[2] != 0) TOKEN0.approve(OWNER, 0);
         if (allowances[3] != 0) TOKEN1.approve(OWNER, 0);
 
-        // TODO solvency check
-        // TODO copy _uniswapPositions to uniswapPositions
+        (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
+        uint256 feeGrowthGlobal0X128 = UNISWAP_POOL.feeGrowthGlobal0X128();
+        uint256 feeGrowthGlobal1X128 = UNISWAP_POOL.feeGrowthGlobal1X128();
+
+        require(_isSolvent(
+            _uniswapPositions,
+            arithmeticMeanTick,
+            feeGrowthGlobal0X128,
+            feeGrowthGlobal1X128,
+            0.025e18, // TODO fetch real data from the volatility oracle
+            includeKittyReceipts
+        ), "Aloe: need more margin");
+
+        uint256 len = uniswapPositions.length;
+        for (uint256 i; i < _uniswapPositions.length; i++) {
+            if (i < len) uniswapPositions[i] = _uniswapPositions[i];
+            else uniswapPositions.push(_uniswapPositions[i]);
+        }
+
+        packedSlot.includeKittyReceipts = includeKittyReceipts;
         packedSlot.isLocked = false;
     }
 
@@ -139,10 +159,12 @@ contract MarginAccount is UniswapHelper {
         int24 _arithmeticMeanTick,
         uint256 _feeGrowthGlobal0X128,
         uint256 _feeGrowthGlobal1X128,
-        uint256 _sigma
+        uint256 _sigma, // assumed to be 1 hour volatility
+        bool _includeKittyReceipts
     ) private view returns (bool) {
+        // scale volatility to 24 hours if Kitty tokens are being used as collateral
+        if (_includeKittyReceipts) _sigma = _sigma * 489898 / 1e5;
         (uint160 a, uint160 b) = _computeProbePrices(TickMath.getSqrtRatioAtTick(_arithmeticMeanTick), _sigma);
-        // TODO lots of for-loop optimization to be done across getFixedAssets and the 2 calls to getFluidAssets
 
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         (uint256 fixedAssets0, uint256 fixedAssets1, uint256 fluidAssets1A, uint256 fluidAssets1B) = _getAssets(
@@ -152,7 +174,7 @@ contract MarginAccount is UniswapHelper {
             _feeGrowthGlobal1X128,
             a,
             b,
-            true // TODO
+            _includeKittyReceipts
         );
 
         // liquidation incentive
