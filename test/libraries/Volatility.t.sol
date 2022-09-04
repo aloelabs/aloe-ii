@@ -46,7 +46,7 @@ contract VolatilityTest is Test {
                 uint32(block.timestamp)
             )
         );
-        assertEq(dailyIV, 7014901299979332); // 0.701%
+        assertEq(dailyIV, 6970260198990240); // 0.697%
 
         dailyIV = Volatility.estimate24H(
             metadata,
