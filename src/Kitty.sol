@@ -7,6 +7,7 @@ import "@rari-capital/solmate/src/utils/ReentrancyGuard.sol";
 import {FullMath} from "src/libraries/FullMath.sol";
 
 import {InterestModel} from "src/InterestModel.sol";
+import {Factory} from "src/Factory.sol";
 
 /**
  * TODO: reentrancy checks
@@ -14,6 +15,8 @@ import {InterestModel} from "src/InterestModel.sol";
  */
 contract Kitty is ERC20, ReentrancyGuard {
     using SafeTransferLib for ERC20;
+
+    Factory public immutable FACTORY;
 
     ERC20 public immutable asset;
 
@@ -40,13 +43,14 @@ contract Kitty is ERC20, ReentrancyGuard {
             18 // TODO decide magnitude of internal bookkeeping
         )
     {
+        FACTORY = Factory(msg.sender);
         asset = _asset;
         interestModel = _interestModel;
         treasury = _treasury;
     }
 
-    modifier onlyBorrowAccount() {
-        // TODO verify that borrow account comes from official factory and matches this Kitty's props
+    modifier onlyMarginAccount() {
+        require(FACTORY.isMarginAccountAllowed(this, msg.sender), "Aloe: bad account");
         _;
     }
 
@@ -61,7 +65,7 @@ contract Kitty is ERC20, ReentrancyGuard {
         require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
 
         // Pull in tokens from sender
-        asset.safeTransferFrom(msg.sender, address(this), amount); // TODO use callback with before/after balance checks to support fee-on-transfer tokens
+        asset.safeTransferFrom(msg.sender, address(this), amount); // TODO use callback with before/after balance checks to support permit
 
         // Mint shares
         _mint(msg.sender, shares);
@@ -87,7 +91,7 @@ contract Kitty is ERC20, ReentrancyGuard {
         // TODO emit Withdraw event
     }
 
-    function borrow(uint256 amount) external onlyBorrowAccount {
+    function borrow(uint256 amount) external onlyMarginAccount {
         accrueInterest();
 
         borrows[msg.sender] += FullMath.mulDiv(1e18, amount, borrowIndex);
@@ -96,7 +100,7 @@ contract Kitty is ERC20, ReentrancyGuard {
         asset.safeTransfer(msg.sender, amount);
     }
 
-    function repay(uint256 amount) external onlyBorrowAccount {
+    function repay(uint256 amount) external onlyMarginAccount {
         accrueInterest();
 
         borrows[msg.sender] -= FullMath.mulDiv(1e18, amount, borrowIndex); // will fail if `amount / borrowIndex > borrows[msg.sender`
