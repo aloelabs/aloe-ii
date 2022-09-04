@@ -34,9 +34,11 @@ contract UniswapTest is Test {
         (uint256 fees0, uint256 fees1) = position.fees(
             UNISWAP_POOL,
             positionInfoA,
-            currentTick,
-            UNISWAP_POOL.feeGrowthGlobal0X128(),
-            UNISWAP_POOL.feeGrowthGlobal1X128()
+            Uniswap.FeeComputationCache(
+                currentTick,
+                UNISWAP_POOL.feeGrowthGlobal0X128(),
+                UNISWAP_POOL.feeGrowthGlobal1X128()
+            )
         );
 
         // poke (state-changing)
@@ -69,9 +71,11 @@ contract UniswapTest is Test {
         (uint256 fees0, uint256 fees1) = position.fees(
             UNISWAP_POOL,
             positionInfo,
-            currentTick,
-            UNISWAP_POOL.feeGrowthGlobal0X128(),
-            UNISWAP_POOL.feeGrowthGlobal1X128()
+            Uniswap.FeeComputationCache(
+                currentTick,
+                UNISWAP_POOL.feeGrowthGlobal0X128(),
+                UNISWAP_POOL.feeGrowthGlobal1X128()
+            )
         );
         (uint256 principle0, uint256 principle1) = position.amountsForLiquidity(sqrtPriceX96, positionInfo.liquidity);
 

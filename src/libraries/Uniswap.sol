@@ -29,6 +29,12 @@ library Uniswap {
         uint128 tokensOwed1;
     }
 
+    struct FeeComputationCache {
+        int24 currentTick;
+        uint256 feeGrowthGlobal0X128;
+        uint256 feeGrowthGlobal1X128;
+    }
+
     /// @dev Wrapper around `IUniswapV3Pool.positions()`.
     function info(Position memory position, IUniswapV3Pool pool)
         internal
@@ -48,9 +54,7 @@ library Uniswap {
         Position memory position,
         IUniswapV3Pool pool,
         PositionInfo memory positionInfo,
-        int24 currentTick,
-        uint256 feeGrowthGlobal0X128,
-        uint256 feeGrowthGlobal1X128
+        FeeComputationCache memory c
     ) internal view returns (uint256 amount0, uint256 amount1) {
         (, , uint256 feeGrowthOutsideL0X128, uint256 feeGrowthOutsideL1X128, , , , ) = pool.ticks(position.lower);
         (, , uint256 feeGrowthOutsideU0X128, uint256 feeGrowthOutsideU1X128, , , , ) = pool.ticks(position.upper);
@@ -58,12 +62,12 @@ library Uniswap {
         uint256 feeGrowthInside0X128;
         uint256 feeGrowthInside1X128;
         unchecked {
-            if (currentTick < position.lower) {
+            if (c.currentTick < position.lower) {
                 feeGrowthInside0X128 = feeGrowthOutsideL0X128 - feeGrowthOutsideU0X128;
                 feeGrowthInside1X128 = feeGrowthOutsideL1X128 - feeGrowthOutsideU1X128;
-            } else if (currentTick < position.upper) {
-                feeGrowthInside0X128 = feeGrowthGlobal0X128 - feeGrowthOutsideL0X128 - feeGrowthOutsideU0X128;
-                feeGrowthInside1X128 = feeGrowthGlobal1X128 - feeGrowthOutsideL1X128 - feeGrowthOutsideU1X128;
+            } else if (c.currentTick < position.upper) {
+                feeGrowthInside0X128 = c.feeGrowthGlobal0X128 - feeGrowthOutsideL0X128 - feeGrowthOutsideU0X128;
+                feeGrowthInside1X128 = c.feeGrowthGlobal1X128 - feeGrowthOutsideL1X128 - feeGrowthOutsideU1X128;
             } else {
                 feeGrowthInside0X128 = feeGrowthOutsideU0X128 - feeGrowthOutsideL0X128;
                 feeGrowthInside1X128 = feeGrowthOutsideU1X128 - feeGrowthOutsideL1X128;
