@@ -58,10 +58,10 @@ contract Kitty is ERC20, ReentrancyGuard {
         require(amount != 0, "Aloe: 0 deposit"); // TODO use real Error
 
         // Poke
-        accrueInterest();
+        accrueInterest(); // TODO duplicate call to _getInventory (1 here, 1 inside accrueInterest)
 
         uint256 inventory = _getInventory();
-        shares = _computeShares(totalSupply, amount, inventory);
+        shares = _computeShares(totalSupply, inventory, amount);
         require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
 
         // Pull in tokens from sender
@@ -111,6 +111,7 @@ contract Kitty is ERC20, ReentrancyGuard {
 
     function accrueInterest() public {
         uint256 inventory = _getInventory();
+        if (inventory == 0) return; // TODO is this the best place for this check?
 
         uint256 accrualFactor = interestModel.getAccrualFactor(
             block.timestamp - borrowIndexTimestamp,
