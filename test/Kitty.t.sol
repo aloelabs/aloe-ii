@@ -21,11 +21,7 @@ contract KittyTest is Test {
     }
 
     function setUp() public {
-        kitty = new Kitty(
-            asset,
-            new InterestModel(),
-            address(this)
-        );
+        kitty = new Kitty(asset, new InterestModel(), address(this));
     }
 
     function test_deposit() public returns (address alice) {
@@ -55,18 +51,18 @@ contract KittyTest is Test {
     }
 
     function testFail_borrow() public {
-        deal(address(asset), address(kitty), 10000e6);    
+        deal(address(asset), address(kitty), 10000e6);
 
         address bob = makeAddr("bob");
-        hoax(bob, 1e18);    
+        hoax(bob, 1e18);
         kitty.borrow(100e6);
     }
 
     function testFail_repay() public {
         address cindy = makeAddr("cindy");
-        deal(address(asset), cindy, 10000e6);    
+        deal(address(asset), cindy, 10000e6);
 
-        hoax(cindy, 1e18);    
+        hoax(cindy, 1e18);
         kitty.repay(100e6);
     }
 

@@ -38,9 +38,15 @@ contract MarginAccount is UniswapHelper {
         bool isLocked;
     }
 
+    struct SolvencyCache {
+        uint160 a;
+        uint160 b;
+        bool includeKittyReceipts;
+    }
+
     PackedSlot public packedSlot;
 
-    Uniswap.Position[] uniswapPositions;
+    Uniswap.Position[] public uniswapPositions;
 
     constructor(
         IUniswapV3Pool _pool,

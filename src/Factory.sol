@@ -32,16 +32,8 @@ contract Factory {
         ERC20 asset0 = ERC20(_pool.token0());
         ERC20 asset1 = ERC20(_pool.token1());
 
-        Kitty kitty0 = new Kitty{salt: keccak256(abi.encode(_pool))}(
-            asset0,
-            INTEREST_MODEL,
-            address(this)
-        );
-        Kitty kitty1 = new Kitty{salt: keccak256(abi.encode(_pool))}(
-            asset1,
-            INTEREST_MODEL,
-            address(this)
-        );
+        Kitty kitty0 = new Kitty{salt: keccak256(abi.encode(_pool))}(asset0, INTEREST_MODEL, address(this));
+        Kitty kitty1 = new Kitty{salt: keccak256(abi.encode(_pool))}(asset1, INTEREST_MODEL, address(this));
 
         getMarket[_pool] = Market(kitty0, kitty1);
         emit CreateMarket(_pool, kitty0, kitty1);

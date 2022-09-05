@@ -39,7 +39,10 @@ contract FrontendManager is IManager {
         account.modify(this, data, allowances);
     }
 
-    function callback(bytes calldata data) external returns (Uniswap.Position[] memory positions, bool includeKittyReceipts) {
+    function callback(bytes calldata data)
+        external
+        returns (Uniswap.Position[] memory positions, bool includeKittyReceipts)
+    {
         (
             uint256 borrow0,
             uint256 borrow1,
@@ -50,7 +53,7 @@ contract FrontendManager is IManager {
             int24[] memory lowers,
             int24[] memory uppers,
             int128[] memory liquidity
-        ) = abi.decode(data, (uint256, uint256, uint256, uint256, uint256, uint256, int24[], int24[], uint128[]));
+        ) = abi.decode(data, (uint256, uint256, uint256, uint256, uint256, uint256, int24[], int24[], int128[]));
 
         MarginAccount account = MarginAccount(msg.sender);
 

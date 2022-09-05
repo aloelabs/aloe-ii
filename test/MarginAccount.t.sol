@@ -23,17 +23,14 @@ contract MarginAccountTest is Test, IManager {
         return true;
     }
 
-    function callback(bytes calldata data) external returns (Uniswap.Position[] memory positions, bool includeKittyReceipts) {
+    function callback(bytes calldata data)
+        external
+        returns (Uniswap.Position[] memory positions, bool includeKittyReceipts)
+    {
         MarginAccount _account = MarginAccount(msg.sender);
 
-        (
-            uint256 borrow0,
-            uint256 borrow1,
-            uint256 repay0,
-            uint256 repay1,
-            uint256 withdraw0,
-            uint256 withdraw1
-        ) = abi.decode(data, (uint256, uint256, uint256, uint256, uint256, uint256));
+        (uint256 borrow0, uint256 borrow1, uint256 repay0, uint256 repay1, uint256 withdraw0, uint256 withdraw1) = abi
+            .decode(data, (uint256, uint256, uint256, uint256, uint256, uint256));
 
         if (borrow0 != 0 || borrow1 != 0) {
             _account.borrow(borrow0, borrow1);
@@ -48,16 +45,8 @@ contract MarginAccountTest is Test, IManager {
     }
 
     function setUp() public {
-        kitty0 = new Kitty(
-            asset0,
-            new InterestModel(),
-            address(this)
-        );
-        kitty1 = new Kitty(
-            asset1,
-            new InterestModel(),
-            address(this)
-        );
+        kitty0 = new Kitty(asset0, new InterestModel(), address(this));
+        kitty1 = new Kitty(asset1, new InterestModel(), address(this));
         account = new MarginAccount(pool, kitty0, kitty1, address(this));
     }
 
@@ -127,14 +116,7 @@ contract MarginAccountTest is Test, IManager {
         uint256 assets0 = asset0.balanceOf(address(account));
         uint256 assets1 = asset1.balanceOf(address(account));
 
-        bytes memory data = abi.encode(
-            0,
-            0,
-            0,
-            0,
-            assets0 - liabilities0,
-            assets1 - liabilities1
-        );
+        bytes memory data = abi.encode(0, 0, 0, 0, assets0 - liabilities0, assets1 - liabilities1);
         uint256[4] memory allowances;
         allowances[2] = type(uint256).max;
         allowances[3] = type(uint256).max;
@@ -159,8 +141,8 @@ contract MarginAccountTest is Test, IManager {
             0,
             0,
             0,
-            assets0 - (liabilities0 * 1.08e8 / 1e8),
-            assets1 - (liabilities1 * 1.08e8 / 1e8)
+            assets0 - ((liabilities0 * 1.08e8) / 1e8),
+            assets1 - ((liabilities1 * 1.08e8) / 1e8)
         );
         uint256[4] memory allowances;
         allowances[2] = type(uint256).max;
