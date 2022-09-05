@@ -13,7 +13,9 @@ import {Kitty} from "src/Kitty.sol";
 import "src/UniswapHelper.sol";
 
 interface IManager {
-    function callback(bytes calldata data) external returns (Uniswap.Position[] memory positions, bool includeKittyReceipts);
+    function callback(bytes calldata data)
+        external
+        returns (Uniswap.Position[] memory positions, bool includeKittyReceipts);
 }
 
 contract MarginAccount is UniswapHelper {
@@ -33,6 +35,7 @@ contract MarginAccount is UniswapHelper {
     address public immutable OWNER;
 
     struct PackedSlot {
+        int24 tickAtLastModify;
         bool includeKittyReceipts;
         bool isInCallback;
         bool isLocked;
@@ -87,18 +90,32 @@ contract MarginAccount is UniswapHelper {
         if (allowances[2] != 0) TOKEN0.approve(OWNER, 0);
         if (allowances[3] != 0) TOKEN1.approve(OWNER, 0);
 
-        (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
+        SolvencyCache memory c;
+        {
+            (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
+            uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
 
-        require(_isSolvent(
-            _uniswapPositions,
-            Uniswap.FeeComputationCache(
-                arithmeticMeanTick, // TODO for fee computation we probably want the literal currentTick from slot0. arithmeticMeanTick is for other stuff.
-                UNISWAP_POOL.feeGrowthGlobal0X128(),
-                UNISWAP_POOL.feeGrowthGlobal1X128()
+            // compute prices at which solvency will be checked
+            (uint160 a, uint160 b) = _computeProbePrices(
+                TickMath.getSqrtRatioAtTick(arithmeticMeanTick),
+                includeKittyReceipts ? (sigma * 489898) / 1e5 : sigma // conditionally scale to 24 hours
+            );
+            c = SolvencyCache(a, b, includeKittyReceipts);
+        }
+
+        (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
+        require(
+            _isSolvent(
+                _uniswapPositions,
+                Uniswap.FeeComputationCache(
+                    currentTick,
+                    UNISWAP_POOL.feeGrowthGlobal0X128(),
+                    UNISWAP_POOL.feeGrowthGlobal1X128()
+                ),
+                c
             ),
-            0.025e18, // TODO fetch real data from the volatility oracle
-            includeKittyReceipts
-        ), "Aloe: need more margin");
+            "Aloe: need more margin"
+        );
 
         uint256 len = uniswapPositions.length;
         for (uint256 i; i < _uniswapPositions.length; i++) {
@@ -106,8 +123,7 @@ contract MarginAccount is UniswapHelper {
             else uniswapPositions.push(_uniswapPositions[i]);
         }
 
-        packedSlot.includeKittyReceipts = includeKittyReceipts;
-        packedSlot.isLocked = false;
+        packedSlot = PackedSlot(currentTick, includeKittyReceipts, false, false);
     }
 
     function borrow(uint256 amount0, uint256 amount1) external {
@@ -163,20 +179,19 @@ contract MarginAccount is UniswapHelper {
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
+    function getUniswapPositions() external view returns (Uniswap.Position[] memory) {
+        return uniswapPositions;
+    }
+
     function _isSolvent(
         Uniswap.Position[] memory _uniswapPositions,
-        Uniswap.FeeComputationCache memory c,
-        uint256 _sigma, // assumed to be 1 hour volatility
-        bool _includeKittyReceipts
+        Uniswap.FeeComputationCache memory c1,
+        SolvencyCache memory c2
     ) private view returns (bool) {
-        // scale volatility to 24 hours if Kitty tokens are being used as collateral
-        if (_includeKittyReceipts) _sigma = _sigma * 489898 / 1e5;
-        (uint160 a, uint160 b) = _computeProbePrices(TickMath.getSqrtRatioAtTick(c.currentTick), _sigma);
-
         (uint256 fixedAssets0, uint256 fixedAssets1, uint256 fluidAssets1A, uint256 fluidAssets1B) = _getAssets(
             _uniswapPositions,
-            c,
-            SolvencyCache(a, b, _includeKittyReceipts)
+            c1,
+            c2
         );
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
@@ -189,28 +204,17 @@ contract MarginAccount is UniswapHelper {
         uint256 liabilities;
         uint256 assets;
 
-        priceX96 = uint224(FullMath.mulDiv(a, a, FixedPoint96.Q96));
+        priceX96 = uint224(FullMath.mulDiv(c2.a, c2.a, FixedPoint96.Q96));
         liabilities = liabilities1 + FullMath.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
         assets = fluidAssets1A + fixedAssets1 + FullMath.mulDiv(fixedAssets0, priceX96, FixedPoint96.Q96);
         if (liabilities > assets) return false;
 
-        priceX96 = uint224(FullMath.mulDiv(b, b, FixedPoint96.Q96));
+        priceX96 = uint224(FullMath.mulDiv(c2.b, c2.b, FixedPoint96.Q96));
         liabilities = liabilities1 + FullMath.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
         assets = fluidAssets1B + fixedAssets1 + FullMath.mulDiv(fixedAssets0, priceX96, FixedPoint96.Q96);
         if (liabilities > assets) return false;
 
         return true;
-    }
-
-    function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
-        amount0 = KITTY0.borrowBalanceCurrent(address(this));
-        amount1 = KITTY1.borrowBalanceCurrent(address(this));
-    }
-
-    struct SolvencyCache {
-        uint160 a;
-        uint160 b;
-        bool includeKittyReceipts;
     }
 
     function _getAssets(
@@ -245,6 +249,11 @@ contract MarginAccount is UniswapHelper {
             fluid1A += _uniswapPositions[i].valueOfLiquidity(c2.a, info.liquidity);
             fluid1B += _uniswapPositions[i].valueOfLiquidity(c2.b, info.liquidity);
         }
+    }
+
+    function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
+        amount0 = KITTY0.borrowBalanceCurrent(address(this));
+        amount1 = KITTY1.borrowBalanceCurrent(address(this));
     }
 
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
