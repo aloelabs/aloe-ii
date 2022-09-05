@@ -51,7 +51,6 @@ contract MarginAccountLens {
                 uni0 += temp0;
                 uni1 += temp1;
             }
-
         }
 
         return (
@@ -64,7 +63,11 @@ contract MarginAccountLens {
         );
     }
 
-    function _getInfo(IUniswapV3Pool pool, bytes32 key) private view returns (Uniswap.PositionInfo memory positionInfo) {
+    function _getInfo(IUniswapV3Pool pool, bytes32 key)
+        private
+        view
+        returns (Uniswap.PositionInfo memory positionInfo)
+    {
         (
             positionInfo.liquidity,
             positionInfo.feeGrowthInside0LastX128,
