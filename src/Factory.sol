@@ -22,6 +22,8 @@ contract Factory {
 
     mapping(IUniswapV3Pool => Market) public getMarket;
 
+    mapping(address => bool) public isMarginAccount;
+
     mapping(Kitty => mapping(address => bool)) public isMarginAccountAllowed;
 
     constructor() {
@@ -43,6 +45,7 @@ contract Factory {
         Market memory market = getMarket[_pool];
         account = new MarginAccount(_pool, market.kitty0, market.kitty1, _owner);
 
+        isMarginAccount[address(account)] = true;
         isMarginAccountAllowed[market.kitty0][address(account)] = true;
         isMarginAccountAllowed[market.kitty1][address(account)] = true;
         emit CreateMarginAccount(_pool, account, _owner);
