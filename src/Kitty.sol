@@ -115,7 +115,7 @@ contract Kitty is ERC20, ReentrancyGuard {
 
         uint256 accrualFactor = interestModel.getAccrualFactor(
             block.timestamp - borrowIndexTimestamp,
-            FullMath.mulDiv(1e8, totalBorrows, inventory)
+            FullMath.mulDiv(1e18, totalBorrows, inventory)
         );
 
         uint256 accruedInterest = FullMath.mulDiv(totalBorrows, accrualFactor, 1e18);
