@@ -11,7 +11,7 @@ import {MarginAccount} from "src/MarginAccount.sol";
 contract Factory {
     event CreateMarket(IUniswapV3Pool indexed pool, Kitty indexed kitty0, Kitty indexed kitty1);
 
-    event CreateMarginAccount(IUniswapV3Pool indexed pool, MarginAccount indexed account);
+    event CreateMarginAccount(IUniswapV3Pool indexed pool, MarginAccount indexed account, address indexed owner);
 
     struct Market {
         Kitty kitty0;
@@ -45,6 +45,8 @@ contract Factory {
 
         isMarginAccountAllowed[market.kitty0][address(account)] = true;
         isMarginAccountAllowed[market.kitty1][address(account)] = true;
-        emit CreateMarginAccount(_pool, account);
+        emit CreateMarginAccount(_pool, account, _owner);
+
+        // TODO could append account address to a (address => address[]) mapping to make it easier to fetch all accounts for a given user.
     }
 }
