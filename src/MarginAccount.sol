@@ -34,7 +34,7 @@ contract MarginAccount is UniswapHelper {
 
     Kitty public immutable KITTY1;
 
-    address public immutable OWNER;
+    address public OWNER;
 
     struct PackedSlot {
         int24 tickAtLastModify; // TODO maybe move this elsewhere or in an event emission. not used for logic, just frontend
@@ -69,6 +69,36 @@ contract MarginAccount is UniswapHelper {
     }
 
     // TODO liquidations
+    function liquidate() external {
+        bool includeKittyReceipts = packedSlot.includeKittyReceipts;
+
+        SolvencyCache memory c;
+        {
+            (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
+            uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
+
+            // compute prices at which solvency will be checked
+            uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
+            (uint160 a, uint160 b) = _computeProbePrices(
+                sqrtMeanPriceX96,
+                includeKittyReceipts ? (sigma * 489898) / 1e5 : sigma // conditionally scale to 24 hours
+            );
+            c = SolvencyCache(a, b, sqrtMeanPriceX96, includeKittyReceipts);
+        }
+
+        (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
+        bool isSolvent = _isSolvent(
+            uniswapPositions,
+            Uniswap.FeeComputationCache(
+                currentTick,
+                UNISWAP_POOL.feeGrowthGlobal0X128(),
+                UNISWAP_POOL.feeGrowthGlobal1X128()
+            ),
+            c
+        );
+
+        if (!isSolvent) OWNER = msg.sender;
+    }
 
     function modify(
         IManager callee,
@@ -78,6 +108,10 @@ contract MarginAccount is UniswapHelper {
         require(msg.sender == OWNER, "Aloe: only owner");
         require(!packedSlot.isLocked);
         packedSlot.isLocked = true;
+
+        // ensure liabilities are up-to-date TODO is this necessary?
+        // KITTY0.accrueInterest();
+        // KITTY1.accrueInterest();
 
         if (allowances[0] != 0) KITTY0.approve(OWNER, allowances[0]);
         if (allowances[1] != 0) KITTY1.approve(OWNER, allowances[1]);
