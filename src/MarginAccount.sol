@@ -18,6 +18,8 @@ interface IManager {
         returns (Uniswap.Position[] memory positions, bool includeKittyReceipts);
 }
 
+// TODO should there be minium margin requirements? (to ensure that incentives make sense surrounding cost of gas)
+// TODO related, would it help to keep margin locked anytime there are outstanding liabilities?
 contract MarginAccount is UniswapHelper {
     using SafeERC20 for IERC20;
     using Uniswap for Uniswap.Position;
@@ -35,7 +37,7 @@ contract MarginAccount is UniswapHelper {
     address public immutable OWNER;
 
     struct PackedSlot {
-        int24 tickAtLastModify;
+        int24 tickAtLastModify; // TODO maybe move this elsewhere or in an event emission. not used for logic, just frontend
         bool includeKittyReceipts;
         bool isInCallback;
         bool isLocked;
@@ -190,16 +192,25 @@ contract MarginAccount is UniswapHelper {
         Uniswap.FeeComputationCache memory c1,
         SolvencyCache memory c2
     ) private view returns (bool) {
-        (uint256 fixedAssets0, uint256 fixedAssets1, uint256 fluidAssets1A, uint256 fluidAssets1B) = _getAssets(
-            _uniswapPositions,
-            c1,
-            c2
-        );
+        Assets memory mem = _getAssets(_uniswapPositions, c1, c2);
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
-        // liquidation incentive
-        liabilities0 = FullMath.mulDiv(liabilities0, 1.08e18, 1e18);
-        liabilities1 = FullMath.mulDiv(liabilities1, 1.08e18, 1e18);
+        // liquidation incentive. counted as liability because account will owe it to someone.
+        // compensates liquidators for inventory risk.
+        uint256 liquidationIncentive = _computeLiquidationIncentive(
+            mem.fixed0 + mem.fluid0C,
+            mem.fixed1 + mem.fluid1C,
+            liabilities0,
+            liabilities1,
+            c2.c
+        );
+        // some useless configurations (e.g. just borrow and hold) create no inventory risk for
+        // liquidators, but may still need to be liquidated due to interest accrual. to service gas
+        // costs and prevent overall griefing, we give liabilities an extra bump.
+        // note: requiring some minimum amount of margin would accomplish something similar,
+        //       but it's unclear what that amount would be for a given arbitrary asset
+        liabilities0 = FullMath.mulDiv(liabilities0, 1.005e18, 1e18);
+        liabilities1 = FullMath.mulDiv(liabilities1, 1.005e18, 1e18) + liquidationIncentive;
 
         // combine
         uint224 priceX96;
@@ -208,15 +219,24 @@ contract MarginAccount is UniswapHelper {
 
         priceX96 = uint224(FullMath.mulDiv(c2.a, c2.a, FixedPoint96.Q96));
         liabilities = liabilities1 + FullMath.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
-        assets = fluidAssets1A + fixedAssets1 + FullMath.mulDiv(fixedAssets0, priceX96, FixedPoint96.Q96);
+        assets = mem.fluid1A + mem.fixed1 + FullMath.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
         if (liabilities > assets) return false;
 
         priceX96 = uint224(FullMath.mulDiv(c2.b, c2.b, FixedPoint96.Q96));
         liabilities = liabilities1 + FullMath.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
-        assets = fluidAssets1B + fixedAssets1 + FullMath.mulDiv(fixedAssets0, priceX96, FixedPoint96.Q96);
+        assets = mem.fluid1B + mem.fixed1 + FullMath.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
         if (liabilities > assets) return false;
 
         return true;
+    }
+
+    struct Assets {
+        uint256 fixed0;
+        uint256 fixed1;
+        uint256 fluid1A;
+        uint256 fluid1B;
+        uint256 fluid0C;
+        uint256 fluid1C;
     }
 
     function _getAssets(
