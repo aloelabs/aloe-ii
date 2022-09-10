@@ -40,14 +40,14 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
             // transfer in
             if (action == 0) {
                 (address asset, uint256 amount) = abi.decode(args[i], (address, uint256));
-                ERC20(asset).transferFrom(account.OWNER(), msg.sender, amount);
+                ERC20(asset).safeTransferFrom(account.OWNER(), msg.sender, amount);
                 continue;
             }
 
             // transfer out
             if (action == 1) {
                 (address asset, uint256 amount) = abi.decode(args[i], (address, uint256));
-                ERC20(asset).transferFrom(msg.sender, account.OWNER(), amount);
+                ERC20(asset).safeTransferFrom(msg.sender, account.OWNER(), amount);
                 continue;
             }
 
@@ -118,8 +118,8 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
             if (liquidity != 0) positions.push(position);
         }
 
-        bool includeKittyReceipts = account.KITTY0().balanceOf(address(account)) != 0 ||
-            account.KITTY1().balanceOf(address(account)) != 0;
+        bool includeKittyReceipts = ERC20(account.KITTY0()).balanceOf(address(account)) != 0 ||
+            ERC20(account.KITTY1()).balanceOf(address(account)) != 0;
         return (positions, includeKittyReceipts);
     }
 
@@ -141,12 +141,12 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
 
         if (amount0Delta > 0) {
             ERC20 token0 = ERC20(IUniswapV3Pool(msg.sender).token0());
-            token0.transferFrom(marginAccount, msg.sender, uint256(amount0Delta));
+            token0.safeTransferFrom(marginAccount, msg.sender, uint256(amount0Delta));
         }
 
         if (amount1Delta > 0) {
             ERC20 token1 = ERC20(IUniswapV3Pool(msg.sender).token1());
-            token1.transferFrom(marginAccount, msg.sender, uint256(amount1Delta));
+            token1.safeTransferFrom(marginAccount, msg.sender, uint256(amount1Delta));
         }
     }
 
@@ -159,7 +159,7 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
         if (ERC20(token).allowance(address(this), spender) < amount) {
             // 20000 gas to write uint256 if changing from zero to non-zero
             // 5000  gas to write uint256 if changing from non-zero to non-zero
-            ERC20(token).approve(spender, type(uint256).max);
+            ERC20(token).safeApprove(spender, type(uint256).max);
         }
     }
 }

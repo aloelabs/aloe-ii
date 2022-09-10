@@ -91,6 +91,21 @@ contract MarginAccountTest is Test, IManager {
         assertEq(asset1.balanceOf(address(account)), 1e17 + 1e18);
     }
 
+    function test_repay() public {
+        test_borrow();
+
+        bytes memory data = abi.encode(0, 0, 50e6, 0.5e18, 0, 0);
+        uint256[4] memory allowances;
+        allowances[0] = 50e6;
+        allowances[1] = 0.5e18;
+        account.modify(this, data, allowances);
+
+        assertEq(kitty0.borrowBalanceCurrent(address(account)), 50e6);
+        assertEq(kitty1.borrowBalanceCurrent(address(account)), 0.5e18);
+        assertEq(asset0.balanceOf(address(account)), 10e6 + 50e6);
+        assertEq(asset1.balanceOf(address(account)), 1e17 + 0.5e18);
+    }
+
     function testFail_completelyInsolvent() public {
         test_borrow();
 
@@ -118,8 +133,8 @@ contract MarginAccountTest is Test, IManager {
 
         bytes memory data = abi.encode(0, 0, 0, 0, assets0 - liabilities0, assets1 - liabilities1);
         uint256[4] memory allowances;
-        allowances[2] = type(uint256).max;
-        allowances[3] = type(uint256).max;
+        allowances[0] = type(uint256).max;
+        allowances[1] = type(uint256).max;
         account.modify(this, data, allowances);
     }
 
@@ -145,8 +160,8 @@ contract MarginAccountTest is Test, IManager {
             assets1 - ((liabilities1 * 1.005e8) / 1e8)
         );
         uint256[4] memory allowances;
-        allowances[2] = type(uint256).max;
-        allowances[3] = type(uint256).max;
+        allowances[0] = type(uint256).max;
+        allowances[1] = type(uint256).max;
         account.modify(this, data, allowances);
     }
 

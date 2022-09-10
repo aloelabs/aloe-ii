@@ -3,14 +3,14 @@ pragma solidity ^0.8.15;
 
 import "src/libraries/Uniswap.sol";
 
-import {MarginAccount} from "src/MarginAccount.sol";
+import "src/MarginAccount.sol";
 
 contract MarginAccountLens {
     using Uniswap for Uniswap.Position;
 
     function getLiabilities(MarginAccount account) external view returns (uint256 amount0, uint256 amount1) {
-        amount0 = account.KITTY0().borrowBalanceCurrent(address(account));
-        amount1 = account.KITTY1().borrowBalanceCurrent(address(account));
+        amount0 = Kitty(account.KITTY0()).borrowBalanceCurrent(address(account));
+        amount1 = Kitty(account.KITTY1()).borrowBalanceCurrent(address(account));
     }
 
     function getAssets(MarginAccount account)
@@ -56,8 +56,8 @@ contract MarginAccountLens {
         return (
             account.TOKEN0().balanceOf(address(account)),
             account.TOKEN1().balanceOf(address(account)),
-            account.KITTY0().balanceOfUnderlying(address(account)),
-            account.KITTY1().balanceOfUnderlying(address(account)),
+            Kitty(account.KITTY0()).balanceOfUnderlying(address(account)),
+            Kitty(account.KITTY1()).balanceOfUnderlying(address(account)),
             uni0,
             uni1
         );

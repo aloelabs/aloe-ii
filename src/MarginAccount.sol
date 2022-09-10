@@ -30,9 +30,9 @@ contract MarginAccount is UniswapHelper {
 
     uint256 public constant MAX_SIGMA = 15e16;
 
-    Kitty public immutable KITTY0;
+    address public immutable KITTY0;
 
-    Kitty public immutable KITTY1;
+    address public immutable KITTY1;
 
     address public OWNER;
 
@@ -63,8 +63,8 @@ contract MarginAccount is UniswapHelper {
         require(_pool.token0() == address(_kitty0.asset()));
         require(_pool.token1() == address(_kitty1.asset()));
 
-        KITTY0 = _kitty0;
-        KITTY1 = _kitty1;
+        KITTY0 = address(_kitty0);
+        KITTY1 = address(_kitty1);
         OWNER = _owner;
     }
 
@@ -113,19 +113,19 @@ contract MarginAccount is UniswapHelper {
         // KITTY0.accrueInterest();
         // KITTY1.accrueInterest();
 
-        if (allowances[0] != 0) KITTY0.approve(OWNER, allowances[0]);
-        if (allowances[1] != 0) KITTY1.approve(OWNER, allowances[1]);
-        if (allowances[2] != 0) TOKEN0.approve(OWNER, allowances[2]);
-        if (allowances[3] != 0) TOKEN1.approve(OWNER, allowances[3]);
+        if (allowances[0] != 0) TOKEN0.safeApprove(address(callee), allowances[0]);
+        if (allowances[1] != 0) TOKEN1.safeApprove(address(callee), allowances[1]);
+        if (allowances[2] != 0) IERC20(KITTY0).safeApprove(address(callee), allowances[2]);
+        if (allowances[3] != 0) IERC20(KITTY1).safeApprove(address(callee), allowances[3]);
 
         packedSlot.isInCallback = true;
         (Uniswap.Position[] memory _uniswapPositions, bool includeKittyReceipts) = callee.callback(data);
         packedSlot.isInCallback = false;
 
-        if (allowances[0] != 0) KITTY0.approve(OWNER, 0);
-        if (allowances[1] != 0) KITTY1.approve(OWNER, 0);
-        if (allowances[2] != 0) TOKEN0.approve(OWNER, 0);
-        if (allowances[3] != 0) TOKEN1.approve(OWNER, 0);
+        if (allowances[0] != 0) TOKEN0.safeApprove(address(callee), 0);
+        if (allowances[1] != 0) TOKEN1.safeApprove(address(callee), 0);
+        if (allowances[2] != 0) IERC20(KITTY0).safeApprove(address(callee), 0);
+        if (allowances[3] != 0) IERC20(KITTY1).safeApprove(address(callee), 0);
 
         SolvencyCache memory c;
         {
@@ -167,15 +167,21 @@ contract MarginAccount is UniswapHelper {
     function borrow(uint256 amount0, uint256 amount1) external {
         require(packedSlot.isInCallback);
 
-        if (amount0 != 0) KITTY0.borrow(amount0);
-        if (amount1 != 0) KITTY1.borrow(amount1);
+        if (amount0 != 0) Kitty(KITTY0).borrow(amount0);
+        if (amount1 != 0) Kitty(KITTY1).borrow(amount1);
     }
 
     function repay(uint256 amount0, uint256 amount1) external {
         require(packedSlot.isInCallback);
 
-        if (amount0 != 0) KITTY0.repay(amount0);
-        if (amount1 != 0) KITTY1.repay(amount1);
+        if (amount0 != 0) {
+            TOKEN0.safeApprove(KITTY0, amount0); // TODO could get smarter about this
+            Kitty(KITTY0).repay(amount0);
+        }
+        if (amount1 != 0) {
+            TOKEN1.safeApprove(KITTY1, amount1); // TODO could get smarter about this
+            Kitty(KITTY1).repay(amount1);
+        }
     }
 
     function uniswapDeposit(
@@ -281,8 +287,8 @@ contract MarginAccount is UniswapHelper {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
         if (c2.includeKittyReceipts) {
-            assets.fixed0 += KITTY0.balanceOfUnderlying(address(this));
-            assets.fixed1 += KITTY1.balanceOfUnderlying(address(this));
+            assets.fixed0 += Kitty(KITTY0).balanceOfUnderlying(address(this));
+            assets.fixed1 += Kitty(KITTY1).balanceOfUnderlying(address(this));
         }
 
         for (uint256 i; i < _uniswapPositions.length; i++) {
@@ -303,8 +309,8 @@ contract MarginAccount is UniswapHelper {
     }
 
     function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
-        amount0 = KITTY0.borrowBalanceCurrent(address(this));
-        amount1 = KITTY1.borrowBalanceCurrent(address(this));
+        amount0 = Kitty(KITTY0).borrowBalanceCurrent(address(this));
+        amount1 = Kitty(KITTY1).borrowBalanceCurrent(address(this));
     }
 
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
