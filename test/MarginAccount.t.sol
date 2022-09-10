@@ -141,8 +141,8 @@ contract MarginAccountTest is Test, IManager {
             0,
             0,
             0,
-            assets0 - ((liabilities0 * 1.08e8) / 1e8),
-            assets1 - ((liabilities1 * 1.08e8) / 1e8)
+            assets0 - ((liabilities0 * 1.005e8) / 1e8),
+            assets1 - ((liabilities1 * 1.005e8) / 1e8)
         );
         uint256[4] memory allowances;
         allowances[2] = type(uint256).max;
