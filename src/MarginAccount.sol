@@ -44,12 +44,13 @@ contract MarginAccount is UniswapHelper {
     struct SolvencyCache {
         uint160 a;
         uint160 b;
+        uint160 c;
         bool includeKittyReceipts;
     }
 
     PackedSlot public packedSlot;
 
-    Uniswap.Position[] public uniswapPositions;
+    Uniswap.Position[] public uniswapPositions; // TODO constrain the number of uniswap positions (otherwise gas danger)
 
     constructor(
         IUniswapV3Pool _pool,
@@ -96,11 +97,12 @@ contract MarginAccount is UniswapHelper {
             uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
 
             // compute prices at which solvency will be checked
+            uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
             (uint160 a, uint160 b) = _computeProbePrices(
-                TickMath.getSqrtRatioAtTick(arithmeticMeanTick),
+                sqrtMeanPriceX96,
                 includeKittyReceipts ? (sigma * 489898) / 1e5 : sigma // conditionally scale to 24 hours
             );
-            c = SolvencyCache(a, b, includeKittyReceipts);
+            c = SolvencyCache(a, b, sqrtMeanPriceX96, includeKittyReceipts);
         }
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
@@ -180,7 +182,7 @@ contract MarginAccount is UniswapHelper {
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
     function getUniswapPositions() external view returns (Uniswap.Position[] memory) {
-        return uniswapPositions;
+        return uniswapPositions; // TODO maybe make it easier to get uint128 liquidity for each of these?
     }
 
     function _isSolvent(
@@ -221,33 +223,28 @@ contract MarginAccount is UniswapHelper {
         Uniswap.Position[] memory _uniswapPositions,
         Uniswap.FeeComputationCache memory c1,
         SolvencyCache memory c2
-    )
-        private
-        view
-        returns (
-            uint256 fixed0,
-            uint256 fixed1,
-            uint256 fluid1A,
-            uint256 fluid1B
-        )
-    {
-        fixed0 = TOKEN0.balanceOf(address(this));
-        fixed1 = TOKEN1.balanceOf(address(this));
+    ) private view returns (Assets memory assets) {
+        assets.fixed0 = TOKEN0.balanceOf(address(this));
+        assets.fixed1 = TOKEN1.balanceOf(address(this));
         if (c2.includeKittyReceipts) {
-            fixed0 += KITTY0.balanceOfUnderlying(address(this));
-            fixed1 += KITTY1.balanceOfUnderlying(address(this));
+            assets.fixed0 += KITTY0.balanceOfUnderlying(address(this));
+            assets.fixed1 += KITTY1.balanceOfUnderlying(address(this));
         }
 
         for (uint256 i; i < _uniswapPositions.length; i++) {
             Uniswap.PositionInfo memory info = _uniswapPositions[i].info(UNISWAP_POOL);
 
             (uint256 temp0, uint256 temp1) = _uniswapPositions[i].fees(UNISWAP_POOL, info, c1);
-            fixed0 += temp0;
-            fixed1 += temp1;
+            assets.fixed0 += temp0;
+            assets.fixed1 += temp1;
 
             // TODO there are duplicate calls to getTickAtSqrtRatio within valueOfLiquidity
-            fluid1A += _uniswapPositions[i].valueOfLiquidity(c2.a, info.liquidity);
-            fluid1B += _uniswapPositions[i].valueOfLiquidity(c2.b, info.liquidity);
+            assets.fluid1A += _uniswapPositions[i].valueOfLiquidity(c2.a, info.liquidity);
+            assets.fluid1B += _uniswapPositions[i].valueOfLiquidity(c2.b, info.liquidity);
+            // TODO there are duplicate calls to getTickAtSqrtRatio within amountsForLiquidity
+            (temp0, temp1) = _uniswapPositions[i].amountsForLiquidity(c2.c, info.liquidity);
+            assets.fluid0C += temp0;
+            assets.fluid1C += temp1;
         }
     }
 
@@ -271,5 +268,33 @@ contract MarginAccount is UniswapHelper {
 
         a = uint160(FullMath.mulDiv(_sqrtMeanPriceX96, FixedPointMathLib.sqrt(1e18 - _sigma), 1e9)); // TODO don't need FullMath here. more gas efficient to use standard * and / ?
         b = uint160(FullMath.mulDiv(_sqrtMeanPriceX96, FixedPointMathLib.sqrt(1e18 + _sigma), 1e9));
+    }
+
+    function _computeLiquidationIncentive(
+        uint256 _assets0,
+        uint256 _assets1,
+        uint256 _liabilities0,
+        uint256 _liabilities1,
+        uint160 _sqrtMeanPriceX96
+    ) private pure returns (uint256 reward1) {
+        uint256 meanPriceX96 = FullMath.mulDiv(_sqrtMeanPriceX96, _sqrtMeanPriceX96, FixedPoint96.Q96);
+
+        unchecked {
+            if (_liabilities0 > _assets0) {
+                // shortfall is the amount that cannot be directly repaid using MarginAccount assets at this price
+                uint256 shortfall = _liabilities0 - _assets0;
+                // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
+                // to compensate them for this risk, they're allowed to seize some of the surplus asset.
+                reward1 += FullMath.mulDiv(shortfall, 0.05e9 * meanPriceX96, 1e9 * FixedPoint96.Q96);
+            }
+
+            if (_liabilities1 > _assets1) {
+                // shortfall is the amount that cannot be directly repaid using MarginAccount assets at this price
+                uint256 shortfall = _liabilities1 - _assets1;
+                // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
+                // to compensate them for this risk, they're allowed to seize some of the surplus asset.
+                reward1 += FullMath.mulDiv(shortfall, 0.05e9, 1e9);
+            }
+        }
     }
 }

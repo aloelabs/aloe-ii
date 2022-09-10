@@ -15,7 +15,7 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
     using SafeTransferLib for ERC20;
 
     Factory public immutable FACTORY;
-    
+
     Uniswap.Position[] positions;
 
     constructor(Factory _factory) {
@@ -54,6 +54,7 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
             // mint
             if (action == 2) {
                 (address kitty, uint256 amount) = abi.decode(args[i], (address, uint256));
+                _approve(address(Kitty(kitty).asset()), kitty, amount);
                 Kitty(kitty).deposit(amount);
                 continue;
             }
@@ -146,6 +147,19 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
         if (amount1Delta > 0) {
             ERC20 token1 = ERC20(IUniswapV3Pool(msg.sender).token1());
             token1.transferFrom(marginAccount, msg.sender, uint256(amount1Delta));
+        }
+    }
+
+    function _approve(
+        address token,
+        address spender,
+        uint256 amount
+    ) private {
+        // 200 gas to read uint256
+        if (ERC20(token).allowance(address(this), spender) < amount) {
+            // 20000 gas to write uint256 if changing from zero to non-zero
+            // 5000  gas to write uint256 if changing from non-zero to non-zero
+            ERC20(token).approve(spender, type(uint256).max);
         }
     }
 }
