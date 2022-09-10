@@ -8,7 +8,17 @@ import {FullMath} from "src/libraries/FullMath.sol";
 import {Kitty} from "src/Kitty.sol";
 
 contract KittyLens {
-    function readBasics(Kitty kitty) external view returns (ERC20 asset, uint256 interestRate, uint256 utilization, uint256 inventory, uint256 totalBorrows) {
+    function readBasics(Kitty kitty)
+        external
+        view
+        returns (
+            ERC20 asset,
+            uint256 interestRate,
+            uint256 utilization,
+            uint256 inventory,
+            uint256 totalBorrows
+        )
+    {
         asset = kitty.asset();
         totalBorrows = kitty.totalBorrows();
         inventory = asset.balanceOf(address(kitty)) + totalBorrows;
