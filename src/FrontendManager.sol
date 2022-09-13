@@ -54,15 +54,25 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
             // mint
             if (action == 2) {
                 (address kitty, uint256 amount) = abi.decode(args[i], (address, uint256));
-                _approve(address(Kitty(kitty).asset()), kitty, amount);
-                Kitty(kitty).deposit(amount);
+                ERC20 asset = Kitty(kitty).asset();
+                asset.safeTransferFrom(address(account), address(this), amount);
+
+                _approve(address(asset), kitty, amount);
+                uint256 shares = Kitty(kitty).deposit(amount);
+
+                ERC20(kitty).safeTransfer(address(account), shares);
                 continue;
             }
 
             // burn
             if (action == 3) {
-                (address kitty, uint256 amount) = abi.decode(args[i], (address, uint256));
-                Kitty(kitty).withdraw(amount);
+                (address kitty, uint256 shares) = abi.decode(args[i], (address, uint256));
+                ERC20 asset = Kitty(kitty).asset();
+                ERC20(kitty).safeTransferFrom(address(account), address(this), shares);
+
+                uint256 amount = Kitty(kitty).withdraw(shares);
+
+                asset.safeTransfer(address(account), amount);
                 continue;
             }
 

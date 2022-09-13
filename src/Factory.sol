@@ -7,6 +7,7 @@ import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {InterestModel} from "src/InterestModel.sol";
 import {Kitty} from "src/Kitty.sol";
 import {MarginAccount} from "src/MarginAccount.sol";
+import {MarginAccountFactory} from "src/MarginAccountFactory.sol";
 
 contract Factory {
     event CreateMarket(IUniswapV3Pool indexed pool, Kitty indexed kitty0, Kitty indexed kitty1);
@@ -20,14 +21,17 @@ contract Factory {
 
     InterestModel public immutable INTEREST_MODEL;
 
+    MarginAccountFactory public immutable MARGIN_ACCOUNT_FACTORY;
+
     mapping(IUniswapV3Pool => Market) public getMarket;
 
     mapping(address => bool) public isMarginAccount;
 
     mapping(Kitty => mapping(address => bool)) public isMarginAccountAllowed;
 
-    constructor() {
-        INTEREST_MODEL = new InterestModel();
+    constructor(InterestModel _interestModel, MarginAccountFactory _marginAccountFactory) {
+        INTEREST_MODEL = _interestModel;
+        MARGIN_ACCOUNT_FACTORY = _marginAccountFactory;
     }
 
     function createMarket(IUniswapV3Pool _pool) external {
@@ -43,7 +47,7 @@ contract Factory {
 
     function createMarginAccount(IUniswapV3Pool _pool, address _owner) external returns (MarginAccount account) {
         Market memory market = getMarket[_pool];
-        account = new MarginAccount(_pool, market.kitty0, market.kitty1, _owner);
+        account = MARGIN_ACCOUNT_FACTORY.createMarginAccount(_pool, market.kitty0, market.kitty1, _owner);
 
         isMarginAccount[address(account)] = true;
         isMarginAccountAllowed[market.kitty0][address(account)] = true;

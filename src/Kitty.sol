@@ -138,7 +138,7 @@ contract Kitty is ERC20, ReentrancyGuard {
     // TODO use ERC4626-style function names
     function balanceOfUnderlying(address account) external view returns (uint256) {
         // TODO this should probably accrueInterest
-        return FullMath.mulDiv(_getInventory(), balanceOf[account], totalSupply);
+        return FullMath.mulDiv(_getInventory(), balanceOf[account], totalSupply); // TODO fails when totalSupply = 0
     }
 
     function borrowBalanceCurrent(address account) external view returns (uint256) {
