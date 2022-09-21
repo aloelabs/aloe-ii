@@ -113,6 +113,8 @@ contract Kitty is ERC20, ReentrancyGuard {
         uint256 inventory = _getInventory();
         if (inventory == 0) return; // TODO is this the best place for this check?
 
+        // TODO intra-block lending interest?
+        // TODO return early if no time has passed
         uint256 accrualFactor = interestModel.getAccrualFactor(
             block.timestamp - borrowIndexTimestamp,
             FullMath.mulDiv(1e18, totalBorrows, inventory)
@@ -144,6 +146,10 @@ contract Kitty is ERC20, ReentrancyGuard {
     function borrowBalanceCurrent(address account) external view returns (uint256) {
         return FullMath.mulDiv(borrows[account], borrowIndex, 1e18);
     }
+
+    // TODO exchangeRateCurrent
+
+    // TODO utilizationCurrent
 
     function _getInventory() private view returns (uint256) {
         return asset.balanceOf(address(this)) + totalBorrows;
