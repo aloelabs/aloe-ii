@@ -1,11 +1,49 @@
 [profile.default]
-src = 'src'
-test = 'test'
-out = 'out'
-libs = ['lib']
 
 optimizer = true
 optimizer_runs = 800
 gas_reports = []
+
+cache = false
+auto_detect_remappings = false
+
+
+[profile.core]
+root = 'core'
+
+src = 'src'
+test = 'test'
+libs = ['lib']
+
+out = '../build/core'
+cache_path = '../cache/core'
+
+remappings = [
+    'forge-std=lib/forge-std/src',
+    'ds-test=lib/forge-std/lib/ds-test/src',
+
+    '@openzeppelin/contracts=lib/openzeppelin-contracts/contracts',
+    '@rari-capital/solmate/=lib/solmate/',
+    '@uniswap/v3-core/=lib/v3-core/'
+]
+
+[profile.periphery]
+src = 'periphery/src'
+test = 'periphery/test'
+libs = ['periphery/lib', 'core']
+
+out = 'build/periphery'
+cache_path = 'cache/periphery'
+
+remappings = [
+    'forge-std=lib/forge-std/src',
+    'ds-test=lib/forge-std/lib/ds-test/src',
+
+    '@openzeppelin/contracts=lib/openzeppelin-contracts/contracts',
+    '@rari-capital/solmate/=lib/solmate/',
+    '@uniswap/v3-core/=lib/v3-core/',
+
+    '@aloelabs/aloe-ii/core/=core/src/'
+]
 
 # See more config options https://github.com/foundry-rs/foundry/tree/master/config

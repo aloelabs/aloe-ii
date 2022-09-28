@@ -1,3 +1,0 @@
-@openzeppelin/contracts=lib/openzeppelin-contracts/contracts
-@rari-capital/solmate/src/=lib/solmate/src/
-@uniswap/v3-core/=lib/v3-core/
