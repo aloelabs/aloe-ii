@@ -1,0 +1,14 @@
+[profile.default]
+
+src = 'src'
+test = 'test'
+libs = ['lib']
+
+out = '../build/core'
+cache_path = '../cache/core'
+
+optimizer = true
+optimizer_runs = 800
+gas_reports = []
+
+auto_detect_remappings = true
