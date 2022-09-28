@@ -5,11 +5,11 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import "v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 
-import {Uniswap} from "./libraries/Uniswap.sol";
+import {Uniswap} from "aloe-ii-core/libraries/Uniswap.sol";
 
-import {Kitty} from "./Kitty.sol";
-import {Factory} from "./Factory.sol";
-import {IManager, MarginAccount} from "./MarginAccount.sol";
+import {Kitty} from "aloe-ii-core/Kitty.sol";
+import {Factory} from "aloe-ii-core/Factory.sol";
+import {IManager, MarginAccount} from "aloe-ii-core/MarginAccount.sol";
 
 contract FrontendManager is IManager, IUniswapV3SwapCallback {
     using SafeTransferLib for ERC20;

@@ -3,9 +3,9 @@ pragma solidity ^0.8.15;
 
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-import {FullMath} from "./libraries/FullMath.sol";
+import {FullMath} from "aloe-ii-core/libraries/FullMath.sol";
 
-import {Kitty} from "./Kitty.sol";
+import {Kitty} from "aloe-ii-core/Kitty.sol";
 
 contract KittyLens {
     function readBasics(Kitty kitty)

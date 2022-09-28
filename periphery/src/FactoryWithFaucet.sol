@@ -4,8 +4,9 @@ pragma solidity ^0.8.15;
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
+import {Factory} from "aloe-ii-core/Factory.sol";
+
 import {MockERC20} from "./MockERC20.sol";
-import {Factory} from "./Factory.sol";
 
 contract FactoryWithFaucet {
     Factory public immutable FACTORY;

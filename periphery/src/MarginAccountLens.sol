@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import "./libraries/Uniswap.sol";
+import "aloe-ii-core/libraries/Uniswap.sol";
 
-import "./MarginAccount.sol";
+import "aloe-ii-core/MarginAccount.sol";
 
 contract MarginAccountLens {
     using Uniswap for Uniswap.Position;
