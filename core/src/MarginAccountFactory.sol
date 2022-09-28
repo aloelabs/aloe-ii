@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {Kitty} from "src/Kitty.sol";
-import {MarginAccount} from "src/MarginAccount.sol";
+import {Kitty} from "./Kitty.sol";
+import {MarginAccount} from "./MarginAccount.sol";
 
 contract MarginAccountFactory {
     function createMarginAccount(

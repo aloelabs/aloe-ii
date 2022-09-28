@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 
 import "forge-std/Test.sol";
 
-import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import "src/InterestModel.sol";
 import "src/Kitty.sol";

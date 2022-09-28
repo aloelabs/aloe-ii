@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
+import "solmate/utils/FixedPointMathLib.sol";
 
-import {FixedPoint96} from "src/libraries/FixedPoint96.sol";
-import {FullMath} from "src/libraries/FullMath.sol";
-import {Oracle} from "src/libraries/Oracle.sol";
-import {TickMath} from "src/libraries/TickMath.sol";
-import {Uniswap} from "src/libraries/Uniswap.sol";
+import {FixedPoint96} from "./libraries/FixedPoint96.sol";
+import {FullMath} from "./libraries/FullMath.sol";
+import {Oracle} from "./libraries/Oracle.sol";
+import {TickMath} from "./libraries/TickMath.sol";
+import {Uniswap} from "./libraries/Uniswap.sol";
 
-import {Kitty} from "src/Kitty.sol";
-import "src/UniswapHelper.sol";
+import {Kitty} from "./Kitty.sol";
+import "./UniswapHelper.sol";
 
 interface IManager {
     function callback(bytes calldata data)

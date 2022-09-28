@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
+import "solmate/utils/FixedPointMathLib.sol";
 
 import {FixedPoint96} from "./FixedPoint96.sol";
 import {FullMath} from "./FullMath.sol";

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
-import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
+import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {MockERC20} from "src/MockERC20.sol";
-import {Factory} from "src/Factory.sol";
+import {MockERC20} from "./MockERC20.sol";
+import {Factory} from "./Factory.sol";
 
 contract FactoryWithFaucet {
     Factory public immutable FACTORY;

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
-import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
+import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {InterestModel} from "src/InterestModel.sol";
-import {Kitty} from "src/Kitty.sol";
-import {MarginAccount} from "src/MarginAccount.sol";
-import {MarginAccountFactory} from "src/MarginAccountFactory.sol";
+import {InterestModel} from "./InterestModel.sol";
+import {Kitty} from "./Kitty.sol";
+import {MarginAccount} from "./MarginAccount.sol";
+import {MarginAccountFactory} from "./MarginAccountFactory.sol";
 
 contract Factory {
     event CreateMarket(IUniswapV3Pool indexed pool, Kitty indexed kitty0, Kitty indexed kitty1);

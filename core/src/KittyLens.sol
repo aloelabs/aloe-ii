@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import {ERC20} from "@rari-capital/solmate/src/tokens/ERC20.sol";
+import {ERC20} from "solmate/tokens/ERC20.sol";
 
-import {FullMath} from "src/libraries/FullMath.sol";
+import {FullMath} from "./libraries/FullMath.sol";
 
-import {Kitty} from "src/Kitty.sol";
+import {Kitty} from "./Kitty.sol";
 
 contract KittyLens {
     function readBasics(Kitty kitty)

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import "src/libraries/Uniswap.sol";
+import "./libraries/Uniswap.sol";
 
-import "src/MarginAccount.sol";
+import "./MarginAccount.sol";
 
 contract MarginAccountLens {
     using Uniswap for Uniswap.Position;

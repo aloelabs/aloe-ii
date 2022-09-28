@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import {ERC20, SafeTransferLib} from "@rari-capital/solmate/src/utils/SafeTransferLib.sol";
-import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import "@uniswap/v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 
-import {Uniswap} from "src/libraries/Uniswap.sol";
+import {Uniswap} from "./libraries/Uniswap.sol";
 
-import {Kitty} from "src/Kitty.sol";
-import {Factory} from "src/Factory.sol";
-import {IManager, MarginAccount} from "src/MarginAccount.sol";
+import {Kitty} from "./Kitty.sol";
+import {Factory} from "./Factory.sol";
+import {IManager, MarginAccount} from "./MarginAccount.sol";
 
 contract FrontendManager is IManager, IUniswapV3SwapCallback {
     using SafeTransferLib for ERC20;
