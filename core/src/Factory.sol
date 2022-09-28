@@ -38,6 +38,8 @@ contract Factory {
         ERC20 asset0 = ERC20(_pool.token0());
         ERC20 asset1 = ERC20(_pool.token1());
 
+        // TODO this implies that lending pairs are fee-tier specific. does it make sense to combine fee tiers?
+        //      if so, margin account Uniswap liquidity readers will have to change.
         Kitty kitty0 = new Kitty{salt: keccak256(abi.encode(_pool))}(asset0, INTEREST_MODEL, address(this));
         Kitty kitty1 = new Kitty{salt: keccak256(abi.encode(_pool))}(asset1, INTEREST_MODEL, address(this));
 
@@ -50,6 +52,7 @@ contract Factory {
         account = MARGIN_ACCOUNT_FACTORY.createMarginAccount(_pool, market.kitty0, market.kitty1, _owner);
 
         isMarginAccount[address(account)] = true;
+        // TODO ensure this constrains things properly, i.e. a WETH/USDC margin account and a WETH/WBTC margin account shouldn't be able to borrow from the same WBTC kitty
         isMarginAccountAllowed[market.kitty0][address(account)] = true;
         isMarginAccountAllowed[market.kitty1][address(account)] = true;
         emit CreateMarginAccount(_pool, account, _owner);

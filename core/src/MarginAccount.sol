@@ -37,7 +37,7 @@ contract MarginAccount is UniswapHelper {
     address public OWNER;
 
     struct PackedSlot {
-        int24 tickAtLastModify; // TODO maybe move this elsewhere or in an event emission. not used for logic, just frontend
+        int24 tickAtLastModify; // TODO maybe move this elsewhere or in an event emission. not used for logic, just frontend (probably belongs in FrontendManager)
         bool includeKittyReceipts;
         bool isInCallback;
         bool isLocked;

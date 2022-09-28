@@ -143,6 +143,7 @@ contract Kitty is ERC20, ReentrancyGuard {
         return FullMath.mulDiv(_getInventory(), balanceOf[account], totalSupply); // TODO fails when totalSupply = 0
     }
 
+    // TODO this is really borrowBalanceStored, not Current (in Compound lingo)
     function borrowBalanceCurrent(address account) external view returns (uint256) {
         return FullMath.mulDiv(borrows[account], borrowIndex, 1e18);
     }
