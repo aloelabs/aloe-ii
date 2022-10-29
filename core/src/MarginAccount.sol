@@ -54,12 +54,7 @@ contract MarginAccount is UniswapHelper {
 
     Uniswap.Position[] public uniswapPositions; // TODO constrain the number of uniswap positions (otherwise gas danger)
 
-    constructor(
-        IUniswapV3Pool _pool,
-        Kitty _kitty0,
-        Kitty _kitty1,
-        address _owner
-    ) UniswapHelper(_pool) {
+    constructor(IUniswapV3Pool _pool, Kitty _kitty0, Kitty _kitty1, address _owner) UniswapHelper(_pool) {
         require(_pool.token0() == address(_kitty0.asset()));
         require(_pool.token1() == address(_kitty1.asset()));
 
@@ -100,11 +95,7 @@ contract MarginAccount is UniswapHelper {
         if (!isSolvent) OWNER = msg.sender;
     }
 
-    function modify(
-        IManager callee,
-        bytes calldata data,
-        uint256[4] calldata allowances
-    ) external {
+    function modify(IManager callee, bytes calldata data, uint256[4] calldata allowances) external {
         require(msg.sender == OWNER, "Aloe: only owner");
         require(!packedSlot.isLocked);
         packedSlot.isLocked = true;

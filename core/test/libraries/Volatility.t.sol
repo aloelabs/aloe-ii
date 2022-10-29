@@ -157,10 +157,10 @@ contract VolatilityTest is Test {
         }
         if (amount0 < 1e6) return;
 
-        uint256 priceX96Actual = FullMath.mulDiv(amount1, 2**96, amount0);
+        uint256 priceX96Actual = FullMath.mulDiv(amount1, 2 ** 96, amount0);
 
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
-        uint256 priceX96Expected = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, 2**96);
+        uint256 priceX96Expected = FullMath.mulDiv(sqrtPriceX96, sqrtPriceX96, 2 ** 96);
 
         if (-30000 < tick && tick < 30000) {
             assertLe(priceX96Actual / priceX96Expected, 1);

@@ -30,11 +30,7 @@ contract UniswapHelper is IUniswapV3MintCallback {
     }
 
     /// @dev Callback for Uniswap V3 pool.
-    function uniswapV3MintCallback(
-        uint256 _amount0,
-        uint256 _amount1,
-        bytes calldata
-    ) external {
+    function uniswapV3MintCallback(uint256 _amount0, uint256 _amount1, bytes calldata) external {
         require(msg.sender == address(UNISWAP_POOL));
         if (_amount0 != 0) TOKEN0.safeTransfer(msg.sender, _amount0);
         if (_amount1 != 0) TOKEN1.safeTransfer(msg.sender, _amount1);
