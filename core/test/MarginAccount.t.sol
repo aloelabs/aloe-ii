@@ -29,8 +29,8 @@ contract MarginAccountTest is Test, IManager {
     {
         MarginAccount _account = MarginAccount(msg.sender);
 
-        (uint256 borrow0, uint256 borrow1, uint256 repay0, uint256 repay1, uint256 withdraw0, uint256 withdraw1) = abi
-            .decode(data, (uint256, uint256, uint256, uint256, uint256, uint256));
+        (uint128 borrow0, uint128 borrow1, uint128 repay0, uint128 repay1, uint256 withdraw0, uint256 withdraw1) = abi
+            .decode(data, (uint128, uint128, uint128, uint128, uint256, uint256));
 
         if (borrow0 != 0 || borrow1 != 0) {
             _account.borrow(borrow0, borrow1);

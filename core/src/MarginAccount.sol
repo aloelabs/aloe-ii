@@ -155,14 +155,14 @@ contract MarginAccount is UniswapHelper {
         packedSlot = PackedSlot(currentTick, includeKittyReceipts, false, false);
     }
 
-    function borrow(uint256 amount0, uint256 amount1) external {
+    function borrow(uint128 amount0, uint128 amount1) external {
         require(packedSlot.isInCallback);
 
         if (amount0 != 0) Kitty(KITTY0).borrow(amount0);
         if (amount1 != 0) Kitty(KITTY1).borrow(amount1);
     }
 
-    function repay(uint256 amount0, uint256 amount1) external {
+    function repay(uint128 amount0, uint128 amount1) external {
         require(packedSlot.isInCallback);
 
         if (amount0 != 0) {
