@@ -24,6 +24,12 @@ contract KittyTest is Test {
         kitty = new Kitty(asset, new InterestModel(), address(this));
     }
 
+    function test_borrows_scaler() public {
+        uint256 internal_precision = kitty.INTERNAL_PRECISION();
+        uint256 borrows_scaler = kitty.BORROWS_SCALER();
+        assertEq(borrows_scaler, FullMath.mulDiv(internal_precision, type(uint256).max, type(uint144).max));
+    }
+
     function test_deposit() public returns (address alice) {
         alice = makeAddr("alice");
         deal(address(asset), alice, 10000e6);

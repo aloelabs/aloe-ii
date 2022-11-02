@@ -55,8 +55,8 @@ contract MarginAccount is UniswapHelper {
     Uniswap.Position[] public uniswapPositions; // TODO constrain the number of uniswap positions (otherwise gas danger)
 
     constructor(IUniswapV3Pool _pool, Kitty _kitty0, Kitty _kitty1, address _owner) UniswapHelper(_pool) {
-        require(_pool.token0() == address(_kitty0.asset()));
-        require(_pool.token1() == address(_kitty1.asset()));
+        require(_pool.token0() == address(_kitty0.ASSET()));
+        require(_pool.token1() == address(_kitty1.ASSET()));
 
         KITTY0 = address(_kitty0);
         KITTY1 = address(_kitty1);
@@ -240,6 +240,11 @@ contract MarginAccount is UniswapHelper {
         // costs and prevent overall griefing, we give liabilities an extra bump.
         // note: requiring some minimum amount of margin would accomplish something similar,
         //       but it's unclear what that amount would be for a given arbitrary asset
+        // TODO simply require a minimum deposit of ETH when creating the margin account
+        // could offer different, governance-controlled tiers. so unlimited tier may require
+        // 100 * baseRateGasPrice * expectedGasNecessaryForLiquidation, but governance could
+        // say "Oh you only put 10 * baseRate, you can still use the product but you have a cap
+        // on total leverage and/or total borrows"
         liabilities0 = FullMath.mulDiv(liabilities0, 1.005e18, 1e18);
         liabilities1 = FullMath.mulDiv(liabilities1, 1.005e18, 1e18) + liquidationIncentive;
 

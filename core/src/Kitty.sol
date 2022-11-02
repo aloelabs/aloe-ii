@@ -13,20 +13,29 @@ import {Factory} from "./Factory.sol";
  */
 contract Kitty is ERC20 {
     using SafeTransferLib for ERC20;
+    using FullMath for uint256;
+    using FullMath for uint144;
+    using FullMath for uint80;
+
+    uint256 public constant INTERNAL_PRECISION = 1e12;
+
+    uint256 public constant INITIAL_EXCHANGE_RATE = 367879441171;
+
+    uint256 public constant BORROWS_SCALER = 5192296858534827628530496329220096000000000232;
 
     Factory public immutable FACTORY;
 
-    ERC20 public immutable asset;
+    ERC20 public immutable ASSET;
 
-    InterestModel public immutable interestModel;
+    InterestModel public immutable INTEREST_MODEL;
 
-    address public immutable treasury;
+    address public immutable TREASURY;
 
     struct PackedSlot {
-        // The total amount of `asset` that has been borrowed
-        uint128 totalBorrows;
-        // The amount of growth experienced by a hypothetical loan, taken out at Kitty creation
-        uint96 borrowIndex;
+        // The total amount of `ASSET` that has been borrowed
+        uint144 totalBorrows;
+        // The amount of growth experienced by a hypothetical loan taken out at Kitty creation
+        uint80 borrowIndex;
         // The `block.timestamp` from the last time `borrowIndex` was updated
         // If zero, the Kitty is currently locked to reentrancy
         uint32 borrowIndexTimestamp;
@@ -44,13 +53,13 @@ contract Kitty is ERC20 {
         )
     {
         FACTORY = Factory(msg.sender);
-        asset = _asset;
-        interestModel = _interestModel;
-        treasury = _treasury;
+        ASSET = _asset;
+        INTEREST_MODEL = _interestModel;
+        TREASURY = _treasury;
 
         packedSlot = PackedSlot({
             totalBorrows: 0,
-            borrowIndex: 1e18,
+            borrowIndex: uint80(INTERNAL_PRECISION),
             borrowIndexTimestamp: uint32(block.timestamp)
         });
     }
@@ -60,6 +69,7 @@ contract Kitty is ERC20 {
         _;
     }
 
+    // TODO prevent new deposits after 2100
     function deposit(uint256 amount) external returns (uint256 shares) {
         // Poke (includes reentrancy guard)
         (PackedSlot memory _packedSlot, uint256 _totalSupply, uint256 _inventory) = accrueInterest();
@@ -68,7 +78,7 @@ contract Kitty is ERC20 {
         require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
 
         // Pull in tokens from sender
-        asset.safeTransferFrom(msg.sender, address(this), amount); // TODO use callback with before/after balance checks to support permit
+        ASSET.safeTransferFrom(msg.sender, address(this), amount); // TODO use callback with before/after balance checks to support permit
 
         // Mint shares (emits event that can be interpreted as a deposit)
         _mint(msg.sender, shares);
@@ -80,11 +90,11 @@ contract Kitty is ERC20 {
         // Poke (includes reentrancy guard)
         (PackedSlot memory _packedSlot, uint256 _totalSupply, uint256 _inventory) = accrueInterest();
 
-        amount = FullMath.mulDiv(_inventory, shares, _totalSupply);
+        amount = shares.mulDiv(_inventory, _totalSupply * INTERNAL_PRECISION);
         require(amount != 0, "Aloe: amount too low"); // TODO use real Error
 
         // Transfer tokens
-        asset.safeTransfer(msg.sender, amount);
+        ASSET.safeTransfer(msg.sender, amount);
 
         // Burn shares (emits event that can be interpreted as a withdrawal)
         _burn(msg.sender, shares);
@@ -92,25 +102,28 @@ contract Kitty is ERC20 {
         packedSlot = _packedSlot;
     }
 
-    function borrow(uint128 amount) external onlyMarginAccount {
+    // amount must be <= type(uint144).max / INTERNAL_PRECISION
+    // TODO prevent new borrows after 2100
+    function borrow(uint256 amount) external onlyMarginAccount {
         // Poke (includes reentrancy guard)
         (PackedSlot memory _packedSlot, , ) = accrueInterest();
 
-        borrows[msg.sender] += FullMath.mulDiv(1e18, amount, _packedSlot.borrowIndex);
-        _packedSlot.totalBorrows += amount;
+        borrows[msg.sender] += amount.mulDivRoundingUp(BORROWS_SCALER, _packedSlot.borrowIndex);
+        _packedSlot.totalBorrows += uint144(amount * INTERNAL_PRECISION);
 
-        asset.safeTransfer(msg.sender, amount);
+        ASSET.safeTransfer(msg.sender, amount);
         packedSlot = _packedSlot;
     }
 
-    function repay(uint128 amount) external onlyMarginAccount {
+    // amount must be <= type(uint144).max / INTERNAL_PRECISION
+    function repay(uint256 amount) external onlyMarginAccount {
         // Poke (includes reentrancy guard)
         (PackedSlot memory _packedSlot, , ) = accrueInterest();
 
-        borrows[msg.sender] -= FullMath.mulDiv(1e18, amount, _packedSlot.borrowIndex); // will fail if `amount / borrowIndex > borrows[msg.sender`
-        _packedSlot.totalBorrows -= amount;
+        borrows[msg.sender] -= amount.mulDiv(BORROWS_SCALER, _packedSlot.borrowIndex);
+        _packedSlot.totalBorrows -= uint144(amount * INTERNAL_PRECISION);
 
-        asset.safeTransferFrom(msg.sender, address(this), amount);
+        ASSET.safeTransferFrom(msg.sender, address(this), amount);
         packedSlot = _packedSlot;
     }
 
@@ -123,27 +136,28 @@ contract Kitty is ERC20 {
 
         uint256 _totalSupply = totalSupply;
         uint256 _inventory = _getInventory(_packedSlot.totalBorrows);
-        if (_packedSlot.borrowIndexTimestamp == block.timestamp || _inventory == 0) {
+        if (_packedSlot.borrowIndexTimestamp == block.timestamp || _inventory == 0 || _packedSlot.totalBorrows == 0) {
             return (_packedSlot, _totalSupply, _inventory);
         }
 
-        uint256 accrualFactor = interestModel.getAccrualFactor(
+        uint256 accrualFactor = INTEREST_MODEL.getAccrualFactor(
             block.timestamp - _packedSlot.borrowIndexTimestamp,
-            FullMath.mulDiv(1e18, _packedSlot.totalBorrows, _inventory)
+            uint256(1e18).mulDiv(_packedSlot.totalBorrows, _inventory)
         );
-        uint256 accruedInterest = FullMath.mulDiv(_packedSlot.totalBorrows, accrualFactor, 1e18);
+        uint256 accruedInterest = _packedSlot.totalBorrows.mulDiv(accrualFactor, INTERNAL_PRECISION);
 
         _inventory += accruedInterest;
-        _packedSlot.totalBorrows += uint128(accruedInterest);
-        _packedSlot.borrowIndex = uint96(FullMath.mulDiv(_packedSlot.borrowIndex, 1e18 + accrualFactor, 1e18));
-        _packedSlot.borrowIndexTimestamp = uint32(block.timestamp); // fails after Feb 07 2106 06:28:15
+        _packedSlot.totalBorrows += uint144(accruedInterest);
+        _packedSlot.borrowIndex = uint80(_packedSlot.borrowIndex.mulDiv(INTERNAL_PRECISION + accrualFactor, INTERNAL_PRECISION));
+        _packedSlot.borrowIndexTimestamp = uint32(block.timestamp); // fails in February 2106
 
+        // TODO can we reformulate newTotalSupply to rely on borrowIndex (known resolution) instead of inventory and accruedInterest (potentially low resolution)
         uint256 newTotalSupply = FullMath.mulDiv(
             totalSupply,
             _inventory,
-            _inventory - accruedInterest / 8 // `8` indicates a 12.5% reserve factor
+            _inventory - accruedInterest / 8 // `8` indicates a 1/8=12.5% reserve factor
         );
-        _mint(treasury, newTotalSupply - totalSupply);
+        if (newTotalSupply != totalSupply) _mint(TREASURY, newTotalSupply - totalSupply);
 
         return (_packedSlot, newTotalSupply, _inventory);
     }
@@ -153,7 +167,7 @@ contract Kitty is ERC20 {
     // TODO use ERC4626-style function names
     function balanceOfUnderlying(address account) external view returns (uint256) {
         // TODO this should probably accrueInterest
-        return FullMath.mulDiv(_getInventory(packedSlot.totalBorrows), balanceOf[account], totalSupply); // TODO fails when totalSupply = 0
+        return balanceOf[account].mulDiv(_getInventory(packedSlot.totalBorrows), totalSupply) / INTERNAL_PRECISION; // TODO fails when totalSupply = 0
     }
 
     // TODO this is really borrowBalanceStored, not Current (in Compound lingo)
@@ -161,16 +175,16 @@ contract Kitty is ERC20 {
         return FullMath.mulDiv(borrows[account], packedSlot.borrowIndex, 1e18);
     }
 
-    // TODO exchangeRateCurrent
+    // TODO exchangeRateCurrent and stored
 
-    // TODO utilizationCurrent
+    // TODO utilizationCurrent and stored
 
-    function getInventory() external view returns (uint256) {
-        return _getInventory(packedSlot.totalBorrows);
-    }
+    // TODO inventoryCurrent and stored
 
     function _getInventory(uint256 _totalBorrows) private view returns (uint256) {
-        return asset.balanceOf(address(this)) + _totalBorrows;
+        unchecked {
+            return ASSET.balanceOf(address(this)) * INTERNAL_PRECISION + _totalBorrows;
+        }
     }
 
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
@@ -181,7 +195,7 @@ contract Kitty is ERC20 {
         uint256 _inventory,
         uint256 _amount
     ) private pure returns (uint256) {
-        // TODO When _totalSupply == 0, require that _amount > someValue to avoid math errors
-        return (_totalSupply == 0) ? _amount : FullMath.mulDiv(_amount, _totalSupply, _inventory);
+        _amount *= INTERNAL_PRECISION;
+        return (_totalSupply == 0) ? _amount * INITIAL_EXCHANGE_RATE : FullMath.mulDiv(_amount, _totalSupply, _inventory);
     }
 }
