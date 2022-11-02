@@ -12,7 +12,7 @@ contract InterestModel {
         uint256 interestRate = utilization > 0.5e18 ? 1.24e9 : 6.27e8; // ((1 + r) ^ (1 / SECONDS_IN_YEAR) - 1) * 1e18
 
         unchecked {
-            accrualFactor = FixedPointMathLib.rpow(1e18 + interestRate, elapsedTime, 1e18) - 1e18;
+            accrualFactor = FixedPointMathLib.rpow(1e12 + interestRate, elapsedTime, 1e12) - 1e12;
         }
     }
 }

@@ -12,3 +12,6 @@ optimizer_runs = 800
 gas_reports = []
 
 auto_detect_remappings = true
+
+[fmt]
+func_attrs_with_params_multiline = false
