@@ -2,10 +2,10 @@
 pragma solidity >=0.8.0;
 
 /// @notice Modern and gas efficient ERC20 + EIP-2612 implementation.
-/// @author Solmate (https://github.com/transmissions11/solmate/blob/main/src/tokens/ERC20.sol)
-/// @author Modified from Uniswap (https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2ERC20.sol)
+/// @author Aloe Labs, Inc.
+/// @author Modified from Solmate (https://github.com/transmissions11/solmate/blob/main/src/tokens/ERC20.sol)
 /// @dev Do not manually set balances without updating totalSupply, as the sum of all user balances must not exceed it.
-abstract contract ERC20 {
+abstract contract KERC20 {
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
@@ -25,16 +25,6 @@ abstract contract ERC20 {
     uint8 public immutable decimals;
 
     /*//////////////////////////////////////////////////////////////
-                              ERC20 STORAGE
-    //////////////////////////////////////////////////////////////*/
-
-    uint256 public totalSupply;
-
-    mapping(address => uint256) public balanceOf;
-
-    mapping(address => mapping(address => uint256)) public allowance;
-
-    /*//////////////////////////////////////////////////////////////
                             EIP-2612 STORAGE
     //////////////////////////////////////////////////////////////*/
 
@@ -43,6 +33,16 @@ abstract contract ERC20 {
     bytes32 internal immutable INITIAL_DOMAIN_SEPARATOR;
 
     mapping(address => uint256) public nonces;
+
+    /*//////////////////////////////////////////////////////////////
+                              ERC20 STORAGE
+    //////////////////////////////////////////////////////////////*/
+
+    mapping(address => uint256) public balanceOf;
+
+    mapping(address => mapping(address => uint256)) public allowance;
+
+    uint112 public totalSupply;
 
     /*//////////////////////////////////////////////////////////////
                                CONSTRUCTOR
@@ -180,11 +180,8 @@ abstract contract ERC20 {
                         INTERNAL MINT/BURN LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function _mint(address to, uint256 amount) internal virtual {
-        totalSupply += amount;
-
-        // Cannot overflow because the sum of all user
-        // balances can't exceed the max uint256 value.
+    /// @dev You must do `totalSupply += amount` separately. Do so in a checked context.
+    function _unsafeMint(address to, uint256 amount) internal virtual {
         unchecked {
             balanceOf[to] += amount;
         }
@@ -192,14 +189,9 @@ abstract contract ERC20 {
         emit Transfer(address(0), to, amount);
     }
 
-    function _burn(address from, uint256 amount) internal virtual {
+    /// @dev You must do `totalSupply -= amount` separately. Do so in an unchecked context.
+    function _unsafeBurn(address from, uint256 amount) internal virtual {
         balanceOf[from] -= amount;
-
-        // Cannot underflow because a user's balance
-        // will never be larger than the total supply.
-        unchecked {
-            totalSupply -= amount;
-        }
 
         emit Transfer(from, address(0), amount);
     }
