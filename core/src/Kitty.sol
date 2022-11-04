@@ -180,6 +180,7 @@ contract Kitty is KERC20 {
         (uint256 borrowsOld, uint256 accrualFactor) = _getAccrualFactor(slot0, slot1);
         if (accrualFactor == 0 || borrowsOld == 0) return (slot0, slot1, slot0.lastBalance); 
 
+        // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
         slot1.borrowIndex = uint72(FullMath.mulDiv(slot1.borrowIndex, INTERNAL_PRECISION + accrualFactor, INTERNAL_PRECISION));
         slot0.lastAccrualTime = uint32(block.timestamp); // TODO probably don't need to pass this around. removing would make func more pure.
 
