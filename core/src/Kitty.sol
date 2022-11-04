@@ -5,23 +5,20 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {FullMath} from "./libraries/FullMath.sol";
 
+import {KERC20} from "./KERC20.sol";
 import {InterestModel} from "./InterestModel.sol";
 import {Factory} from "./Factory.sol";
 
 /**
  * TODO: enable flash loans
  */
-contract Kitty is ERC20 {
+contract Kitty is KERC20 {
     using SafeTransferLib for ERC20;
     using FullMath for uint256;
-    using FullMath for uint144;
-    using FullMath for uint80;
 
     uint256 public constant INTERNAL_PRECISION = 1e12;
 
-    uint256 public constant INITIAL_EXCHANGE_RATE = 367879441171;
-
-    uint256 public constant BORROWS_SCALER = 5192296858534827628530496329220096000000000232;
+    uint256 public constant BORROWS_SCALER = type(uint72).max * INTERNAL_PRECISION; // uint72 is from borrowIndex type
 
     Factory public immutable FACTORY;
 
@@ -31,22 +28,31 @@ contract Kitty is ERC20 {
 
     address public immutable TREASURY;
 
-    struct PackedSlot {
-        // The total amount of `ASSET` that has been borrowed
-        uint144 totalBorrows;
-        // The amount of growth experienced by a hypothetical loan taken out at Kitty creation
-        uint80 borrowIndex;
-        // The `block.timestamp` from the last time `borrowIndex` was updated
-        // If zero, the Kitty is currently locked to reentrancy
-        uint32 borrowIndexTimestamp;
+    struct Slot0 {
+        uint112 totalSupply;
+        uint112 lastBalance;
+        uint32 lastAccrualTime;
     }
 
-    PackedSlot public packedSlot;
+    // uint112 public totalSupply; // phantom variable inherited from ERC20
+
+    uint112 public lastBalance;
+
+    uint32 public lastAccrualTime;
+
+    struct Slot1 {
+        uint184 borrowBase;
+        uint72 borrowIndex;
+    }
+
+    uint184 public borrowBase;
+
+    uint72 public borrowIndex;
 
     mapping(address => uint256) public borrows;
 
     constructor(ERC20 _asset, InterestModel _interestModel, address _treasury)
-        ERC20(
+        KERC20(
             string.concat("Aloe II ", _asset.name()),
             string.concat(_asset.symbol(), "+"),
             18 // TODO decide magnitude of internal bookkeeping
@@ -57,11 +63,8 @@ contract Kitty is ERC20 {
         INTEREST_MODEL = _interestModel;
         TREASURY = _treasury;
 
-        packedSlot = PackedSlot({
-            totalBorrows: 0,
-            borrowIndex: uint80(INTERNAL_PRECISION),
-            borrowIndexTimestamp: uint32(block.timestamp)
-        });
+        borrowIndex = uint72(INTERNAL_PRECISION);
+        lastAccrualTime = uint32(block.timestamp);
     }
 
     modifier onlyMarginAccount() {
@@ -70,117 +73,162 @@ contract Kitty is ERC20 {
     }
 
     // TODO prevent new deposits after 2100
-    function deposit(uint256 amount) external returns (uint256 shares) {
-        // Poke (includes reentrancy guard)
-        (PackedSlot memory _packedSlot, uint256 _totalSupply, uint256 _inventory) = accrueInterest();
+    function deposit(uint112 amount, address to) external returns (uint112 shares) {
+        (Slot0 memory slot0, Slot1 memory slot1) = _load();
 
-        shares = _computeShares(_totalSupply, _inventory, amount);
+        // Reentrancy guard
+        require(slot0.lastAccrualTime != 0);
+        lastAccrualTime = 0;
+
+        uint256 inventory;
+        (slot0, slot1, inventory) = _accrueInterest(slot0, slot1);
+
+        shares = _computeShares(slot0.totalSupply, inventory, amount);
         require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
 
-        // Pull in tokens from sender
-        ASSET.safeTransferFrom(msg.sender, address(this), amount); // TODO use callback with before/after balance checks to support permit
+        // Ensure tokens were transferred
+        slot0.lastBalance += amount;
+        require(slot0.lastBalance <= ASSET.balanceOf(address(this)));
 
         // Mint shares (emits event that can be interpreted as a deposit)
-        _mint(msg.sender, shares);
+        slot0.totalSupply += shares;
+        _unsafeMint(to, shares);
 
-        packedSlot = _packedSlot;
+        _save(slot0, slot1); // TODO if inventory == slot0.lastBalance, then no interest was accrued, and we don't need to write slot1 to storage
     }
 
-    function withdraw(uint256 shares) external returns (uint256 amount) {
-        // Poke (includes reentrancy guard)
-        (PackedSlot memory _packedSlot, uint256 _totalSupply, uint256 _inventory) = accrueInterest();
+    function withdraw(uint112 shares, address to) external returns (uint112 amount) {
+        (Slot0 memory slot0, Slot1 memory slot1) = _load();
 
-        amount = shares.mulDiv(_inventory, _totalSupply * INTERNAL_PRECISION);
+        // Reentrancy guard
+        require(slot0.lastAccrualTime != 0);
+        lastAccrualTime = 0;
+
+        uint256 inventory;
+        (slot0, slot1, inventory) = _accrueInterest(slot0, slot1);
+
+        amount = uint112(inventory.mulDiv(shares, slot0.totalSupply)); // TODO safe casting
         require(amount != 0, "Aloe: amount too low"); // TODO use real Error
 
         // Transfer tokens
-        ASSET.safeTransfer(msg.sender, amount);
+        slot0.lastBalance -= amount;
+        ASSET.safeTransfer(to, amount);
 
         // Burn shares (emits event that can be interpreted as a withdrawal)
-        _burn(msg.sender, shares);
-
-        packedSlot = _packedSlot;
-    }
-
-    // amount must be <= type(uint144).max / INTERNAL_PRECISION
-    // TODO prevent new borrows after 2100
-    function borrow(uint256 amount) external onlyMarginAccount {
-        // Poke (includes reentrancy guard)
-        (PackedSlot memory _packedSlot, , ) = accrueInterest();
-
-        borrows[msg.sender] += amount.mulDivRoundingUp(BORROWS_SCALER, _packedSlot.borrowIndex);
-        _packedSlot.totalBorrows += uint144(amount * INTERNAL_PRECISION);
-
-        ASSET.safeTransfer(msg.sender, amount);
-        packedSlot = _packedSlot;
-    }
-
-    // amount must be <= type(uint144).max / INTERNAL_PRECISION
-    function repay(uint256 amount) external onlyMarginAccount {
-        // Poke (includes reentrancy guard)
-        (PackedSlot memory _packedSlot, , ) = accrueInterest();
-
-        borrows[msg.sender] -= amount.mulDiv(BORROWS_SCALER, _packedSlot.borrowIndex);
-        _packedSlot.totalBorrows -= uint144(amount * INTERNAL_PRECISION);
-
-        ASSET.safeTransferFrom(msg.sender, address(this), amount);
-        _savePackedSlot(_packedSlot);
-    }
-
-    function accrueInterest() public returns (PackedSlot memory, uint256, uint256) {
-        PackedSlot memory _packedSlot = packedSlot;
-
-        // Reentrancy guard
-        require(_packedSlot.borrowIndexTimestamp != 0);
-        packedSlot.borrowIndexTimestamp = 0;
-
-        uint256 _totalSupply = totalSupply;
-        uint256 _inventory = _getInventory(_packedSlot.totalBorrows);
-        if (_packedSlot.borrowIndexTimestamp == block.timestamp || _packedSlot.totalBorrows == 0) {
-            return (_packedSlot, _totalSupply, _inventory);
+        _unsafeBurn(msg.sender, shares);
+        unchecked {
+            slot0.totalSupply -= shares;
         }
 
-        uint256 accrualFactor = INTEREST_MODEL.getAccrualFactor(
-            block.timestamp - _packedSlot.borrowIndexTimestamp,
-            uint256(1e18).mulDiv(_packedSlot.totalBorrows, _inventory)
-        );
-        uint256 accruedInterest = _packedSlot.totalBorrows.mulDiv(accrualFactor, INTERNAL_PRECISION);
-
-        _inventory += accruedInterest;
-        _packedSlot.totalBorrows += uint144(accruedInterest);
-        _packedSlot.borrowIndex = uint80(_packedSlot.borrowIndex.mulDiv(INTERNAL_PRECISION + accrualFactor, INTERNAL_PRECISION));
-        _packedSlot.borrowIndexTimestamp = uint32(block.timestamp); // fails in February 2106
-
-        uint256 newTotalSupply = FullMath.mulDiv(
-            totalSupply,
-            _inventory,
-            _inventory - accruedInterest / 8 // `8` indicates a 1/8=12.5% reserve factor
-        );
-        if (newTotalSupply != totalSupply) _mint(TREASURY, newTotalSupply - totalSupply);
-
-        return (_packedSlot, newTotalSupply, _inventory);
+        _save(slot0, slot1); // TODO if inventory == slot0.lastBalance, then no interest was accrued, and we don't need to write slot1 to storage
     }
 
-    function _savePackedSlot(PackedSlotCache memory _cache) private {
-        if (_cache.totalBorrows > type(uint144).max || _cache.borrowIndex > type(uint80).max || block.timestamp > type(uint32).max) return;
-        packedSlot = PackedSlot({
-            totalBorrows: uint144(_cache.totalBorrows),
-            borrowIndex: uint80(_cache.borrowIndex),
-            borrowIndexTimestamp: uint32(block.timestamp)
-        });
+    // TODO prevent new borrows after 2100
+    function borrow(uint256 amount, address to) external onlyMarginAccount {
+        (Slot0 memory slot0, Slot1 memory slot1) = _load();
+
+        // Reentrancy guard
+        require(slot0.lastAccrualTime != 0);
+        lastAccrualTime = 0;
+
+        (slot0, slot1, ) = _accrueInterest(slot0, slot1);
+
+        uint256 base = amount.mulDivRoundingUp(BORROWS_SCALER, slot1.borrowIndex);
+        borrows[msg.sender] += base;
+        slot1.borrowBase += uint184(base); // TODO safe casting
+
+        // Transfer tokens
+        slot0.lastBalance -= uint112(amount); // TODO safe casting
+        ASSET.safeTransfer(to, amount);
+        
+        _save(slot0, slot1);
+    }
+
+    function repay(uint256 amount, address to) external {
+        (Slot0 memory slot0, Slot1 memory slot1) = _load();
+
+        // Reentrancy guard
+        require(slot0.lastAccrualTime != 0);
+        lastAccrualTime = 0;
+
+        (slot0, slot1, ) = _accrueInterest(slot0, slot1);
+
+        uint256 base = amount.mulDiv(BORROWS_SCALER, slot1.borrowIndex);
+        borrows[to] -= base;
+        slot1.borrowBase -= uint184(base); // TODO safe casting
+
+        // Ensure tokens were transferred
+        slot0.lastBalance += uint112(amount); // TODO safe casting
+        require(slot0.lastBalance <= ASSET.balanceOf(address(this)));
+
+        _save(slot0, slot1);
+    }
+
+    function accrueInterest() external {
+        (Slot0 memory slot0, Slot1 memory slot1) = _load();
+
+        // Reentrancy guard
+        require(slot0.lastAccrualTime != 0);
+        lastAccrualTime = 0;
+
+        (slot0, slot1, ) = _accrueInterest(slot0, slot1);
+
+        _save(slot0, slot1); // TODO if inventory == slot0.lastBalance, then no interest was accrued, and we don't need to write slot1 to storage
+    }
+
+    function _accrueInterest(Slot0 memory slot0, Slot1 memory slot1) private returns (Slot0 memory, Slot1 memory, uint256) {
+        (uint256 borrowsOld, uint256 accrualFactor) = _getAccrualFactor(slot0, slot1);
+        if (accrualFactor == 0 || borrowsOld == 0) return (slot0, slot1, slot0.lastBalance); 
+
+        slot1.borrowIndex = uint72(FullMath.mulDiv(slot1.borrowIndex, INTERNAL_PRECISION + accrualFactor, INTERNAL_PRECISION));
+        slot0.lastAccrualTime = uint32(block.timestamp); // TODO probably don't need to pass this around. removing would make func more pure.
+
+        // re-compute borrows and inventory
+        uint256 borrowsNew = FullMath.mulDiv(slot1.borrowBase, slot1.borrowIndex, BORROWS_SCALER);
+        uint256 inventory;
+        unchecked {
+            inventory = slot0.lastBalance + borrowsNew;
+        }
+
+        uint256 newTotalSupply = FullMath.mulDiv(
+            slot0.totalSupply,
+            inventory,
+            inventory - (borrowsNew - borrowsOld) / 8 // `8` indicates a 1/8=12.5% reserve factor
+        );
+        if (newTotalSupply != slot0.totalSupply) {
+            slot0.totalSupply = uint112(newTotalSupply); // TODO safe casting
+            _unsafeMint(TREASURY, newTotalSupply - slot0.totalSupply);
+        }
+
+        return (slot0, slot1, inventory);
+    }
+
+    function _save(Slot0 memory slot0, Slot1 memory slot1) private {
+        totalSupply = slot0.totalSupply;
+        lastBalance = slot0.lastBalance;
+        lastAccrualTime = slot0.lastAccrualTime; // could just set to block.timestamp
+        // TODO in cases where interest has already accrued this block, we actually don't have to write to slot1 storage
+        // for deposit and withdraw. (neither borrowBase nor borrowIndex change)
+        borrowBase = slot1.borrowBase;
+        borrowIndex = slot1.borrowIndex;
     }
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
+    function _load() private view returns (Slot0 memory slot0, Slot1 memory slot1) {
+        slot0 = Slot0(totalSupply, lastBalance, lastAccrualTime);
+        slot1 = Slot1(borrowBase, borrowIndex);
+    }
+
     // TODO use ERC4626-style function names
     function balanceOfUnderlying(address account) external view returns (uint256) {
         // TODO this should probably accrueInterest
-        return balanceOf[account].mulDiv(_getInventory(packedSlot.totalBorrows), totalSupply) / INTERNAL_PRECISION; // TODO fails when totalSupply = 0
+        return balanceOf[account].mulDiv(lastBalance + FullMath.mulDiv(borrowBase, borrowIndex, BORROWS_SCALER), totalSupply); // TODO fails when totalSupply = 0
     }
 
     // TODO this is really borrowBalanceStored, not Current (in Compound lingo)
     function borrowBalanceCurrent(address account) external view returns (uint256) {
-        return FullMath.mulDiv(borrows[account], packedSlot.borrowIndex, BORROWS_SCALER);
+        return FullMath.mulDiv(borrows[account], borrowIndex, BORROWS_SCALER);
     }
 
     // TODO exchangeRateCurrent and stored
@@ -189,9 +237,15 @@ contract Kitty is ERC20 {
 
     // TODO inventoryCurrent and stored
 
-    function _getInventory(uint256 _totalBorrows) private view returns (uint256) {
-        unchecked {
-            return ASSET.balanceOf(address(this)) * INTERNAL_PRECISION + _totalBorrows;
+    function _getAccrualFactor(Slot0 memory slot0, Slot1 memory slot1) private view returns (uint256 borrows, uint256 accrualFactor) {
+        if (slot0.lastAccrualTime != block.timestamp && slot1.borrowBase != 0) {
+            // compute `borrows`
+            borrows = FullMath.mulDiv(slot1.borrowBase, slot1.borrowIndex, BORROWS_SCALER);
+            // get `accrualFactor`
+            accrualFactor = INTEREST_MODEL.getAccrualFactor({
+                elapsedTime: block.timestamp - slot0.lastAccrualTime,
+                utilization: uint256(1e18).mulDiv(borrows, borrows + slot0.lastBalance)
+            });
         }
     }
 
@@ -199,11 +253,10 @@ contract Kitty is ERC20 {
     // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
     function _computeShares(
-        uint256 _totalSupply,
+        uint112 _totalSupply,
         uint256 _inventory,
-        uint256 _amount
-    ) private pure returns (uint256) {
-        _amount *= INTERNAL_PRECISION;
-        return (_totalSupply == 0) ? _amount * INITIAL_EXCHANGE_RATE : FullMath.mulDiv(_amount, _totalSupply, _inventory);
+        uint112 _amount
+    ) private pure returns (uint112) {
+        return (_totalSupply == 0) ? _amount : uint112(FullMath.mulDiv(_amount, _totalSupply, _inventory)); // TODO safe casting
     }
 }
