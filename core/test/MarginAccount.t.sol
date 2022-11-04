@@ -179,8 +179,8 @@ contract MarginAccountTest is Test, IManager {
 
         // have alice deposit to both kitties
         hoax(alice);
-        kitty0.deposit(10000e6);
+        kitty0.deposit(10000e6, alice);
         hoax(alice);
-        kitty1.deposit(3e18);
+        kitty1.deposit(3e18, alice);
     }
 }

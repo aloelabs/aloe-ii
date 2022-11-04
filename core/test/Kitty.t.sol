@@ -30,6 +30,10 @@ contract KittyTest is Test {
         assertEq(borrows_scaler, FullMath.mulDiv(internal_precision, type(uint256).max, type(uint144).max));
     }
 
+    function test_accrueInterest() public {
+        kitty.accrueInterest();
+    }
+
     function test_deposit() public returns (address alice) {
         alice = makeAddr("alice");
         deal(address(asset), alice, 10000e6);
@@ -38,10 +42,10 @@ contract KittyTest is Test {
         asset.approve(address(kitty), type(uint256).max);
 
         hoax(alice);
-        uint256 shares = kitty.deposit(100e6);
+        uint256 shares = kitty.deposit(100e6, alice);
 
-        assertEq(shares, 100e6);
-        assertEq(kitty.totalSupply(), 100e6);
+        assertEq(shares, 36787944117100000000000000000000);
+        assertEq(kitty.totalSupply(), 36787944117100000000000000000000);
         assertEq(asset.balanceOf(alice), 9900e6);
     }
 
@@ -49,7 +53,7 @@ contract KittyTest is Test {
         address alice = test_deposit();
 
         hoax(alice);
-        uint256 amount = kitty.withdraw(100e6);
+        uint256 amount = kitty.withdraw(36787944117100000000000000000000, alice);
 
         assertEq(amount, 100e6);
         assertEq(kitty.totalSupply(), 0);
@@ -61,7 +65,7 @@ contract KittyTest is Test {
 
         address bob = makeAddr("bob");
         hoax(bob, 1e18);
-        kitty.borrow(100e6);
+        kitty.borrow(100e6, bob);
     }
 
     function testFail_repay() public {
@@ -69,7 +73,7 @@ contract KittyTest is Test {
         deal(address(asset), cindy, 10000e6);
 
         hoax(cindy, 1e18);
-        kitty.repay(100e6);
+        kitty.repay(100e6, cindy);
     }
 
     function test_borrow() public {
@@ -79,7 +83,7 @@ contract KittyTest is Test {
 
         address jim = makeAddr("jim");
         hoax(jim, 1e18);
-        kitty.borrow(10e6);
+        kitty.borrow(10e6, jim);
 
         assertEq(asset.balanceOf(jim), 10e6);
         assertEq(kitty.balanceOf(jim), 0);

@@ -158,8 +158,8 @@ contract MarginAccount is UniswapHelper {
     function borrow(uint128 amount0, uint128 amount1) external {
         require(packedSlot.isInCallback);
 
-        if (amount0 != 0) Kitty(KITTY0).borrow(amount0);
-        if (amount1 != 0) Kitty(KITTY1).borrow(amount1);
+        if (amount0 != 0) Kitty(KITTY0).borrow(amount0, address(this));
+        if (amount1 != 0) Kitty(KITTY1).borrow(amount1, address(this));
     }
 
     function repay(uint128 amount0, uint128 amount1) external {
@@ -167,11 +167,11 @@ contract MarginAccount is UniswapHelper {
 
         if (amount0 != 0) {
             TOKEN0.safeApprove(KITTY0, amount0); // TODO could get smarter about this
-            Kitty(KITTY0).repay(amount0);
+            Kitty(KITTY0).repay(amount0, address(this));
         }
         if (amount1 != 0) {
             TOKEN1.safeApprove(KITTY1, amount1); // TODO could get smarter about this
-            Kitty(KITTY1).repay(amount1);
+            Kitty(KITTY1).repay(amount1, address(this));
         }
     }
 

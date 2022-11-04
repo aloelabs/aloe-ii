@@ -4,7 +4,8 @@ pragma solidity ^0.8.15;
 import "solmate/utils/FixedPointMathLib.sol";
 
 contract InterestModel {
-    function getAccrualFactor(uint256 elapsedTime, uint256 utilization) external returns (uint256 accrualFactor) {
+    // TODO will need both view and non-view versions of this
+    function getAccrualFactor(uint256 elapsedTime, uint256 utilization) external view returns (uint256 accrualFactor) {
         // TODO use utilization to update PID controller
         // TODO each Kitty gets needs its own InterestModel in order for PID controller state to work well. Could still point to single proxy for logic though.
 
