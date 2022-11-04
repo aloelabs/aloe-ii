@@ -124,7 +124,7 @@ contract Kitty is ERC20 {
         _packedSlot.totalBorrows -= uint144(amount * INTERNAL_PRECISION);
 
         ASSET.safeTransferFrom(msg.sender, address(this), amount);
-        packedSlot = _packedSlot;
+        _savePackedSlot(_packedSlot);
     }
 
     function accrueInterest() public returns (PackedSlot memory, uint256, uint256) {
@@ -136,7 +136,7 @@ contract Kitty is ERC20 {
 
         uint256 _totalSupply = totalSupply;
         uint256 _inventory = _getInventory(_packedSlot.totalBorrows);
-        if (_packedSlot.borrowIndexTimestamp == block.timestamp || _inventory == 0 || _packedSlot.totalBorrows == 0) {
+        if (_packedSlot.borrowIndexTimestamp == block.timestamp || _packedSlot.totalBorrows == 0) {
             return (_packedSlot, _totalSupply, _inventory);
         }
 
@@ -151,7 +151,6 @@ contract Kitty is ERC20 {
         _packedSlot.borrowIndex = uint80(_packedSlot.borrowIndex.mulDiv(INTERNAL_PRECISION + accrualFactor, INTERNAL_PRECISION));
         _packedSlot.borrowIndexTimestamp = uint32(block.timestamp); // fails in February 2106
 
-        // TODO can we reformulate newTotalSupply to rely on borrowIndex (known resolution) instead of inventory and accruedInterest (potentially low resolution)
         uint256 newTotalSupply = FullMath.mulDiv(
             totalSupply,
             _inventory,
@@ -160,6 +159,15 @@ contract Kitty is ERC20 {
         if (newTotalSupply != totalSupply) _mint(TREASURY, newTotalSupply - totalSupply);
 
         return (_packedSlot, newTotalSupply, _inventory);
+    }
+
+    function _savePackedSlot(PackedSlotCache memory _cache) private {
+        if (_cache.totalBorrows > type(uint144).max || _cache.borrowIndex > type(uint80).max || block.timestamp > type(uint32).max) return;
+        packedSlot = PackedSlot({
+            totalBorrows: uint144(_cache.totalBorrows),
+            borrowIndex: uint80(_cache.borrowIndex),
+            borrowIndexTimestamp: uint32(block.timestamp)
+        });
     }
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
@@ -172,7 +180,7 @@ contract Kitty is ERC20 {
 
     // TODO this is really borrowBalanceStored, not Current (in Compound lingo)
     function borrowBalanceCurrent(address account) external view returns (uint256) {
-        return FullMath.mulDiv(borrows[account], packedSlot.borrowIndex, 1e18);
+        return FullMath.mulDiv(borrows[account], packedSlot.borrowIndex, BORROWS_SCALER);
     }
 
     // TODO exchangeRateCurrent and stored
