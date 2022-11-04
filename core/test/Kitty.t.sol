@@ -24,12 +24,6 @@ contract KittyTest is Test {
         kitty = new Kitty(asset, new InterestModel(), address(this));
     }
 
-    function test_borrows_scaler() public {
-        uint256 internal_precision = kitty.INTERNAL_PRECISION();
-        uint256 borrows_scaler = kitty.BORROWS_SCALER();
-        assertEq(borrows_scaler, FullMath.mulDiv(internal_precision, type(uint256).max, type(uint144).max));
-    }
-
     function test_accrueInterest() public {
         kitty.accrueInterest();
     }
@@ -39,13 +33,13 @@ contract KittyTest is Test {
         deal(address(asset), alice, 10000e6);
 
         hoax(alice, 1e18);
-        asset.approve(address(kitty), type(uint256).max);
+        asset.transfer(address(kitty), 100e6);
 
         hoax(alice);
         uint256 shares = kitty.deposit(100e6, alice);
 
-        assertEq(shares, 36787944117100000000000000000000);
-        assertEq(kitty.totalSupply(), 36787944117100000000000000000000);
+        assertEq(shares, 100e6);
+        assertEq(kitty.totalSupply(), 100e6);
         assertEq(asset.balanceOf(alice), 9900e6);
     }
 
@@ -53,7 +47,7 @@ contract KittyTest is Test {
         address alice = test_deposit();
 
         hoax(alice);
-        uint256 amount = kitty.withdraw(36787944117100000000000000000000, alice);
+        uint256 amount = kitty.withdraw(100e6, alice);
 
         assertEq(amount, 100e6);
         assertEq(kitty.totalSupply(), 0);
