@@ -102,19 +102,17 @@ def check(
         interest += 1
         total_supply_new = total_supply * (inventory + interest) / (inventory + interest - math.floor(interest / RESERVE_DIVISOR))
         if math.floor(total_supply_new) > total_supply:
-            print((total_supply, inventory, interest))
             break
-    print(interest)
+    assert interest < one_unit / 1000, 'Reserves should increase even if accrued interest is just 1 one-thousandth of a unit'
 
-    total_supply = inventory * Decimal(10 ** total_supply_precision) / 2
+    total_supply = inventory * Decimal(10 ** total_supply_precision) / 10
     interest = Decimal(1)
     while True:
         interest += 1
         total_supply_new = total_supply * (inventory + interest) / (inventory + interest - math.floor(interest / RESERVE_DIVISOR))
         if math.floor(total_supply_new) > total_supply:
-            print((total_supply, inventory, interest))
             break
-    print(interest)
+    assert interest < one_unit / 1000, 'Reserves should increase even if accrued interest is just 1 one-thousandth of a unit, even after precision of total supply starts to fall off'
 
     return {
         'min APY': float(100 * apy_min),
@@ -139,5 +137,3 @@ for asset_decimals in [6, 8, 18]:
         borrow_index_precision=12,
         accrual_factor_precision=12
     ), indent=4)
-
-print(math.floor(Decimal(1e12) / Decimal(math.e)))

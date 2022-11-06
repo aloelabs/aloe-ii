@@ -197,8 +197,8 @@ contract Kitty is KERC20 {
             inventory - (borrowsNew - borrowsOld) / 8 // `8` indicates a 1/8=12.5% reserve factor
         );
         if (newTotalSupply != slot0.totalSupply) {
-            slot0.totalSupply = uint112(newTotalSupply); // TODO safe casting
             _unsafeMint(TREASURY, newTotalSupply - slot0.totalSupply);
+            slot0.totalSupply = uint112(newTotalSupply); // TODO safe casting
         }
 
         return (slot0, slot1, inventory);
@@ -207,7 +207,7 @@ contract Kitty is KERC20 {
     function _save(Slot0 memory slot0, Slot1 memory slot1) private {
         totalSupply = slot0.totalSupply;
         lastBalance = slot0.lastBalance;
-        lastAccrualTime = slot0.lastAccrualTime; // could just set to block.timestamp
+        lastAccrualTime = slot0.lastAccrualTime; // TODO don't put in memory struct, and instead just set to block.timestamp
         // TODO in cases where interest has already accrued this block, we actually don't have to write to slot1 storage
         // for deposit and withdraw. (neither borrowBase nor borrowIndex change)
         borrowBase = slot1.borrowBase;
