@@ -92,7 +92,7 @@ contract Kitty is KERC20 {
         (cache, inventory) = _accrueInterest(cache);
 
         if (shares == type(uint256).max) shares = balanceOf[msg.sender];
-        amount = inventory.mulDiv(shares, cache.totalSupply);
+        amount = shares.mulDiv(inventory, cache.totalSupply);
         require(amount != 0, "Aloe: amount too low"); // TODO use real Error
 
         // Transfer tokens
@@ -160,18 +160,17 @@ contract Kitty is KERC20 {
         if (accrualFactor == 0 || borrowsOld == 0) return (cache, cache.lastBalance); 
 
         // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
-        cache.borrowIndex = FullMath.mulDiv(cache.borrowIndex, INTERNAL_PRECISION + accrualFactor, INTERNAL_PRECISION);
+        cache.borrowIndex = cache.borrowIndex.mulDiv(INTERNAL_PRECISION + accrualFactor, INTERNAL_PRECISION);
         cache.lastAccrualTime = block.timestamp;
 
         // re-compute borrows and inventory
-        uint256 borrowsNew = FullMath.mulDiv(cache.borrowBase, cache.borrowIndex, BORROWS_SCALER);
+        uint256 borrowsNew = cache.borrowBase.mulDiv(cache.borrowIndex, BORROWS_SCALER);
         uint256 inventory;
         unchecked {
             inventory = cache.lastBalance + borrowsNew;
         }
 
-        uint256 newTotalSupply = FullMath.mulDiv(
-            cache.totalSupply,
+        uint256 newTotalSupply = cache.totalSupply.mulDiv(
             inventory,
             inventory - (borrowsNew - borrowsOld) / 8 // `8` indicates a 1/8=12.5% reserve factor
         );
@@ -211,7 +210,7 @@ contract Kitty is KERC20 {
 
     // TODO this is really borrowBalanceStored, not Current (in Compound lingo)
     function borrowBalanceCurrent(address account) external view returns (uint256) {
-        return FullMath.mulDiv(borrows[account], borrowIndex, BORROWS_SCALER);
+        return borrows[account].mulDiv(borrowIndex, BORROWS_SCALER);
     }
 
     // TODO exchangeRateCurrent and stored
@@ -223,7 +222,7 @@ contract Kitty is KERC20 {
     function _getAccrualFactor(Cache memory cache) private view returns (uint256 totalBorrows, uint256 accrualFactor) {
         if (cache.lastAccrualTime != block.timestamp && cache.borrowBase != 0) {
             // compute `totalBorrows`
-            totalBorrows = FullMath.mulDiv(cache.borrowBase, cache.borrowIndex, BORROWS_SCALER);
+            totalBorrows = cache.borrowBase.mulDiv(cache.borrowIndex, BORROWS_SCALER);
             // get `accrualFactor`
             accrualFactor = INTEREST_MODEL.getAccrualFactor({
                 elapsedTime: block.timestamp - cache.lastAccrualTime,
@@ -240,6 +239,6 @@ contract Kitty is KERC20 {
         uint256 _inventory,
         uint256 _amount
     ) private pure returns (uint256) {
-        return (_totalSupply == 0) ? _amount : FullMath.mulDiv(_amount, _totalSupply, _inventory);
+        return (_totalSupply == 0) ? _amount : _amount.mulDiv(_totalSupply, _inventory);
     }
 }
