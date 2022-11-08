@@ -67,11 +67,6 @@ contract Kitty is KERC20 {
         lastAccrualTime = uint32(block.timestamp);
     }
 
-    modifier onlyMarginAccount() {
-        require(FACTORY.isMarginAccountAllowed(this, msg.sender), "Aloe: bad account");
-        _;
-    }
-
     // TODO prevent new deposits after 2100
     function deposit(uint112 amount, address to) external returns (uint112 shares) {
         (Slot0 memory slot0, Slot1 memory slot1) = _load();
@@ -107,6 +102,7 @@ contract Kitty is KERC20 {
         uint256 inventory;
         (slot0, slot1, inventory) = _accrueInterest(slot0, slot1);
 
+        // TODO if `shares` == type(uint112).max, withdraw max
         amount = uint112(inventory.mulDiv(shares, slot0.totalSupply)); // TODO safe casting
         require(amount != 0, "Aloe: amount too low"); // TODO use real Error
 
@@ -124,7 +120,9 @@ contract Kitty is KERC20 {
     }
 
     // TODO prevent new borrows after 2100
-    function borrow(uint256 amount, address to) external onlyMarginAccount {
+    function borrow(uint256 amount, address to) external {
+        require(FACTORY.isMarginAccountAllowed(this, msg.sender), "Aloe: bad account");
+
         (Slot0 memory slot0, Slot1 memory slot1) = _load();
 
         // Reentrancy guard
@@ -153,6 +151,7 @@ contract Kitty is KERC20 {
 
         (slot0, slot1, ) = _accrueInterest(slot0, slot1);
 
+        // TODO if `amount` == type(uint256).max, repay max
         uint256 base = amount.mulDiv(BORROWS_SCALER, slot1.borrowIndex);
         borrows[to] -= base;
         slot1.borrowBase -= uint184(base); // TODO safe casting
@@ -238,14 +237,14 @@ contract Kitty is KERC20 {
 
     // TODO inventoryCurrent and stored
 
-    function _getAccrualFactor(Slot0 memory slot0, Slot1 memory slot1) private view returns (uint256 borrows, uint256 accrualFactor) {
+    function _getAccrualFactor(Slot0 memory slot0, Slot1 memory slot1) private view returns (uint256 totalBorrows, uint256 accrualFactor) {
         if (slot0.lastAccrualTime != block.timestamp && slot1.borrowBase != 0) {
             // compute `borrows`
-            borrows = FullMath.mulDiv(slot1.borrowBase, slot1.borrowIndex, BORROWS_SCALER);
+            totalBorrows = FullMath.mulDiv(slot1.borrowBase, slot1.borrowIndex, BORROWS_SCALER);
             // get `accrualFactor`
             accrualFactor = INTEREST_MODEL.getAccrualFactor({
                 elapsedTime: block.timestamp - slot0.lastAccrualTime,
-                utilization: uint256(1e18).mulDiv(borrows, borrows + slot0.lastBalance)
+                utilization: uint256(1e18).mulDiv(totalBorrows, totalBorrows + slot0.lastBalance)
             });
         }
     }
