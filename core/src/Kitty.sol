@@ -10,9 +10,10 @@ import {KERC20} from "./KERC20.sol";
 import {InterestModel} from "./InterestModel.sol";
 import {Factory} from "./Factory.sol";
 
-/**
- * TODO: enable flash loans
- */
+interface IFlashBorrower {
+    function onFlashLoan(address initiator, uint256 amount, bytes calldata data) external;
+}
+
 contract Kitty is KERC20 {
     using SafeTransferLib for ERC20;
     using FullMath for uint256;
@@ -149,6 +150,21 @@ contract Kitty is KERC20 {
         require(cache.lastBalance <= ASSET.balanceOf(address(this)));
 
         _save(cache, /* didChangeBorrowBase: */ true);
+    }
+
+    /// @dev Reentrancy guard is critical here! Without it, one could use a flash loan to repay a normal loan.
+    function flash(uint256 amount, address to, bytes calldata data) external {
+        // Reentrancy guard
+        uint32 _lastAccrualTime = lastAccrualTime;
+        require(_lastAccrualTime != 0);
+        lastAccrualTime = 0;
+
+        uint256 balance = ASSET.balanceOf(address(this));
+        ASSET.safeTransfer(to, amount);
+        IFlashBorrower(to).onFlashLoan(msg.sender, amount, data);
+        require(ASSET.balanceOf(address(this)) == balance, "Aloe: failed repay"); // TODO use real Error
+
+        lastAccrualTime = _lastAccrualTime;
     }
 
     function accrueInterest() external {
