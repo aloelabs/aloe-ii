@@ -29,11 +29,11 @@ contract Kitty is KERC20 {
     address public immutable TREASURY;
 
     struct Cache {
-        uint112 totalSupply;
-        uint112 lastBalance;
-        uint32 lastAccrualTime;
-        uint184 borrowBase;
-        uint72 borrowIndex;
+        uint256 totalSupply;
+        uint256 lastBalance;
+        uint256 lastAccrualTime;
+        uint256 borrowBase;
+        uint256 borrowIndex;
     }
 
     // uint112 public totalSupply; // phantom variable inherited from KERC20
@@ -75,11 +75,11 @@ contract Kitty is KERC20 {
         require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
 
         // Ensure tokens were transferred
-        cache.lastBalance += uint112(amount); // TODO safe casting
+        cache.lastBalance += amount;
         require(cache.lastBalance <= ASSET.balanceOf(address(this)));
 
         // Mint shares (emits event that can be interpreted as a deposit)
-        cache.totalSupply += uint112(shares); // TODO safe casting
+        cache.totalSupply += shares;
         _unsafeMint(to, shares);
 
         _save(cache, /* didChangeBorrowBase: */ false);
@@ -96,13 +96,13 @@ contract Kitty is KERC20 {
         require(amount != 0, "Aloe: amount too low"); // TODO use real Error
 
         // Transfer tokens
-        cache.lastBalance -= uint112(amount); // TODO safe casting
+        cache.lastBalance -= amount;
         ASSET.safeTransfer(to, amount);
 
         // Burn shares (emits event that can be interpreted as a withdrawal)
         _unsafeBurn(msg.sender, shares);
         unchecked {
-            cache.totalSupply -= uint112(shares); // don't need safe casting here because burn was successful
+            cache.totalSupply -= shares;
         }
 
         _save(cache, /* didChangeBorrowBase: */ false);
@@ -117,13 +117,13 @@ contract Kitty is KERC20 {
         (cache, ) = _accrueInterest(cache);
 
         uint256 base = amount.mulDivRoundingUp(BORROWS_SCALER, cache.borrowIndex);
-        cache.borrowBase += uint184(base); // don't need safe casting here as long as `amount` is safe-casted below
+        cache.borrowBase += base;
         unchecked {
             borrows[msg.sender] += base;
         }
 
         // Transfer tokens
-        cache.lastBalance -= uint112(amount); // TODO safe casting
+        cache.lastBalance -= amount;
         ASSET.safeTransfer(to, amount);
         
         _save(cache, /* didChangeBorrowBase: */ true);
@@ -139,11 +139,11 @@ contract Kitty is KERC20 {
         uint256 base = amount.mulDiv(BORROWS_SCALER, cache.borrowIndex);
         borrows[to] -= base;
         unchecked {
-            cache.borrowBase -= uint184(base); // don't need safe casting here as long as `amount` is safe-casted below
+            cache.borrowBase -= base;
         }
 
         // Ensure tokens were transferred
-        cache.lastBalance += uint112(amount); // TODO safe casting
+        cache.lastBalance += amount;
         require(cache.lastBalance <= ASSET.balanceOf(address(this)));
 
         _save(cache, /* didChangeBorrowBase: */ true);
@@ -160,8 +160,8 @@ contract Kitty is KERC20 {
         if (accrualFactor == 0 || borrowsOld == 0) return (cache, cache.lastBalance); 
 
         // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
-        cache.borrowIndex = uint72(FullMath.mulDiv(cache.borrowIndex, INTERNAL_PRECISION + accrualFactor, INTERNAL_PRECISION));
-        cache.lastAccrualTime = uint32(block.timestamp); // TODO safe casting
+        cache.borrowIndex = FullMath.mulDiv(cache.borrowIndex, INTERNAL_PRECISION + accrualFactor, INTERNAL_PRECISION);
+        cache.lastAccrualTime = block.timestamp;
 
         // re-compute borrows and inventory
         uint256 borrowsNew = FullMath.mulDiv(cache.borrowBase, cache.borrowIndex, BORROWS_SCALER);
@@ -177,7 +177,7 @@ contract Kitty is KERC20 {
         );
         if (newTotalSupply != cache.totalSupply) {
             _unsafeMint(TREASURY, newTotalSupply - cache.totalSupply);
-            cache.totalSupply = uint112(newTotalSupply); // TODO safe casting
+            cache.totalSupply = newTotalSupply;
         }
 
         return (cache, inventory);
@@ -191,13 +191,13 @@ contract Kitty is KERC20 {
     }
 
     function _save(Cache memory cache, bool didChangeBorrowBase) private {
-        totalSupply = cache.totalSupply;
-        lastBalance = cache.lastBalance;
-        lastAccrualTime = cache.lastAccrualTime;
+        totalSupply = uint112(cache.totalSupply); // TODO safe casting
+        lastBalance = uint112(cache.lastBalance); // TODO safe casting
+        lastAccrualTime = uint32(cache.lastAccrualTime); // TODO safe casting
 
         if (didChangeBorrowBase || cache.lastAccrualTime != block.timestamp) {
-            borrowBase = cache.borrowBase;
-            borrowIndex = cache.borrowIndex;
+            borrowBase = uint184(cache.borrowBase); // As long as `lastBalance` is safe-casted, this doesn't need to be
+            borrowIndex = uint72(cache.borrowIndex); // TODO safe casting
         }
     }
 
