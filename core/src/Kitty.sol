@@ -4,6 +4,7 @@ pragma solidity ^0.8.15;
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {FullMath} from "./libraries/FullMath.sol";
+import {SafeCastLib} from "./libraries/SafeCastLib.sol";
 
 import {KERC20} from "./KERC20.sol";
 import {InterestModel} from "./InterestModel.sol";
@@ -15,6 +16,7 @@ import {Factory} from "./Factory.sol";
 contract Kitty is KERC20 {
     using SafeTransferLib for ERC20;
     using FullMath for uint256;
+    using SafeCastLib for uint256;
 
     uint256 public constant ONE = 1e12;
 
@@ -190,13 +192,13 @@ contract Kitty is KERC20 {
     }
 
     function _save(Cache memory cache, bool didChangeBorrowBase) private {
-        totalSupply = uint112(cache.totalSupply); // TODO safe casting
-        lastBalance = uint112(cache.lastBalance); // TODO safe casting
-        lastAccrualTime = uint32(cache.lastAccrualTime); // TODO safe casting
+        totalSupply = cache.totalSupply.safeCastTo112();
+        lastBalance = cache.lastBalance.safeCastTo112();
+        lastAccrualTime = cache.lastAccrualTime.safeCastTo32();
 
         if (didChangeBorrowBase || cache.lastAccrualTime != block.timestamp) {
             borrowBase = uint184(cache.borrowBase); // As long as `lastBalance` is safe-casted, this doesn't need to be
-            borrowIndex = uint72(cache.borrowIndex); // TODO safe casting
+            borrowIndex = cache.borrowIndex.safeCastTo72();
         }
     }
 
