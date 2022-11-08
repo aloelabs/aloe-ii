@@ -35,7 +35,7 @@ def check(
     asset_decimals,
     balance_bits,
     total_supply_bits,
-    total_supply_precision,
+    total_supply_extra_precision,
     borrow_base_bits,
     borrow_index_bits,
     borrow_index_precision,
@@ -96,7 +96,7 @@ def check(
 
     one_unit = Decimal(10 ** asset_decimals)
     inventory = one_unit
-    total_supply = inventory * Decimal(10 ** total_supply_precision)
+    total_supply = inventory * Decimal(10 ** total_supply_extra_precision)
     interest = Decimal(1)
     while True:
         interest += 1
@@ -105,7 +105,7 @@ def check(
             break
     assert interest < one_unit / 1000, 'Reserves should increase even if accrued interest is just 1 one-thousandth of a unit'
 
-    total_supply = inventory * Decimal(10 ** total_supply_precision) / 10
+    total_supply = inventory * Decimal(10 ** total_supply_extra_precision) / 10
     interest = Decimal(1)
     while True:
         interest += 1
@@ -119,7 +119,7 @@ def check(
         'max APY': float(100 * apy_max),
         'max totalBorrows': f'10^{total_borrows_max_units_oom:.1f}',
         'max balance': f'10^{math.log10((2 ** balance_bits - 1) / 10 ** asset_decimals):.1f}',
-        'max total supply': f'10^{math.log10((2 ** total_supply_bits - 1) / 10 ** (asset_decimals + total_supply_precision)):.1f}',
+        'max total supply': f'10^{math.log10((2 ** total_supply_bits - 1) / 10 ** (asset_decimals + total_supply_extra_precision)):.1f}',
         'min accruedInterest': min_accrued_interest,
         'init borrowIndex': borrow_index_min,
         'borrows_scaler': int(borrow_scaler),
@@ -131,7 +131,7 @@ for asset_decimals in [6, 8, 18]:
         asset_decimals=asset_decimals,
         balance_bits=112,
         total_supply_bits=112,
-        total_supply_precision=0,#3,#18-asset_decimals,
+        total_supply_extra_precision=0,#3,#18-asset_decimals,
         borrow_base_bits=184,
         borrow_index_bits=72,
         borrow_index_precision=12,
