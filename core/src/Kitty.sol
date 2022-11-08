@@ -65,7 +65,7 @@ contract Kitty is KERC20 {
     }
 
     // TODO prevent new deposits after 2100
-    function deposit(uint112 amount, address to) external returns (uint112 shares) {
+    function deposit(uint256 amount, address to) external returns (uint256 shares) {
         (Cache memory cache) = _load();
 
         uint256 inventory;
@@ -75,34 +75,34 @@ contract Kitty is KERC20 {
         require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
 
         // Ensure tokens were transferred
-        cache.lastBalance += amount;
+        cache.lastBalance += uint112(amount); // TODO safe casting
         require(cache.lastBalance <= ASSET.balanceOf(address(this)));
 
         // Mint shares (emits event that can be interpreted as a deposit)
-        cache.totalSupply += shares;
+        cache.totalSupply += uint112(shares); // TODO safe casting
         _unsafeMint(to, shares);
 
         _save(cache, /* didChangeBorrowBase: */ false);
     }
 
-    function withdraw(uint112 shares, address to) external returns (uint112 amount) {
+    function withdraw(uint256 shares, address to) external returns (uint256 amount) {
         (Cache memory cache) = _load();
 
         uint256 inventory;
         (cache, inventory) = _accrueInterest(cache);
 
-        // TODO if `shares` == type(uint112).max, withdraw max
-        amount = uint112(inventory.mulDiv(shares, cache.totalSupply)); // TODO safe casting
+        if (shares == type(uint256).max) shares = balanceOf[msg.sender];
+        amount = inventory.mulDiv(shares, cache.totalSupply);
         require(amount != 0, "Aloe: amount too low"); // TODO use real Error
 
         // Transfer tokens
-        cache.lastBalance -= amount;
+        cache.lastBalance -= uint112(amount); // TODO safe casting
         ASSET.safeTransfer(to, amount);
 
         // Burn shares (emits event that can be interpreted as a withdrawal)
         _unsafeBurn(msg.sender, shares);
         unchecked {
-            cache.totalSupply -= shares;
+            cache.totalSupply -= uint112(shares); // don't need safe casting here because burn was successful
         }
 
         _save(cache, /* didChangeBorrowBase: */ false);
@@ -117,8 +117,10 @@ contract Kitty is KERC20 {
         (cache, ) = _accrueInterest(cache);
 
         uint256 base = amount.mulDivRoundingUp(BORROWS_SCALER, cache.borrowIndex);
-        borrows[msg.sender] += base;
-        cache.borrowBase += uint184(base); // TODO safe casting
+        cache.borrowBase += uint184(base); // don't need safe casting here as long as `amount` is safe-casted below
+        unchecked {
+            borrows[msg.sender] += base;
+        }
 
         // Transfer tokens
         cache.lastBalance -= uint112(amount); // TODO safe casting
@@ -133,9 +135,12 @@ contract Kitty is KERC20 {
         (cache, ) = _accrueInterest(cache);
 
         // TODO if `amount` == type(uint256).max, repay max
+        // if (amount == type(uint256).max) amount = borrows[to].mulDivRoundingUp(cache.borrowIndex, BORROWS_SCALER);
         uint256 base = amount.mulDiv(BORROWS_SCALER, cache.borrowIndex);
         borrows[to] -= base;
-        cache.borrowBase -= uint184(base); // TODO safe casting
+        unchecked {
+            cache.borrowBase -= uint184(base); // don't need safe casting here as long as `amount` is safe-casted below
+        }
 
         // Ensure tokens were transferred
         cache.lastBalance += uint112(amount); // TODO safe casting
@@ -146,9 +151,7 @@ contract Kitty is KERC20 {
 
     function accrueInterest() external {
         (Cache memory cache) = _load();
-
         (cache, ) = _accrueInterest(cache);
-
         _save(cache, /* didChangeBorrowBase: */ false);
     }
 
@@ -233,10 +236,10 @@ contract Kitty is KERC20 {
     // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
     function _computeShares(
-        uint112 _totalSupply,
+        uint256 _totalSupply,
         uint256 _inventory,
-        uint112 _amount
-    ) private pure returns (uint112) {
-        return (_totalSupply == 0) ? _amount : uint112(FullMath.mulDiv(_amount, _totalSupply, _inventory)); // TODO safe casting
+        uint256 _amount
+    ) private pure returns (uint256) {
+        return (_totalSupply == 0) ? _amount : FullMath.mulDiv(_amount, _totalSupply, _inventory);
     }
 }
