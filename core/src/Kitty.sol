@@ -16,9 +16,9 @@ contract Kitty is KERC20 {
     using SafeTransferLib for ERC20;
     using FullMath for uint256;
 
-    uint256 public constant INTERNAL_PRECISION = 1e12;
+    uint256 public constant ONE = 1e12;
 
-    uint256 public constant BORROWS_SCALER = type(uint72).max * INTERNAL_PRECISION; // uint72 is from borrowIndex type
+    uint256 public constant BORROWS_SCALER = type(uint72).max * ONE; // uint72 is from borrowIndex type
 
     Factory public immutable FACTORY;
 
@@ -60,7 +60,7 @@ contract Kitty is KERC20 {
         INTEREST_MODEL = _interestModel;
         TREASURY = _treasury;
 
-        borrowIndex = uint72(INTERNAL_PRECISION);
+        borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
     }
 
@@ -160,7 +160,7 @@ contract Kitty is KERC20 {
         if (accrualFactor == 0 || borrowsOld == 0) return (cache, cache.lastBalance); 
 
         // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
-        cache.borrowIndex = cache.borrowIndex.mulDiv(INTERNAL_PRECISION + accrualFactor, INTERNAL_PRECISION);
+        cache.borrowIndex = cache.borrowIndex.mulDiv(ONE + accrualFactor, ONE);
         cache.lastAccrualTime = block.timestamp;
 
         // re-compute borrows and inventory
