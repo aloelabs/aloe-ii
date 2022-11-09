@@ -51,24 +51,22 @@ contract Kitty is KERC20 {
 
     mapping(address => uint256) public borrows;
 
-    constructor(ERC20 _asset, InterestModel _interestModel, address _treasury)
-        KERC20(
-            string.concat("Aloe II ", _asset.name()),
-            string.concat(_asset.symbol(), "+"),
-            _asset.decimals()
-        )
-    {
+    constructor(
+        ERC20 asset,
+        InterestModel interestModel,
+        address treasury
+    ) KERC20(string.concat("Aloe II ", asset.name()), string.concat(asset.symbol(), "+"), asset.decimals()) {
         FACTORY = Factory(msg.sender);
-        ASSET = _asset;
-        INTEREST_MODEL = _interestModel;
-        TREASURY = _treasury;
+        ASSET = asset;
+        INTEREST_MODEL = interestModel;
+        TREASURY = treasury;
 
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
     }
 
     function deposit(uint256 amount, address beneficiary) external returns (uint256 shares) {
-        (Cache memory cache) = _load();
+        Cache memory cache = _load();
 
         uint256 inventory;
         (cache, inventory) = _accrueInterest(cache);
@@ -88,7 +86,7 @@ contract Kitty is KERC20 {
     }
 
     function withdraw(uint256 shares, address recipient) external returns (uint256 amount) {
-        (Cache memory cache) = _load();
+        Cache memory cache = _load();
 
         uint256 inventory;
         (cache, inventory) = _accrueInterest(cache);
@@ -113,7 +111,7 @@ contract Kitty is KERC20 {
     function borrow(uint256 amount, address recipient) external {
         require(FACTORY.isMarginAccountAllowed(this, msg.sender), "Aloe: bad account");
 
-        (Cache memory cache) = _load();
+        Cache memory cache = _load();
 
         (cache, ) = _accrueInterest(cache);
 
@@ -131,7 +129,7 @@ contract Kitty is KERC20 {
     }
 
     function repay(uint256 amount, address beneficiary) external {
-        (Cache memory cache) = _load();
+        Cache memory cache = _load();
 
         (cache, ) = _accrueInterest(cache);
 
@@ -166,14 +164,14 @@ contract Kitty is KERC20 {
     }
 
     function accrueInterest() external {
-        (Cache memory cache) = _load();
+        Cache memory cache = _load();
         (cache, ) = _accrueInterest(cache);
         _save(cache, /* didChangeBorrowBase: */ false);
     }
 
     function _accrueInterest(Cache memory cache) private returns (Cache memory, uint256) {
         (uint256 borrowsOld, uint256 accrualFactor) = _getAccrualFactor(cache);
-        if (accrualFactor == 0 || borrowsOld == 0) return (cache, cache.lastBalance); 
+        if (accrualFactor == 0 || borrowsOld == 0) return (cache, cache.lastBalance);
 
         // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
         cache.borrowIndex = cache.borrowIndex.mulDiv(ONE + accrualFactor, ONE);
@@ -221,7 +219,11 @@ contract Kitty is KERC20 {
     // TODO use ERC4626-style function names
     function balanceOfUnderlying(address account) external view returns (uint256) {
         // TODO this should probably accrueInterest
-        return balanceOf[account].mulDiv(lastBalance + FullMath.mulDiv(borrowBase, borrowIndex, BORROWS_SCALER), totalSupply); // TODO fails when totalSupply = 0
+        return
+            balanceOf[account].mulDiv(
+                lastBalance + FullMath.mulDiv(borrowBase, borrowIndex, BORROWS_SCALER),
+                totalSupply
+            ); // TODO fails when totalSupply = 0
     }
 
     // TODO this is really borrowBalanceStored, not Current (in Compound lingo)
@@ -250,11 +252,7 @@ contract Kitty is KERC20 {
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
     // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
-    function _computeShares(
-        uint256 _totalSupply,
-        uint256 _inventory,
-        uint256 _amount
-    ) private pure returns (uint256) {
+    function _computeShares(uint256 _totalSupply, uint256 _inventory, uint256 _amount) private pure returns (uint256) {
         return (_totalSupply == 0) ? _amount : _amount.mulDiv(_totalSupply, _inventory);
     }
 }

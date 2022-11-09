@@ -36,11 +36,10 @@ library Uniswap {
     }
 
     /// @dev Wrapper around `IUniswapV3Pool.positions()`.
-    function info(Position memory position, IUniswapV3Pool pool)
-        internal
-        view
-        returns (PositionInfo memory positionInfo)
-    {
+    function info(
+        Position memory position,
+        IUniswapV3Pool pool
+    ) internal view returns (PositionInfo memory positionInfo) {
         (
             positionInfo.liquidity,
             positionInfo.feeGrowthInside0LastX128,

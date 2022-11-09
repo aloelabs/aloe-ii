@@ -13,9 +13,9 @@ import {Kitty} from "./Kitty.sol";
 import "./UniswapHelper.sol";
 
 interface IManager {
-    function callback(bytes calldata data)
-        external
-        returns (Uniswap.Position[] memory positions, bool includeKittyReceipts);
+    function callback(
+        bytes calldata data
+    ) external returns (Uniswap.Position[] memory positions, bool includeKittyReceipts);
 }
 
 // TODO should there be minium margin requirements? (to ensure that incentives make sense surrounding cost of gas)
@@ -166,15 +166,7 @@ contract MarginAccount is UniswapHelper {
         int24 lower,
         int24 upper,
         uint128 liquidity
-    )
-        external
-        returns (
-            uint256 burned0,
-            uint256 burned1,
-            uint256 collected0,
-            uint256 collected1
-        )
-    {
+    ) external returns (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) {
         require(packedSlot.isInCallback);
 
         (burned0, burned1) = UNISWAP_POOL.burn(lower, upper, liquidity);
@@ -302,11 +294,10 @@ contract MarginAccount is UniswapHelper {
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
     // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
-    function _computeProbePrices(uint160 _sqrtMeanPriceX96, uint256 _sigma)
-        private
-        pure
-        returns (uint160 a, uint160 b)
-    {
+    function _computeProbePrices(
+        uint160 _sqrtMeanPriceX96,
+        uint256 _sigma
+    ) private pure returns (uint160 a, uint160 b) {
         _sigma *= B;
 
         if (_sigma < MIN_SIGMA) _sigma = MIN_SIGMA;

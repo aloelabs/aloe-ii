@@ -154,7 +154,7 @@ library LiquidityAmounts {
 
         unchecked {
             if (sqrtRatioX96 <= sqrtRatioAX96) {
-                uint224 priceX96 = uint224(FullMath.mulDiv(sqrtRatioX96, sqrtRatioX96, FixedPoint96.Q96));
+                uint256 priceX96 = FullMath.mulDiv(sqrtRatioX96, sqrtRatioX96, FixedPoint96.Q96);
 
                 value0 = FullMath.mulDiv(
                     priceX96,
@@ -166,9 +166,7 @@ library LiquidityAmounts {
                     uint256(sqrtRatioAX96) << FixedPoint96.RESOLUTION
                 );
             } else if (sqrtRatioX96 < sqrtRatioBX96) {
-                uint224 numerator = uint224(
-                    FullMath.mulDiv(sqrtRatioX96, sqrtRatioBX96 - sqrtRatioX96, FixedPoint96.Q96)
-                );
+                uint256 numerator = FullMath.mulDiv(sqrtRatioX96, sqrtRatioBX96 - sqrtRatioX96, FixedPoint96.Q96);
 
                 value0 = FullMath.mulDiv(liquidity, numerator, sqrtRatioBX96);
                 value1 = FullMath.mulDiv(liquidity, sqrtRatioX96 - sqrtRatioAX96, FixedPoint96.Q96);

@@ -14,11 +14,10 @@ library Oracle {
      * @return secondsPerLiquidityX128 The change in seconds per liquidity from (block.timestamp - secondsAgo)
      * to block.timestamp
      */
-    function consult(IUniswapV3Pool pool, uint32 secondsAgo)
-        internal
-        view
-        returns (int24 arithmeticMeanTick, uint160 secondsPerLiquidityX128)
-    {
+    function consult(
+        IUniswapV3Pool pool,
+        uint32 secondsAgo
+    ) internal view returns (int24 arithmeticMeanTick, uint160 secondsPerLiquidityX128) {
         require(secondsAgo != 0, "BP");
 
         uint32[] memory secondsAgos = new uint32[](2);
