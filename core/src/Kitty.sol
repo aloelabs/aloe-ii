@@ -71,7 +71,7 @@ contract Kitty is KERC20 {
         uint256 inventory;
         (cache, inventory) = _accrueInterest(cache);
 
-        shares = (cache.totalSupply == 0) ? amount : amount.mulDiv(cache.totalSupply, inventory);
+        shares = _convertToShares(amount, inventory, cache.totalSupply);
         require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
 
         // Ensure tokens were transferred
@@ -92,7 +92,7 @@ contract Kitty is KERC20 {
         (cache, inventory) = _accrueInterest(cache);
 
         if (shares == type(uint256).max) shares = balanceOf[msg.sender];
-        amount = shares.mulDiv(inventory, cache.totalSupply);
+        amount = _convertToAssets(shares, inventory, cache.totalSupply);
         require(amount != 0, "Aloe: amount too low"); // TODO use real Error
 
         // Transfer tokens
@@ -216,14 +216,13 @@ contract Kitty is KERC20 {
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
-    // TODO use ERC4626-style function names
     function balanceOfUnderlying(address account) external view returns (uint256) {
         // TODO this should probably accrueInterest
-        return
-            balanceOf[account].mulDiv(
-                lastBalance + FullMath.mulDiv(borrowBase, borrowIndex, BORROWS_SCALER),
-                totalSupply
-            ); // TODO fails when totalSupply = 0
+        return _convertToAssets({
+            shares: balanceOf[account],
+            inventory: lastBalance + FullMath.mulDiv(borrowBase, borrowIndex, BORROWS_SCALER),
+            totalSupply: totalSupply
+        });
     }
 
     // TODO this is really borrowBalanceStored, not Current (in Compound lingo)
@@ -251,4 +250,20 @@ contract Kitty is KERC20 {
 
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
     // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
+
+    function _convertToShares(
+        uint256 assets,
+        uint256 inventory,
+        uint256 totalSupply
+    ) private pure returns (uint256 shares) {
+        shares = (totalSupply == 0) ? assets : assets.mulDiv(totalSupply, inventory);
+    }
+
+    function _convertToAssets(
+        uint256 shares,
+        uint256 inventory,
+        uint256 totalSupply
+    ) private pure returns (uint256 assets) {
+        assets = (totalSupply == 0) ? 0 : shares.mulDiv(inventory, totalSupply);
+    }
 }
