@@ -71,7 +71,7 @@ contract Kitty is KERC20 {
         uint256 inventory;
         (cache, inventory) = _accrueInterest(cache);
 
-        shares = _computeShares(cache.totalSupply, inventory, amount);
+        shares = (cache.totalSupply == 0) ? amount : amount.mulDiv(cache.totalSupply, inventory);
         require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
 
         // Ensure tokens were transferred
@@ -251,8 +251,4 @@ contract Kitty is KERC20 {
 
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
     // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
-
-    function _computeShares(uint256 _totalSupply, uint256 _inventory, uint256 _amount) private pure returns (uint256) {
-        return (_totalSupply == 0) ? _amount : _amount.mulDiv(_totalSupply, _inventory);
-    }
 }
