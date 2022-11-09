@@ -67,8 +67,7 @@ contract Kitty is KERC20 {
         lastAccrualTime = uint32(block.timestamp);
     }
 
-    // TODO prevent new deposits after 2100
-    function deposit(uint256 amount, address to) external returns (uint256 shares) {
+    function deposit(uint256 amount, address beneficiary) external returns (uint256 shares) {
         (Cache memory cache) = _load();
 
         uint256 inventory;
@@ -83,12 +82,12 @@ contract Kitty is KERC20 {
 
         // Mint shares (emits event that can be interpreted as a deposit)
         cache.totalSupply += shares;
-        _unsafeMint(to, shares);
+        _unsafeMint(beneficiary, shares);
 
         _save(cache, /* didChangeBorrowBase: */ false);
     }
 
-    function withdraw(uint256 shares, address to) external returns (uint256 amount) {
+    function withdraw(uint256 shares, address recipient) external returns (uint256 amount) {
         (Cache memory cache) = _load();
 
         uint256 inventory;
@@ -100,7 +99,7 @@ contract Kitty is KERC20 {
 
         // Transfer tokens
         cache.lastBalance -= amount;
-        ASSET.safeTransfer(to, amount);
+        ASSET.safeTransfer(recipient, amount);
 
         // Burn shares (emits event that can be interpreted as a withdrawal)
         _unsafeBurn(msg.sender, shares);
@@ -111,8 +110,7 @@ contract Kitty is KERC20 {
         _save(cache, /* didChangeBorrowBase: */ false);
     }
 
-    // TODO prevent new borrows after 2100
-    function borrow(uint256 amount, address to) external {
+    function borrow(uint256 amount, address recipient) external {
         require(FACTORY.isMarginAccountAllowed(this, msg.sender), "Aloe: bad account");
 
         (Cache memory cache) = _load();
@@ -127,12 +125,12 @@ contract Kitty is KERC20 {
 
         // Transfer tokens
         cache.lastBalance -= amount;
-        ASSET.safeTransfer(to, amount);
-        
+        ASSET.safeTransfer(recipient, amount);
+
         _save(cache, /* didChangeBorrowBase: */ true);
     }
 
-    function repay(uint256 amount, address to) external {
+    function repay(uint256 amount, address beneficiary) external {
         (Cache memory cache) = _load();
 
         (cache, ) = _accrueInterest(cache);
@@ -140,7 +138,7 @@ contract Kitty is KERC20 {
         // TODO if `amount` == type(uint256).max, repay max
         // if (amount == type(uint256).max) amount = borrows[to].mulDivRoundingUp(cache.borrowIndex, BORROWS_SCALER);
         uint256 base = amount.mulDiv(BORROWS_SCALER, cache.borrowIndex);
-        borrows[to] -= base;
+        borrows[beneficiary] -= base;
         unchecked {
             cache.borrowBase -= base;
         }

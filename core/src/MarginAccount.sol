@@ -67,19 +67,7 @@ contract MarginAccount is UniswapHelper {
     function liquidate() external {
         bool includeKittyReceipts = packedSlot.includeKittyReceipts;
 
-        SolvencyCache memory c;
-        {
-            (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
-            uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
-
-            // compute prices at which solvency will be checked
-            uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
-            (uint160 a, uint160 b) = _computeProbePrices(
-                sqrtMeanPriceX96,
-                includeKittyReceipts ? (sigma * 489898) / 1e5 : sigma // conditionally scale to 24 hours
-            );
-            c = SolvencyCache(a, b, sqrtMeanPriceX96, includeKittyReceipts);
-        }
+        SolvencyCache memory c = _getSolvencyCache(includeKittyReceipts);
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         bool isSolvent = _isSolvent(
@@ -95,7 +83,7 @@ contract MarginAccount is UniswapHelper {
         if (!isSolvent) OWNER = msg.sender;
     }
 
-    function modify(IManager callee, bytes calldata data, uint256[4] calldata allowances) external {
+    function modify(IManager callee, bytes calldata data, bool[4] calldata allowances) external {
         require(msg.sender == OWNER, "Aloe: only owner");
         require(!packedSlot.isLocked);
         packedSlot.isLocked = true;
@@ -104,33 +92,21 @@ contract MarginAccount is UniswapHelper {
         // KITTY0.accrueInterest();
         // KITTY1.accrueInterest();
 
-        if (allowances[0] != 0) TOKEN0.safeApprove(address(callee), allowances[0]);
-        if (allowances[1] != 0) TOKEN1.safeApprove(address(callee), allowances[1]);
-        if (allowances[2] != 0) IERC20(KITTY0).safeApprove(address(callee), allowances[2]);
-        if (allowances[3] != 0) IERC20(KITTY1).safeApprove(address(callee), allowances[3]);
+        if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
+        if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
+        if (allowances[2]) IERC20(KITTY0).approve(address(callee), type(uint256).max);
+        if (allowances[3]) IERC20(KITTY1).approve(address(callee), type(uint256).max);
 
         packedSlot.isInCallback = true;
         (Uniswap.Position[] memory _uniswapPositions, bool includeKittyReceipts) = callee.callback(data);
         packedSlot.isInCallback = false;
 
-        if (allowances[0] != 0) TOKEN0.safeApprove(address(callee), 0);
-        if (allowances[1] != 0) TOKEN1.safeApprove(address(callee), 0);
-        if (allowances[2] != 0) IERC20(KITTY0).safeApprove(address(callee), 0);
-        if (allowances[3] != 0) IERC20(KITTY1).safeApprove(address(callee), 0);
+        if (allowances[0]) TOKEN0.safeApprove(address(callee), 0);
+        if (allowances[1]) TOKEN1.safeApprove(address(callee), 0);
+        if (allowances[2]) IERC20(KITTY0).approve(address(callee), 0);
+        if (allowances[3]) IERC20(KITTY1).approve(address(callee), 0);
 
-        SolvencyCache memory c;
-        {
-            (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
-            uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
-
-            // compute prices at which solvency will be checked
-            uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
-            (uint160 a, uint160 b) = _computeProbePrices(
-                sqrtMeanPriceX96,
-                includeKittyReceipts ? (sigma * 489898) / 1e5 : sigma // conditionally scale to 24 hours
-            );
-            c = SolvencyCache(a, b, sqrtMeanPriceX96, includeKittyReceipts);
-        }
+        SolvencyCache memory c = _getSolvencyCache(includeKittyReceipts);
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         require(
@@ -155,22 +131,23 @@ contract MarginAccount is UniswapHelper {
         packedSlot = PackedSlot(currentTick, includeKittyReceipts, false, false);
     }
 
-    function borrow(uint128 amount0, uint128 amount1) external {
+    function borrow(uint256 amount0, uint256 amount1, address recipient) external {
         require(packedSlot.isInCallback);
 
-        if (amount0 != 0) Kitty(KITTY0).borrow(amount0, address(this));
-        if (amount1 != 0) Kitty(KITTY1).borrow(amount1, address(this));
+        if (amount0 != 0) Kitty(KITTY0).borrow(amount0, recipient);
+        if (amount1 != 0) Kitty(KITTY1).borrow(amount1, recipient);
     }
 
-    function repay(uint128 amount0, uint128 amount1) external {
+    // TODO technically uneccessary. keep?
+    function repay(uint256 amount0, uint256 amount1) external {
         require(packedSlot.isInCallback);
 
         if (amount0 != 0) {
-            TOKEN0.safeApprove(KITTY0, amount0); // TODO could get smarter about this
+            TOKEN0.safeTransfer(KITTY0, amount0);
             Kitty(KITTY0).repay(amount0, address(this));
         }
         if (amount1 != 0) {
-            TOKEN1.safeApprove(KITTY1, amount1); // TODO could get smarter about this
+            TOKEN1.safeTransfer(KITTY1, amount1);
             Kitty(KITTY1).repay(amount1, address(this));
         }
     }
@@ -216,6 +193,19 @@ contract MarginAccount is UniswapHelper {
 
     function getUniswapPositions() external view returns (Uniswap.Position[] memory) {
         return uniswapPositions; // TODO maybe make it easier to get uint128 liquidity for each of these?
+    }
+
+    function _getSolvencyCache(bool _includeKittyReceipts) private view returns (SolvencyCache memory c) {
+        (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
+        uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
+
+        // compute prices at which solvency will be checked
+        uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
+        (uint160 a, uint160 b) = _computeProbePrices(
+            sqrtMeanPriceX96,
+            _includeKittyReceipts ? (sigma * 489898) / 1e5 : sigma // conditionally scale to 24 hours
+        );
+        c = SolvencyCache(a, b, sqrtMeanPriceX96, _includeKittyReceipts);
     }
 
     function _isSolvent(

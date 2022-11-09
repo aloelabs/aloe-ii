@@ -33,7 +33,7 @@ contract MarginAccountTest is Test, IManager {
             .decode(data, (uint128, uint128, uint128, uint128, uint256, uint256));
 
         if (borrow0 != 0 || borrow1 != 0) {
-            _account.borrow(borrow0, borrow1);
+            _account.borrow(borrow0, borrow1, msg.sender);
         }
 
         if (repay0 != 0 || repay1 != 0) {
@@ -52,7 +52,7 @@ contract MarginAccountTest is Test, IManager {
 
     function test_empty() public {
         bytes memory data = abi.encode(0, 0, 0, 0, 0, 0);
-        uint256[4] memory allowances;
+        bool[4] memory allowances;
         account.modify(this, data, allowances);
     }
 
@@ -66,7 +66,7 @@ contract MarginAccountTest is Test, IManager {
         asset1.transfer(address(account), 1e17);
 
         bytes memory data = abi.encode(0, 0, 0, 0, 0, 0);
-        uint256[4] memory allowances;
+        bool[4] memory allowances;
         account.modify(this, data, allowances);
     }
 
@@ -82,7 +82,7 @@ contract MarginAccountTest is Test, IManager {
         asset1.transfer(address(account), 1e17);
 
         bytes memory data = abi.encode(100e6, 1e18, 0, 0, 0, 0);
-        uint256[4] memory allowances;
+        bool[4] memory allowances;
         account.modify(this, data, allowances);
 
         assertEq(kitty0.borrowBalanceCurrent(address(account)), 100e6);
@@ -95,9 +95,9 @@ contract MarginAccountTest is Test, IManager {
         test_borrow();
 
         bytes memory data = abi.encode(0, 0, 50e6, 0.5e18, 0, 0);
-        uint256[4] memory allowances;
-        allowances[0] = 50e6;
-        allowances[1] = 0.5e18;
+        bool[4] memory allowances;
+        allowances[0] = true;
+        allowances[1] = true;
         account.modify(this, data, allowances);
 
         assertEq(kitty0.borrowBalanceCurrent(address(account)), 50e6);
@@ -112,9 +112,9 @@ contract MarginAccountTest is Test, IManager {
         skip(86400); // seconds
 
         bytes memory data = abi.encode(0, 0, 0, 0, 10e6, 1e17);
-        uint256[4] memory allowances;
-        allowances[2] = type(uint256).max;
-        allowances[3] = type(uint256).max;
+        bool[4] memory allowances;
+        allowances[2] = true;
+        allowances[3] = true;
         account.modify(this, data, allowances);
     }
 
@@ -132,9 +132,9 @@ contract MarginAccountTest is Test, IManager {
         uint256 assets1 = asset1.balanceOf(address(account));
 
         bytes memory data = abi.encode(0, 0, 0, 0, assets0 - liabilities0, assets1 - liabilities1);
-        uint256[4] memory allowances;
-        allowances[0] = type(uint256).max;
-        allowances[1] = type(uint256).max;
+        bool[4] memory allowances;
+        allowances[0] = true;
+        allowances[1] = true;
         account.modify(this, data, allowances);
     }
 
@@ -159,9 +159,9 @@ contract MarginAccountTest is Test, IManager {
             assets0 - ((liabilities0 * 1.005e8) / 1e8),
             assets1 - ((liabilities1 * 1.005e8) / 1e8)
         );
-        uint256[4] memory allowances;
-        allowances[0] = type(uint256).max;
-        allowances[1] = type(uint256).max;
+        bool[4] memory allowances;
+        allowances[0] = true;
+        allowances[1] = true;
         account.modify(this, data, allowances);
     }
 
