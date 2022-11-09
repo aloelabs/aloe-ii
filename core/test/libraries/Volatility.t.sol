@@ -10,7 +10,7 @@ import {Volatility} from "src/libraries/Volatility.sol";
 contract VolatilityTest is Test {
     function setUp() public {}
 
-    function test_spec_estimate24H() public {
+    function test_spec_estimate() public {
         Volatility.PoolMetadata memory metadata = Volatility.PoolMetadata(3600, 3000, 3000, 60);
         Volatility.PoolData memory data = Volatility.PoolData(
             1278673744380353403099539498152303, // sqrtPriceX96
@@ -20,7 +20,7 @@ contract VolatilityTest is Test {
             3600, // _oracleLookback
             19685271204911047580 // poolLiquidity
         );
-        uint256 dailyIV = Volatility.estimate24H(
+        uint256 dailyIV = Volatility.estimate(
             metadata,
             data,
             Volatility.FeeGrowthGlobals(
@@ -32,11 +32,12 @@ contract VolatilityTest is Test {
                 1501968291161650295867029090958139,
                 527315901327546020416261134123578344760082,
                 8640
-            )
+            ),
+            1 days
         );
         assertEq(dailyIV, 20405953567249984); // 2.041%
 
-        dailyIV = Volatility.estimate24H(
+        dailyIV = Volatility.estimate(
             metadata,
             data,
             Volatility.FeeGrowthGlobals(0, 0, 0),
@@ -44,11 +45,12 @@ contract VolatilityTest is Test {
                 1501968291161650295867029090958139,
                 527315901327546020416261134123578344760082,
                 uint32(block.timestamp)
-            )
+            ),
+            1 days
         );
         assertEq(dailyIV, 6970260198990240); // 0.697%
 
-        dailyIV = Volatility.estimate24H(
+        dailyIV = Volatility.estimate(
             metadata,
             data,
             Volatility.FeeGrowthGlobals(
@@ -60,11 +62,12 @@ contract VolatilityTest is Test {
                 1501955347902231987349614320458936,
                 527278396421895291380335427321388844898052,
                 8640
-            )
+            ),
+            1 days
         );
         assertEq(dailyIV, 0); // 0%
 
-        dailyIV = Volatility.estimate24H(
+        dailyIV = Volatility.estimate(
             metadata,
             data,
             Volatility.FeeGrowthGlobals(
@@ -76,12 +79,13 @@ contract VolatilityTest is Test {
                 1501955347902231987349614320458936,
                 527278396421895291380335427321388844898052,
                 uint32(block.timestamp)
-            )
+            ),
+            1 days
         );
         assertEq(dailyIV, 0); // 0%
     }
 
-    function testFail_estimate24H() public pure {
+    function testFail_estimate() public pure {
         Volatility.PoolMetadata memory metadata = Volatility.PoolMetadata(3600, 3000, 3000, 60);
         Volatility.PoolData memory data = Volatility.PoolData(
             1278673744380353403099539498152303, // sqrtPriceX96
@@ -91,7 +95,7 @@ contract VolatilityTest is Test {
             3600, // _oracleLookback
             19685271204911047580 // poolLiquidity
         );
-        Volatility.estimate24H(
+        Volatility.estimate(
             metadata,
             data,
             Volatility.FeeGrowthGlobals(
@@ -103,11 +107,12 @@ contract VolatilityTest is Test {
                 1501968291161650295867029090958139,
                 527315901327546020416261134123578344760082,
                 0
-            )
+            ),
+            1 days
         );
     }
 
-    function test_estimate24H(
+    function test_estimate(
         uint128 tickLiquidity,
         int16 tick,
         int8 tickMeanOffset,
@@ -125,11 +130,12 @@ contract VolatilityTest is Test {
             3600, // oracleLookback
             tickLiquidity // tickLiquidity
         );
-        Volatility.estimate24H(
+        Volatility.estimate(
             metadata,
             data,
             Volatility.FeeGrowthGlobals(a, b, 0),
-            Volatility.FeeGrowthGlobals(uint256(a) + uint256(c), uint256(b) + uint256(d), 7777)
+            Volatility.FeeGrowthGlobals(uint256(a) + uint256(c), uint256(b) + uint256(d), 7777),
+            1 days
         );
     }
 

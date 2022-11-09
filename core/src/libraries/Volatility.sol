@@ -51,13 +51,15 @@ library Volatility {
      * @param data A summary of the pool's state from `pool.slot0` `pool.observe` and `pool.liquidity`
      * @param a The pool's cumulative feeGrowthGlobals some time in the past
      * @param b The pool's cumulative feeGrowthGlobals as of the current block
-     * @return An estimate of the 24 hour implied volatility scaled by 1e18
+     * @param scale The timescale (in seconds) in which IV should be reported, e.g. hourly, daily, annualized
+     * @return An estimate of the implied volatility scaled by 1e18
      */
-    function estimate24H(
+    function estimate(
         PoolMetadata memory metadata,
         PoolData memory data,
         FeeGrowthGlobals memory a,
-        FeeGrowthGlobals memory b
+        FeeGrowthGlobals memory b,
+        uint256 scale
     ) internal pure returns (uint256) {
         uint256 volumeGamma0Gamma1;
         {
@@ -87,7 +89,7 @@ library Volatility {
             )
         );
         uint48 timeAdjustmentX32 = uint48(
-            FixedPointMathLib.sqrt((uint256(1 days) << 64) / (b.timestamp - a.timestamp))
+            FixedPointMathLib.sqrt((scale << 64) / (b.timestamp - a.timestamp))
         );
 
         if (sqrtTickTVLX32 == 0) return 0;
@@ -187,7 +189,7 @@ library Volatility {
         assert(sqrtRatioAX96 <= sqrtRatioX96 && sqrtRatioX96 <= sqrtRatioBX96);
 
         unchecked {
-            uint224 numerator = uint224(FullMath.mulDiv(sqrtRatioX96, sqrtRatioBX96 - sqrtRatioX96, FixedPoint96.Q96));
+            uint256 numerator = FullMath.mulDiv(sqrtRatioX96, sqrtRatioBX96 - sqrtRatioX96, FixedPoint96.Q96);
 
             value0 = FullMath.mulDiv(liquidity, numerator, sqrtRatioBX96);
             value1 = FullMath.mulDiv(liquidity, sqrtRatioX96 - sqrtRatioAX96, FixedPoint96.Q96);
