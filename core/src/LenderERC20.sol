@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import {ERC20, InterestModel, Lender} from "./Lender.sol";
+
 /// @notice Modern and gas efficient ERC20 + EIP-2612 implementation.
 /// @author Aloe Labs, Inc.
 /// @author Modified from Solmate (https://github.com/transmissions11/solmate/blob/main/src/tokens/ERC20.sol)
 /// @dev Do not manually set balances without updating totalSupply, as the sum of all user balances must not exceed it.
-abstract contract KERC20 {
+contract LenderERC20 is Lender {
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
-
-    event Transfer(address indexed from, address indexed to, uint256 amount);
 
     event Approval(address indexed owner, address indexed spender, uint256 amount);
 
@@ -25,6 +25,12 @@ abstract contract KERC20 {
     uint8 public immutable decimals;
 
     /*//////////////////////////////////////////////////////////////
+                              ERC20 STORAGE
+    //////////////////////////////////////////////////////////////*/
+
+    mapping(address => mapping(address => uint256)) public allowance;
+
+    /*//////////////////////////////////////////////////////////////
                             EIP-2612 STORAGE
     //////////////////////////////////////////////////////////////*/
 
@@ -35,23 +41,13 @@ abstract contract KERC20 {
     mapping(address => uint256) public nonces;
 
     /*//////////////////////////////////////////////////////////////
-                              ERC20 STORAGE
-    //////////////////////////////////////////////////////////////*/
-
-    mapping(address => uint256) public balanceOf;
-
-    mapping(address => mapping(address => uint256)) public allowance;
-
-    uint112 public totalSupply;
-
-    /*//////////////////////////////////////////////////////////////
                                CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(string memory _name, string memory _symbol, uint8 _decimals) {
-        name = _name;
-        symbol = _symbol;
-        decimals = _decimals;
+    constructor(ERC20 asset, InterestModel interestModel, address treasury) Lender(asset, interestModel, treasury) {
+        name = string.concat("Aloe II ", asset.name());
+        symbol = string.concat(asset.symbol(), "+");
+        decimals = asset.decimals();
 
         INITIAL_CHAIN_ID = block.chainid;
         INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
@@ -166,25 +162,5 @@ abstract contract KERC20 {
                     address(this)
                 )
             );
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        INTERNAL MINT/BURN LOGIC
-    //////////////////////////////////////////////////////////////*/
-
-    /// @dev You must do `totalSupply += amount` separately. Do so in a checked context.
-    function _unsafeMint(address to, uint256 amount) internal virtual {
-        unchecked {
-            balanceOf[to] += amount;
-        }
-
-        emit Transfer(address(0), to, amount);
-    }
-
-    /// @dev You must do `totalSupply -= amount` separately. Do so in an unchecked context.
-    function _unsafeBurn(address from, uint256 amount) internal virtual {
-        balanceOf[from] -= amount;
-
-        emit Transfer(from, address(0), amount);
     }
 }

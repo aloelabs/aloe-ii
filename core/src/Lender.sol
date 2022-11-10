@@ -6,7 +6,6 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {FullMath} from "./libraries/FullMath.sol";
 import {SafeCastLib} from "./libraries/SafeCastLib.sol";
 
-import {KERC20} from "./KERC20.sol";
 import {InterestModel} from "./InterestModel.sol";
 import {Factory} from "./Factory.sol";
 
@@ -14,10 +13,12 @@ interface IFlashBorrower {
     function onFlashLoan(address initiator, uint256 amount, bytes calldata data) external;
 }
 
-contract Lender is KERC20 {
+contract Lender {
     using SafeTransferLib for ERC20;
     using FullMath for uint256;
     using SafeCastLib for uint256;
+
+    event Transfer(address indexed from, address indexed to, uint256 amount);
 
     uint256 public constant ONE = 1e12;
 
@@ -39,7 +40,7 @@ contract Lender is KERC20 {
         uint256 borrowIndex;
     }
 
-    // uint112 public totalSupply; // phantom variable inherited from KERC20
+    uint112 public totalSupply;
 
     uint112 public lastBalance;
 
@@ -49,13 +50,11 @@ contract Lender is KERC20 {
 
     uint72 public borrowIndex;
 
+    mapping(address => uint256) public balanceOf;
+
     mapping(address => uint256) public borrows;
 
-    constructor(
-        ERC20 asset,
-        InterestModel interestModel,
-        address treasury
-    ) KERC20(string.concat("Aloe II ", asset.name()), string.concat(asset.symbol(), "+"), asset.decimals()) {
+    constructor(ERC20 asset, InterestModel interestModel, address treasury) {
         FACTORY = Factory(msg.sender);
         ASSET = asset;
         INTEREST_MODEL = interestModel;
@@ -212,6 +211,26 @@ contract Lender is KERC20 {
             borrowBase = uint184(cache.borrowBase); // As long as `lastBalance` is safe-casted, this doesn't need to be
             borrowIndex = cache.borrowIndex.safeCastTo72();
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        INTERNAL MINT/BURN LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    /// @dev You must do `totalSupply += amount` separately. Do so in a checked context.
+    function _unsafeMint(address to, uint256 amount) private {
+        unchecked {
+            balanceOf[to] += amount;
+        }
+
+        emit Transfer(address(0), to, amount);
+    }
+
+    /// @dev You must do `totalSupply -= amount` separately. Do so in an unchecked context.
+    function _unsafeBurn(address from, uint256 amount) private {
+        balanceOf[from] -= amount;
+
+        emit Transfer(from, address(0), amount);
     }
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
