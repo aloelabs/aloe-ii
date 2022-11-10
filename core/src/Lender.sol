@@ -109,7 +109,7 @@ contract Lender is KERC20 {
     }
 
     function borrow(uint256 amount, address recipient) external {
-        require(FACTORY.isMarginAccountAllowed(this, msg.sender), "Aloe: bad account");
+        require(FACTORY.isBorrowerAllowed(this, msg.sender), "Aloe: bad account");
 
         Cache memory cache = _load();
 

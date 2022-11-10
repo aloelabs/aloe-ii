@@ -7,19 +7,19 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import "src/InterestModel.sol";
 import "src/Lender.sol";
-import "src/MarginAccount.sol";
+import "src/Borrower.sol";
 
-contract MarginAccountTest is Test, IManager {
+contract BorrowerTest is Test, IManager {
     IUniswapV3Pool constant pool = IUniswapV3Pool(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640);
     ERC20 constant asset0 = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     ERC20 constant asset1 = ERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     Lender lender0;
     Lender lender1;
-    MarginAccount account;
+    Borrower account;
 
     // mock Factory
-    function isMarginAccountAllowed(Lender _lender, address _account) external returns (bool) {
+    function isBorrowerAllowed(Lender _lender, address _account) external returns (bool) {
         return true;
     }
 
@@ -27,7 +27,7 @@ contract MarginAccountTest is Test, IManager {
         external
         returns (Uniswap.Position[] memory positions, bool includeLenderReceipts)
     {
-        MarginAccount _account = MarginAccount(msg.sender);
+        Borrower _account = Borrower(msg.sender);
 
         (uint128 borrow0, uint128 borrow1, uint128 repay0, uint128 repay1, uint256 withdraw0, uint256 withdraw1) = abi
             .decode(data, (uint128, uint128, uint128, uint128, uint256, uint256));
@@ -47,7 +47,7 @@ contract MarginAccountTest is Test, IManager {
     function setUp() public {
         lender0 = new Lender(asset0, new InterestModel(), address(this));
         lender1 = new Lender(asset1, new InterestModel(), address(this));
-        account = new MarginAccount(pool, lender0, lender1, address(this));
+        account = new Borrower(pool, lender0, lender1, address(this));
     }
 
     function test_empty() public {

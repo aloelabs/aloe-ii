@@ -6,13 +6,13 @@ import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {InterestModel} from "./InterestModel.sol";
 import {Lender} from "./Lender.sol";
-import {MarginAccount} from "./MarginAccount.sol";
-import {MarginAccountFactory} from "./MarginAccountFactory.sol";
+import {Borrower} from "./Borrower.sol";
+import {BorrowerFactory} from "./BorrowerFactory.sol";
 
 contract Factory {
     event CreateMarket(IUniswapV3Pool indexed pool, Lender indexed lender0, Lender indexed lender1);
 
-    event CreateMarginAccount(IUniswapV3Pool indexed pool, MarginAccount indexed account, address indexed owner);
+    event CreateBorrower(IUniswapV3Pool indexed pool, Borrower indexed account, address indexed owner);
 
     struct Market {
         Lender lender0;
@@ -21,17 +21,17 @@ contract Factory {
 
     InterestModel public immutable INTEREST_MODEL;
 
-    MarginAccountFactory public immutable MARGIN_ACCOUNT_FACTORY;
+    BorrowerFactory public immutable MARGIN_ACCOUNT_FACTORY;
 
     mapping(IUniswapV3Pool => Market) public getMarket;
 
-    mapping(address => bool) public isMarginAccount;
+    mapping(address => bool) public isBorrower;
 
-    mapping(Lender => mapping(address => bool)) public isMarginAccountAllowed;
+    mapping(Lender => mapping(address => bool)) public isBorrowerAllowed;
 
-    constructor(InterestModel _interestModel, MarginAccountFactory _marginAccountFactory) {
+    constructor(InterestModel _interestModel, BorrowerFactory _borrowerFactory) {
         INTEREST_MODEL = _interestModel;
-        MARGIN_ACCOUNT_FACTORY = _marginAccountFactory;
+        MARGIN_ACCOUNT_FACTORY = _borrowerFactory;
     }
 
     function createMarket(IUniswapV3Pool _pool) external {
@@ -47,15 +47,15 @@ contract Factory {
         emit CreateMarket(_pool, lender0, lender1);
     }
 
-    function createMarginAccount(IUniswapV3Pool _pool, address _owner) external returns (MarginAccount account) {
+    function createBorrower(IUniswapV3Pool _pool, address _owner) external returns (Borrower account) {
         Market memory market = getMarket[_pool];
-        account = MARGIN_ACCOUNT_FACTORY.createMarginAccount(_pool, market.lender0, market.lender1, _owner);
+        account = MARGIN_ACCOUNT_FACTORY.createBorrower(_pool, market.lender0, market.lender1, _owner);
 
-        isMarginAccount[address(account)] = true;
+        isBorrower[address(account)] = true;
         // TODO ensure this constrains things properly, i.e. a WETH/USDC margin account and a WETH/WBTC margin account shouldn't be able to borrow from the same WBTC lender
-        isMarginAccountAllowed[market.lender0][address(account)] = true;
-        isMarginAccountAllowed[market.lender1][address(account)] = true;
-        emit CreateMarginAccount(_pool, account, _owner);
+        isBorrowerAllowed[market.lender0][address(account)] = true;
+        isBorrowerAllowed[market.lender1][address(account)] = true;
+        emit CreateBorrower(_pool, account, _owner);
 
         // TODO could append account address to a (address => address[]) mapping to make it easier to fetch all accounts for a given user.
     }

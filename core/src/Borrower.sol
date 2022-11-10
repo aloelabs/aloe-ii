@@ -20,7 +20,7 @@ interface IManager {
 
 // TODO should there be minium margin requirements? (to ensure that incentives make sense surrounding cost of gas)
 // TODO related, would it help to keep margin locked anytime there are outstanding liabilities?
-contract MarginAccount is UniswapHelper {
+contract Borrower is UniswapHelper {
     using SafeERC20 for IERC20;
     using Uniswap for Uniswap.Position;
 
@@ -318,7 +318,7 @@ contract MarginAccount is UniswapHelper {
 
         unchecked {
             if (_liabilities0 > _assets0) {
-                // shortfall is the amount that cannot be directly repaid using MarginAccount assets at this price
+                // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
                 uint256 shortfall = _liabilities0 - _assets0;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
@@ -326,7 +326,7 @@ contract MarginAccount is UniswapHelper {
             }
 
             if (_liabilities1 > _assets1) {
-                // shortfall is the amount that cannot be directly repaid using MarginAccount assets at this price
+                // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
                 uint256 shortfall = _liabilities1 - _assets1;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.

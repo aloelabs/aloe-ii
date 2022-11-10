@@ -16,7 +16,7 @@ contract LenderTest is Test {
     bool shouldEnableBorrowAndRepay;
 
     // mock Factory
-    function isMarginAccountAllowed(Lender _lender, address _account) external returns (bool) {
+    function isBorrowerAllowed(Lender _lender, address _account) external returns (bool) {
         return shouldEnableBorrowAndRepay;
     }
 
