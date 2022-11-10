@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import "src/InterestModel.sol";
-import "src/Kitty.sol";
+import "src/Lender.sol";
 import "src/MarginAccount.sol";
 
 contract MarginAccountTest is Test, IManager {
@@ -14,18 +14,18 @@ contract MarginAccountTest is Test, IManager {
     ERC20 constant asset0 = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     ERC20 constant asset1 = ERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
-    Kitty kitty0;
-    Kitty kitty1;
+    Lender lender0;
+    Lender lender1;
     MarginAccount account;
 
     // mock Factory
-    function isMarginAccountAllowed(Kitty _kitty, address _account) external returns (bool) {
+    function isMarginAccountAllowed(Lender _lender, address _account) external returns (bool) {
         return true;
     }
 
     function callback(bytes calldata data)
         external
-        returns (Uniswap.Position[] memory positions, bool includeKittyReceipts)
+        returns (Uniswap.Position[] memory positions, bool includeLenderReceipts)
     {
         MarginAccount _account = MarginAccount(msg.sender);
 
@@ -45,9 +45,9 @@ contract MarginAccountTest is Test, IManager {
     }
 
     function setUp() public {
-        kitty0 = new Kitty(asset0, new InterestModel(), address(this));
-        kitty1 = new Kitty(asset1, new InterestModel(), address(this));
-        account = new MarginAccount(pool, kitty0, kitty1, address(this));
+        lender0 = new Lender(asset0, new InterestModel(), address(this));
+        lender1 = new Lender(asset1, new InterestModel(), address(this));
+        account = new MarginAccount(pool, lender0, lender1, address(this));
     }
 
     function test_empty() public {
@@ -85,8 +85,8 @@ contract MarginAccountTest is Test, IManager {
         bool[4] memory allowances;
         account.modify(this, data, allowances);
 
-        assertEq(kitty0.borrowBalanceCurrent(address(account)), 100e6);
-        assertEq(kitty1.borrowBalanceCurrent(address(account)), 1e18);
+        assertEq(lender0.borrowBalanceCurrent(address(account)), 100e6);
+        assertEq(lender1.borrowBalanceCurrent(address(account)), 1e18);
         assertEq(asset0.balanceOf(address(account)), 10e6 + 100e6);
         assertEq(asset1.balanceOf(address(account)), 1e17 + 1e18);
     }
@@ -100,8 +100,8 @@ contract MarginAccountTest is Test, IManager {
         allowances[1] = true;
         account.modify(this, data, allowances);
 
-        assertEq(kitty0.borrowBalanceCurrent(address(account)), 50e6);
-        assertEq(kitty1.borrowBalanceCurrent(address(account)), 0.5e18);
+        assertEq(lender0.borrowBalanceCurrent(address(account)), 50e6);
+        assertEq(lender1.borrowBalanceCurrent(address(account)), 0.5e18);
         assertEq(asset0.balanceOf(address(account)), 10e6 + 50e6);
         assertEq(asset1.balanceOf(address(account)), 1e17 + 0.5e18);
     }
@@ -123,11 +123,11 @@ contract MarginAccountTest is Test, IManager {
 
         skip(86400); // seconds
 
-        kitty0.accrueInterest();
-        kitty1.accrueInterest();
+        lender0.accrueInterest();
+        lender1.accrueInterest();
 
-        uint256 liabilities0 = kitty0.borrowBalanceCurrent(address(account));
-        uint256 liabilities1 = kitty1.borrowBalanceCurrent(address(account));
+        uint256 liabilities0 = lender0.borrowBalanceCurrent(address(account));
+        uint256 liabilities1 = lender1.borrowBalanceCurrent(address(account));
         uint256 assets0 = asset0.balanceOf(address(account));
         uint256 assets1 = asset1.balanceOf(address(account));
 
@@ -143,11 +143,11 @@ contract MarginAccountTest is Test, IManager {
 
         skip(86400); // seconds
 
-        kitty0.accrueInterest();
-        kitty1.accrueInterest();
+        lender0.accrueInterest();
+        lender1.accrueInterest();
 
-        uint256 liabilities0 = kitty0.borrowBalanceCurrent(address(account));
-        uint256 liabilities1 = kitty1.borrowBalanceCurrent(address(account));
+        uint256 liabilities0 = lender0.borrowBalanceCurrent(address(account));
+        uint256 liabilities1 = lender1.borrowBalanceCurrent(address(account));
         uint256 assets0 = asset0.balanceOf(address(account));
         uint256 assets1 = asset1.balanceOf(address(account));
 
@@ -173,14 +173,14 @@ contract MarginAccountTest is Test, IManager {
 
         // have alice approve both kitties
         hoax(alice, 1e18);
-        asset0.approve(address(kitty0), type(uint256).max);
+        asset0.approve(address(lender0), type(uint256).max);
         hoax(alice);
-        asset1.approve(address(kitty1), type(uint256).max);
+        asset1.approve(address(lender1), type(uint256).max);
 
         // have alice deposit to both kitties
         hoax(alice);
-        kitty0.deposit(10000e6, alice);
+        lender0.deposit(10000e6, alice);
         hoax(alice);
-        kitty1.deposit(3e18, alice);
+        lender1.deposit(3e18, alice);
     }
 }

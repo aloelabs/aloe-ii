@@ -14,7 +14,7 @@ interface IFlashBorrower {
     function onFlashLoan(address initiator, uint256 amount, bytes calldata data) external;
 }
 
-contract Kitty is KERC20 {
+contract Lender is KERC20 {
     using SafeTransferLib for ERC20;
     using FullMath for uint256;
     using SafeCastLib for uint256;

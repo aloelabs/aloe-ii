@@ -3,16 +3,16 @@ pragma solidity ^0.8.15;
 
 import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {Kitty} from "./Kitty.sol";
+import {Lender} from "./Lender.sol";
 import {MarginAccount} from "./MarginAccount.sol";
 
 contract MarginAccountFactory {
     function createMarginAccount(
         IUniswapV3Pool _pool,
-        Kitty _kitty0,
-        Kitty _kitty1,
+        Lender _lender0,
+        Lender _lender1,
         address _owner
     ) external returns (MarginAccount account) {
-        return new MarginAccount(_pool, _kitty0, _kitty1, _owner);
+        return new MarginAccount(_pool, _lender0, _lender1, _owner);
     }
 }

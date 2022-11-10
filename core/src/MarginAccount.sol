@@ -9,13 +9,13 @@ import {Oracle} from "./libraries/Oracle.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 import {Uniswap} from "./libraries/Uniswap.sol";
 
-import {Kitty} from "./Kitty.sol";
+import {Lender} from "./Lender.sol";
 import "./UniswapHelper.sol";
 
 interface IManager {
     function callback(
         bytes calldata data
-    ) external returns (Uniswap.Position[] memory positions, bool includeKittyReceipts);
+    ) external returns (Uniswap.Position[] memory positions, bool includeLenderReceipts);
 }
 
 // TODO should there be minium margin requirements? (to ensure that incentives make sense surrounding cost of gas)
@@ -30,15 +30,15 @@ contract MarginAccount is UniswapHelper {
 
     uint256 public constant MAX_SIGMA = 15e16;
 
-    address public immutable KITTY0;
+    address public immutable LENDER0;
 
-    address public immutable KITTY1;
+    address public immutable LENDER1;
 
     address public OWNER;
 
     struct PackedSlot {
         int24 tickAtLastModify; // TODO maybe move this elsewhere or in an event emission. not used for logic, just frontend (probably belongs in FrontendManager)
-        bool includeKittyReceipts;
+        bool includeLenderReceipts;
         bool isInCallback;
         bool isLocked;
     }
@@ -47,27 +47,27 @@ contract MarginAccount is UniswapHelper {
         uint160 a;
         uint160 b;
         uint160 c;
-        bool includeKittyReceipts;
+        bool includeLenderReceipts;
     }
 
     PackedSlot public packedSlot;
 
     Uniswap.Position[] public uniswapPositions; // TODO constrain the number of uniswap positions (otherwise gas danger)
 
-    constructor(IUniswapV3Pool _pool, Kitty _kitty0, Kitty _kitty1, address _owner) UniswapHelper(_pool) {
-        require(_pool.token0() == address(_kitty0.ASSET()));
-        require(_pool.token1() == address(_kitty1.ASSET()));
+    constructor(IUniswapV3Pool _pool, Lender _lender0, Lender _lender1, address _owner) UniswapHelper(_pool) {
+        require(_pool.token0() == address(_lender0.ASSET()));
+        require(_pool.token1() == address(_lender1.ASSET()));
 
-        KITTY0 = address(_kitty0);
-        KITTY1 = address(_kitty1);
+        LENDER0 = address(_lender0);
+        LENDER1 = address(_lender1);
         OWNER = _owner;
     }
 
     // TODO liquidations
     function liquidate() external {
-        bool includeKittyReceipts = packedSlot.includeKittyReceipts;
+        bool includeLenderReceipts = packedSlot.includeLenderReceipts;
 
-        SolvencyCache memory c = _getSolvencyCache(includeKittyReceipts);
+        SolvencyCache memory c = _getSolvencyCache(includeLenderReceipts);
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         bool isSolvent = _isSolvent(
@@ -89,24 +89,24 @@ contract MarginAccount is UniswapHelper {
         packedSlot.isLocked = true;
 
         // ensure liabilities are up-to-date TODO is this necessary?
-        // KITTY0.accrueInterest();
-        // KITTY1.accrueInterest();
+        // LENDER0.accrueInterest();
+        // LENDER1.accrueInterest();
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
-        if (allowances[2]) IERC20(KITTY0).approve(address(callee), type(uint256).max);
-        if (allowances[3]) IERC20(KITTY1).approve(address(callee), type(uint256).max);
+        if (allowances[2]) IERC20(LENDER0).approve(address(callee), type(uint256).max);
+        if (allowances[3]) IERC20(LENDER1).approve(address(callee), type(uint256).max);
 
         packedSlot.isInCallback = true;
-        (Uniswap.Position[] memory _uniswapPositions, bool includeKittyReceipts) = callee.callback(data);
+        (Uniswap.Position[] memory _uniswapPositions, bool includeLenderReceipts) = callee.callback(data);
         packedSlot.isInCallback = false;
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 0);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 0);
-        if (allowances[2]) IERC20(KITTY0).approve(address(callee), 0);
-        if (allowances[3]) IERC20(KITTY1).approve(address(callee), 0);
+        if (allowances[2]) IERC20(LENDER0).approve(address(callee), 0);
+        if (allowances[3]) IERC20(LENDER1).approve(address(callee), 0);
 
-        SolvencyCache memory c = _getSolvencyCache(includeKittyReceipts);
+        SolvencyCache memory c = _getSolvencyCache(includeLenderReceipts);
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         require(
@@ -128,14 +128,14 @@ contract MarginAccount is UniswapHelper {
             else uniswapPositions.push(_uniswapPositions[i]);
         }
 
-        packedSlot = PackedSlot(currentTick, includeKittyReceipts, false, false);
+        packedSlot = PackedSlot(currentTick, includeLenderReceipts, false, false);
     }
 
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
         require(packedSlot.isInCallback);
 
-        if (amount0 != 0) Kitty(KITTY0).borrow(amount0, recipient);
-        if (amount1 != 0) Kitty(KITTY1).borrow(amount1, recipient);
+        if (amount0 != 0) Lender(LENDER0).borrow(amount0, recipient);
+        if (amount1 != 0) Lender(LENDER1).borrow(amount1, recipient);
     }
 
     // TODO technically uneccessary. keep?
@@ -143,12 +143,12 @@ contract MarginAccount is UniswapHelper {
         require(packedSlot.isInCallback);
 
         if (amount0 != 0) {
-            TOKEN0.safeTransfer(KITTY0, amount0);
-            Kitty(KITTY0).repay(amount0, address(this));
+            TOKEN0.safeTransfer(LENDER0, amount0);
+            Lender(LENDER0).repay(amount0, address(this));
         }
         if (amount1 != 0) {
-            TOKEN1.safeTransfer(KITTY1, amount1);
-            Kitty(KITTY1).repay(amount1, address(this));
+            TOKEN1.safeTransfer(LENDER1, amount1);
+            Lender(LENDER1).repay(amount1, address(this));
         }
     }
 
@@ -187,7 +187,7 @@ contract MarginAccount is UniswapHelper {
         return uniswapPositions; // TODO maybe make it easier to get uint128 liquidity for each of these?
     }
 
-    function _getSolvencyCache(bool _includeKittyReceipts) private view returns (SolvencyCache memory c) {
+    function _getSolvencyCache(bool _includeLenderReceipts) private view returns (SolvencyCache memory c) {
         (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
         uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
 
@@ -195,9 +195,9 @@ contract MarginAccount is UniswapHelper {
         uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
         (uint160 a, uint160 b) = _computeProbePrices(
             sqrtMeanPriceX96,
-            _includeKittyReceipts ? (sigma * 489898) / 1e5 : sigma // conditionally scale to 24 hours
+            _includeLenderReceipts ? (sigma * 489898) / 1e5 : sigma // conditionally scale to 24 hours
         );
-        c = SolvencyCache(a, b, sqrtMeanPriceX96, _includeKittyReceipts);
+        c = SolvencyCache(a, b, sqrtMeanPriceX96, _includeLenderReceipts);
     }
 
     function _isSolvent(
@@ -264,9 +264,9 @@ contract MarginAccount is UniswapHelper {
     ) private view returns (Assets memory assets) {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
-        if (c2.includeKittyReceipts) {
-            assets.fixed0 += Kitty(KITTY0).balanceOfUnderlying(address(this));
-            assets.fixed1 += Kitty(KITTY1).balanceOfUnderlying(address(this));
+        if (c2.includeLenderReceipts) {
+            assets.fixed0 += Lender(LENDER0).balanceOfUnderlying(address(this));
+            assets.fixed1 += Lender(LENDER1).balanceOfUnderlying(address(this));
         }
 
         for (uint256 i; i < _uniswapPositions.length; i++) {
@@ -287,8 +287,8 @@ contract MarginAccount is UniswapHelper {
     }
 
     function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
-        amount0 = Kitty(KITTY0).borrowBalanceCurrent(address(this));
-        amount1 = Kitty(KITTY1).borrowBalanceCurrent(address(this));
+        amount0 = Lender(LENDER0).borrowBalanceCurrent(address(this));
+        amount1 = Lender(LENDER1).borrowBalanceCurrent(address(this));
     }
 
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
