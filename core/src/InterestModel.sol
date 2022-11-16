@@ -10,7 +10,7 @@ contract InterestModel {
         // TODO each Lender gets needs its own InterestModel in order for PID controller state to work well. Could still point to single proxy for logic though.
 
         // If utilization > 50%, use 4% APY. 2% APY otherwise.
-        uint256 interestRate = utilization > 0.5e18 ? 1.24e3 : 6.27e2; // ((1 + r) ^ (1 / SECONDS_IN_YEAR) - 1) * 1e12
+        uint256 interestRate = utilization > 0.5e18 ? 1244 : 628; // ((1 + r) ^ (1 / SECONDS_IN_YEAR) - 1) * 1e12
 
         unchecked {
             accrualFactor = FixedPointMathLib.rpow(1e12 + interestRate, elapsedTime, 1e12) - 1e12;

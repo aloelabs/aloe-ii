@@ -10,5 +10,7 @@ import {Lender} from "src/Lender.sol";
 function deploySingleLender(ERC20 asset, address treasury, InterestModel interestModel) returns (Lender) {
     address impl = address(new Lender(treasury, interestModel));
     address proxy = ClonesWithImmutableArgs.clone(address(impl), abi.encodePacked(address(asset)));
+
+    Lender(proxy).initialize();
     return Lender(proxy);
 }

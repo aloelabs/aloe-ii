@@ -56,6 +56,9 @@ contract Factory {
             data: abi.encodePacked(address(asset1))
         }));
 
+        lender0.initialize();
+        lender1.initialize();
+
         getMarket[_pool] = Market(lender0, lender1);
         emit CreateMarket(_pool, lender0, lender1);
     }
