@@ -1,4 +1,9 @@
-*.env
+# Node
+node_modules
+
+# Forge
 cache/
 build/
 broadcast/
+
+*.env

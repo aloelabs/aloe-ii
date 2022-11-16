@@ -88,9 +88,7 @@ library Volatility {
                 computeTickTVLX64(metadata.tickSpacing, data.currentTick, data.sqrtPriceX96, data.tickLiquidity)
             )
         );
-        uint48 timeAdjustmentX32 = uint48(
-            FixedPointMathLib.sqrt((scale << 64) / (b.timestamp - a.timestamp))
-        );
+        uint48 timeAdjustmentX32 = uint48(FixedPointMathLib.sqrt((scale << 64) / (b.timestamp - a.timestamp)));
 
         if (sqrtTickTVLX32 == 0) return 0;
         unchecked {

@@ -8,10 +8,7 @@ out = '../build/core'
 cache_path = '../cache/core'
 
 optimizer = true
-optimizer_runs = 800
+optimizer_runs = 1000000
 gas_reports = []
 
 auto_detect_remappings = true
-
-[fmt]
-func_attrs_with_params_multiline = false
