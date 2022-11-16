@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {FullMath} from "./libraries/FullMath.sol";
@@ -26,11 +27,9 @@ contract Lender {
 
     Factory public immutable FACTORY;
 
-    ERC20 public immutable ASSET;
+    address public immutable TREASURY;
 
     InterestModel public immutable INTEREST_MODEL;
-
-    address public immutable TREASURY;
 
     struct Cache {
         uint256 totalSupply;
@@ -54,11 +53,10 @@ contract Lender {
 
     mapping(address => uint256) public borrows;
 
-    constructor(ERC20 asset, InterestModel interestModel, address treasury) {
+    constructor(address treasury, InterestModel interestModel) {
         FACTORY = Factory(msg.sender);
-        ASSET = asset;
-        INTEREST_MODEL = interestModel;
         TREASURY = treasury;
+        INTEREST_MODEL = interestModel;
 
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
@@ -75,7 +73,7 @@ contract Lender {
 
         // Ensure tokens were transferred
         cache.lastBalance += amount;
-        require(cache.lastBalance <= ASSET.balanceOf(address(this)));
+        require(cache.lastBalance <= asset().balanceOf(address(this)));
 
         // Mint shares (emits event that can be interpreted as a deposit)
         cache.totalSupply += shares;
@@ -96,7 +94,7 @@ contract Lender {
 
         // Transfer tokens
         cache.lastBalance -= amount;
-        ASSET.safeTransfer(recipient, amount);
+        asset().safeTransfer(recipient, amount);
 
         // Burn shares (emits event that can be interpreted as a withdrawal)
         _unsafeBurn(msg.sender, shares);
@@ -122,7 +120,7 @@ contract Lender {
 
         // Transfer tokens
         cache.lastBalance -= amount;
-        ASSET.safeTransfer(recipient, amount);
+        asset().safeTransfer(recipient, amount);
 
         _save(cache, /* didChangeBorrowBase: */ true);
     }
@@ -142,7 +140,7 @@ contract Lender {
 
         // Ensure tokens were transferred
         cache.lastBalance += amount;
-        require(cache.lastBalance <= ASSET.balanceOf(address(this)));
+        require(cache.lastBalance <= asset().balanceOf(address(this)));
 
         _save(cache, /* didChangeBorrowBase: */ true);
     }
@@ -154,10 +152,12 @@ contract Lender {
         require(_lastAccrualTime != 0);
         lastAccrualTime = 0;
 
-        uint256 balance = ASSET.balanceOf(address(this));
-        ASSET.safeTransfer(to, amount);
+        ERC20 asset_ = asset();
+
+        uint256 balance = asset_.balanceOf(address(this));
+        asset_.safeTransfer(to, amount);
         IFlashBorrower(to).onFlashLoan(msg.sender, amount, data);
-        require(ASSET.balanceOf(address(this)) == balance, "Aloe: failed repay"); // TODO use real Error
+        require(asset_.balanceOf(address(this)) == balance, "Aloe: failed repay"); // TODO use real Error
 
         lastAccrualTime = _lastAccrualTime;
     }
@@ -269,6 +269,10 @@ contract Lender {
 
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
     // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
+
+    function asset() public pure returns (ERC20) {
+        return ERC20(ImmutableArgs.addr());
+    }
 
     function _convertToShares(
         uint256 assets,

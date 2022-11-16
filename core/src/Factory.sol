@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
@@ -10,6 +11,8 @@ import {Borrower} from "./Borrower.sol";
 import {BorrowerFactory} from "./BorrowerFactory.sol";
 
 contract Factory {
+    using ClonesWithImmutableArgs for address;
+
     event CreateMarket(IUniswapV3Pool indexed pool, Lender indexed lender0, Lender indexed lender1);
 
     event CreateBorrower(IUniswapV3Pool indexed pool, Borrower indexed account, address indexed owner);
@@ -23,6 +26,8 @@ contract Factory {
 
     BorrowerFactory public immutable MARGIN_ACCOUNT_FACTORY;
 
+    address public immutable lenderImplementation;
+
     mapping(IUniswapV3Pool => Market) public getMarket;
 
     mapping(address => bool) public isBorrower;
@@ -32,6 +37,7 @@ contract Factory {
     constructor(InterestModel _interestModel, BorrowerFactory _borrowerFactory) {
         INTEREST_MODEL = _interestModel;
         MARGIN_ACCOUNT_FACTORY = _borrowerFactory;
+        lenderImplementation = address(new Lender(address(this), _interestModel));
     }
 
     function createMarket(IUniswapV3Pool _pool) external {
@@ -40,8 +46,15 @@ contract Factory {
 
         // TODO this implies that lending pairs are fee-tier specific. does it make sense to combine fee tiers?
         //      if so, margin account Uniswap liquidity readers will have to change.
-        Lender lender0 = new Lender{salt: keccak256(abi.encode(_pool))}(asset0, INTEREST_MODEL, address(this));
-        Lender lender1 = new Lender{salt: keccak256(abi.encode(_pool))}(asset1, INTEREST_MODEL, address(this));
+        bytes32 salt = keccak256(abi.encode(_pool));
+        Lender lender0 = Lender(lenderImplementation.cloneDeterministic({
+            salt: salt,
+            data: abi.encodePacked(address(asset0))
+        }));
+        Lender lender1 = Lender(lenderImplementation.cloneDeterministic({
+            salt: salt,
+            data: abi.encodePacked(address(asset1))
+        }));
 
         getMarket[_pool] = Market(lender0, lender1);
         emit CreateMarket(_pool, lender0, lender1);

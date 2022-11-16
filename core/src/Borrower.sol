@@ -55,8 +55,8 @@ contract Borrower is UniswapHelper {
     Uniswap.Position[] public uniswapPositions; // TODO constrain the number of uniswap positions (otherwise gas danger)
 
     constructor(IUniswapV3Pool _pool, Lender _lender0, Lender _lender1, address _owner) UniswapHelper(_pool) {
-        require(_pool.token0() == address(_lender0.ASSET()));
-        require(_pool.token1() == address(_lender1.ASSET()));
+        require(_pool.token0() == address(_lender0.asset()));
+        require(_pool.token1() == address(_lender1.asset()));
 
         LENDER0 = address(_lender0);
         LENDER1 = address(_lender1);

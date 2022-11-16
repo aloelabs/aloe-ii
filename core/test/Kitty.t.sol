@@ -3,10 +3,9 @@ pragma solidity ^0.8.15;
 
 import "forge-std/Test.sol";
 
-import {ERC20} from "solmate/tokens/ERC20.sol";
-
-import "src/InterestModel.sol";
 import "src/Lender.sol";
+
+import {deploySingleLender} from "./Utils.sol";
 
 contract LenderTest is Test {
     ERC20 constant asset = ERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
@@ -21,7 +20,7 @@ contract LenderTest is Test {
     }
 
     function setUp() public {
-        lender = new Lender(asset, new InterestModel(), address(this));
+        lender = deploySingleLender(asset, address(this), new InterestModel());
     }
 
     function test_accrueInterest() public {

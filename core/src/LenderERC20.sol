@@ -44,10 +44,11 @@ contract LenderERC20 is Lender {
                                CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(ERC20 asset, InterestModel interestModel, address treasury) Lender(asset, interestModel, treasury) {
-        name = string.concat("Aloe II ", asset.name());
-        symbol = string.concat(asset.symbol(), "+");
-        decimals = asset.decimals();
+    constructor(address treasury, InterestModel interestModel) Lender(treasury, interestModel) {
+        ERC20 asset_ = asset();
+        name = string.concat("Aloe II ", asset_.name());
+        symbol = string.concat(asset_.symbol(), "+");
+        decimals = asset_.decimals();
 
         INITIAL_CHAIN_ID = block.chainid;
         INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
