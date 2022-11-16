@@ -10,3 +10,6 @@
 [submodule "core/lib/openzeppelin-contracts"]
 	path = core/lib/openzeppelin-contracts
 	url = https://github.com/openzeppelin/openzeppelin-contracts
+[submodule "core/lib/clones-with-immutable-args"]
+	path = core/lib/clones-with-immutable-args
+	url = https://github.com/aloelabs/clones-with-immutable-args
