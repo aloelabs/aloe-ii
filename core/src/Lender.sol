@@ -57,7 +57,10 @@ contract Lender {
         FACTORY = Factory(msg.sender);
         TREASURY = treasury;
         INTEREST_MODEL = interestModel;
+    }
 
+    function initialize() external {
+        require(borrowIndex == 0, "Already initialized"); // TODO use real Error
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
     }
@@ -174,7 +177,7 @@ contract Lender {
 
         // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
         cache.borrowIndex = cache.borrowIndex.mulDiv(ONE + accrualFactor, ONE);
-        cache.lastAccrualTime = block.timestamp;
+        cache.lastAccrualTime = 0; // 0 in storage means locked to reentrancy; 0 in `cache` means `borrowIndex` was updated
 
         // re-compute borrows and inventory
         uint256 borrowsNew = cache.borrowBase.mulDiv(cache.borrowIndex, BORROWS_SCALER);
@@ -203,14 +206,23 @@ contract Lender {
     }
 
     function _save(Cache memory cache, bool didChangeBorrowBase) private {
+        if (cache.lastAccrualTime == 0) {
+            // `cache.lastAccrualTime == 0` implies that `cache.borrowIndex` was updated.
+            // `cache.borrowBase` MAY also have been updated, so we store both components of the slot.
+            borrowBase = cache.borrowBase.safeCastTo184();
+            borrowIndex = cache.borrowIndex.safeCastTo72();
+            // Now that we've read the flag, we can update `cache.lastAccrualTime` to a more appropriate value
+            cache.lastAccrualTime = block.timestamp;
+
+        } else if (didChangeBorrowBase) {
+            // Here, `cache.lastAccrualTime` is a real timestamp (could be `block.timestamp` or older). We can infer
+            // that `cache.borrowIndex` was *not* updated. So we only have to store `cache.borrowBase`.
+            borrowBase = cache.borrowBase.safeCastTo184();
+        }
+
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
-        lastAccrualTime = cache.lastAccrualTime.safeCastTo32();
-
-        if (didChangeBorrowBase || cache.lastAccrualTime != block.timestamp) {
-            borrowBase = uint184(cache.borrowBase); // As long as `lastBalance` is safe-casted, this doesn't need to be
-            borrowIndex = cache.borrowIndex.safeCastTo72();
-        }
+        lastAccrualTime = cache.lastAccrualTime.safeCastTo32(); // Disables reentrancy guard
     }
 
     /*//////////////////////////////////////////////////////////////
