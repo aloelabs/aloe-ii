@@ -174,24 +174,10 @@ contract Lender {
     }
 
     function _accrueInterest(Cache memory cache) private returns (Cache memory, uint256) {
-        (uint256 borrowsOld, uint256 accrualFactor) = _getAccrualFactor(cache);
-        if (accrualFactor == 0 || borrowsOld == 0) return (cache, cache.lastBalance);
-
-        // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
-        cache.borrowIndex = cache.borrowIndex.mulDiv(ONE + accrualFactor, ONE);
-        cache.lastAccrualTime = 0; // 0 in storage means locked to reentrancy; 0 in `cache` means `borrowIndex` was updated
-
-        // re-compute borrows and inventory
-        uint256 borrowsNew = cache.borrowBase.mulDiv(cache.borrowIndex, BORROWS_SCALER);
         uint256 inventory;
-        unchecked {
-            inventory = cache.lastBalance + borrowsNew;
-        }
+        uint256 newTotalSupply;
+        (cache, inventory, newTotalSupply) = _accrueInterestView(cache);
 
-        uint256 newTotalSupply = cache.totalSupply.mulDiv(
-            inventory,
-            inventory - (borrowsNew - borrowsOld) / 8 // `8` indicates a 1/8=12.5% reserve factor
-        );
         if (newTotalSupply != cache.totalSupply) {
             _unsafeMint(TREASURY, newTotalSupply - cache.totalSupply);
             cache.totalSupply = newTotalSupply;
@@ -268,6 +254,28 @@ contract Lender {
     // TODO utilizationCurrent and stored
 
     // TODO inventoryCurrent and stored
+
+    function _accrueInterestView(Cache memory cache) private view returns (Cache memory, uint256, uint256) {
+        (uint256 borrowsOld, uint256 accrualFactor) = _getAccrualFactor(cache);
+        if (accrualFactor == 0 || borrowsOld == 0) return (cache, cache.lastBalance, cache.totalSupply);
+
+        // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
+        cache.borrowIndex = cache.borrowIndex.mulDiv(ONE + accrualFactor, ONE);
+        cache.lastAccrualTime = 0; // 0 in storage means locked to reentrancy; 0 in `cache` means `borrowIndex` was updated
+
+        // re-compute borrows and inventory
+        uint256 borrowsNew = cache.borrowBase.mulDiv(cache.borrowIndex, BORROWS_SCALER);
+        uint256 inventory;
+        unchecked {
+            inventory = cache.lastBalance + borrowsNew;
+        }
+
+        uint256 newTotalSupply = cache.totalSupply.mulDiv(
+            inventory,
+            inventory - (borrowsNew - borrowsOld) / 8 // `8` indicates a 1/8=12.5% reserve factor
+        );
+        return (cache, inventory, newTotalSupply);
+    }
 
     function _getAccrualFactor(Cache memory cache) private view returns (uint256 totalBorrows, uint256 accrualFactor) {
         if (cache.lastAccrualTime != block.timestamp && cache.borrowBase != 0) {
