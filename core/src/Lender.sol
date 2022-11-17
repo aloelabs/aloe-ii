@@ -66,10 +66,8 @@ contract Lender {
     }
 
     function deposit(uint256 amount, address beneficiary) external returns (uint256 shares) {
-        Cache memory cache = _load();
-
-        uint256 inventory;
-        (cache, inventory) = _accrueInterest(cache);
+        // Guard against reentrancy, accrue interest, and update reserves
+        (Cache memory cache, uint256 inventory) = _load();
 
         shares = _convertToShares(amount, inventory, cache.totalSupply);
         require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
@@ -82,14 +80,13 @@ contract Lender {
         cache.totalSupply += shares;
         _unsafeMint(beneficiary, shares);
 
+        // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ false);
     }
 
     function withdraw(uint256 shares, address recipient) external returns (uint256 amount) {
-        Cache memory cache = _load();
-
-        uint256 inventory;
-        (cache, inventory) = _accrueInterest(cache);
+        // Guard against reentrancy, accrue interest, and update reserves
+        (Cache memory cache, uint256 inventory) = _load();
 
         if (shares == type(uint256).max) shares = balanceOf[msg.sender];
         amount = _convertToAssets(shares, inventory, cache.totalSupply);
@@ -105,15 +102,15 @@ contract Lender {
             cache.totalSupply -= shares;
         }
 
+        // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ false);
     }
 
     function borrow(uint256 amount, address recipient) external {
         require(FACTORY.isBorrowerAllowed(this, msg.sender), "Aloe: bad account");
 
-        Cache memory cache = _load();
-
-        (cache, ) = _accrueInterest(cache);
+        // Guard against reentrancy, accrue interest, and update reserves
+        (Cache memory cache, ) = _load();
 
         uint256 base = amount.mulDivRoundingUp(BORROWS_SCALER, cache.borrowIndex);
         cache.borrowBase += base;
@@ -125,14 +122,14 @@ contract Lender {
         cache.lastBalance -= amount;
         asset().safeTransfer(recipient, amount);
 
+        // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ true);
         // TODO emit event
     }
 
     function repay(uint256 amount, address beneficiary) external {
-        Cache memory cache = _load();
-
-        (cache, ) = _accrueInterest(cache);
+        // Guard against reentrancy, accrue interest, and update reserves
+        (Cache memory cache, ) = _load();
 
         // TODO if `amount` == type(uint256).max, repay max
         // if (amount == type(uint256).max) amount = borrows[to].mulDivRoundingUp(cache.borrowIndex, BORROWS_SCALER);
@@ -146,13 +143,14 @@ contract Lender {
         cache.lastBalance += amount;
         require(cache.lastBalance <= asset().balanceOf(address(this)));
 
+        // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ true);
         // TODO emit event
     }
 
     /// @dev Reentrancy guard is critical here! Without it, one could use a flash loan to repay a normal loan.
     function flash(uint256 amount, address to, bytes calldata data) external {
-        // Reentrancy guard
+        // Guard against reentrancy
         uint32 _lastAccrualTime = lastAccrualTime;
         require(_lastAccrualTime != 0);
         lastAccrualTime = 0;
@@ -168,29 +166,25 @@ contract Lender {
     }
 
     function accrueInterest() external {
-        Cache memory cache = _load();
-        (cache, ) = _accrueInterest(cache);
+        (Cache memory cache, ) = _load();
         _save(cache, /* didChangeBorrowBase: */ false);
     }
 
-    function _accrueInterest(Cache memory cache) private returns (Cache memory, uint256) {
-        uint256 inventory;
+    function _load() private returns (Cache memory cache, uint256 inventory) {
+        cache = Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
+        // Guard against reentrancy
+        require(cache.lastAccrualTime != 0);
+        lastAccrualTime = 0;
+
+        // Accrue interest (only in memory)
         uint256 newTotalSupply;
         (cache, inventory, newTotalSupply) = _accrueInterestView(cache);
 
+        // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
         if (newTotalSupply != cache.totalSupply) {
             _unsafeMint(TREASURY, newTotalSupply - cache.totalSupply);
             cache.totalSupply = newTotalSupply;
         }
-
-        return (cache, inventory);
-    }
-
-    function _load() private returns (Cache memory cache) {
-        cache = Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
-        // Reentrancy guard
-        require(cache.lastAccrualTime != 0);
-        lastAccrualTime = 0;
     }
 
     function _save(Cache memory cache, bool didChangeBorrowBase) private {
@@ -315,6 +309,6 @@ contract Lender {
         uint256 inventory,
         uint256 totalSupply_
     ) internal pure returns (uint256 assets) {
-        assets = (totalSupply_ == 0) ? 0 : shares.mulDiv(inventory, totalSupply_);
+        assets = (totalSupply_ == 0) ? shares : shares.mulDiv(inventory, totalSupply_);
     }
 }
