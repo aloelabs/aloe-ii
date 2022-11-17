@@ -22,7 +22,7 @@ contract LenderERC20 is Lender {
 
     string public symbol;
 
-    uint8 public immutable decimals;
+    uint8 public decimals;
 
     /*//////////////////////////////////////////////////////////////
                               ERC20 STORAGE
@@ -45,20 +45,24 @@ contract LenderERC20 is Lender {
     //////////////////////////////////////////////////////////////*/
 
     constructor(address treasury, InterestModel interestModel) Lender(treasury, interestModel) {
+        INITIAL_CHAIN_ID = block.chainid;
+        INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
+    }
+
+    function initialize() public virtual override {
+        super.initialize();
+
         ERC20 asset_ = asset();
         name = string.concat("Aloe II ", asset_.name());
         symbol = string.concat(asset_.symbol(), "+");
         decimals = asset_.decimals();
-
-        INITIAL_CHAIN_ID = block.chainid;
-        INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
     }
 
     /*//////////////////////////////////////////////////////////////
                                ERC20 LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function approve(address spender, uint256 amount) public virtual returns (bool) {
+    function approve(address spender, uint256 amount) external returns (bool) {
         allowance[msg.sender][spender] = amount;
 
         emit Approval(msg.sender, spender, amount);
@@ -66,7 +70,7 @@ contract LenderERC20 is Lender {
         return true;
     }
 
-    function transfer(address to, uint256 amount) public virtual returns (bool) {
+    function transfer(address to, uint256 amount) external returns (bool) {
         balanceOf[msg.sender] -= amount;
 
         // Cannot overflow because the sum of all user
@@ -80,7 +84,7 @@ contract LenderERC20 is Lender {
         return true;
     }
 
-    function transferFrom(address from, address to, uint256 amount) public virtual returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.
 
         if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;
@@ -110,7 +114,7 @@ contract LenderERC20 is Lender {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) public virtual {
+    ) external {
         require(deadline >= block.timestamp, "PERMIT_DEADLINE_EXPIRED");
 
         // Unchecked because the only math done is incrementing
@@ -148,11 +152,11 @@ contract LenderERC20 is Lender {
         emit Approval(owner, spender, value);
     }
 
-    function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {
+    function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return block.chainid == INITIAL_CHAIN_ID ? INITIAL_DOMAIN_SEPARATOR : computeDomainSeparator();
     }
 
-    function computeDomainSeparator() internal view virtual returns (bytes32) {
+    function computeDomainSeparator() private view returns (bytes32) {
         return
             keccak256(
                 abi.encode(

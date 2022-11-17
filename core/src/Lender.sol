@@ -59,7 +59,7 @@ contract Lender {
         INTEREST_MODEL = interestModel;
     }
 
-    function initialize() external {
+    function initialize() public virtual {
         require(borrowIndex == 0, "Already initialized"); // TODO use real Error
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
@@ -126,6 +126,7 @@ contract Lender {
         asset().safeTransfer(recipient, amount);
 
         _save(cache, /* didChangeBorrowBase: */ true);
+        // TODO emit event
     }
 
     function repay(uint256 amount, address beneficiary) external {
@@ -146,6 +147,7 @@ contract Lender {
         require(cache.lastBalance <= asset().balanceOf(address(this)));
 
         _save(cache, /* didChangeBorrowBase: */ true);
+        // TODO emit event
     }
 
     /// @dev Reentrancy guard is critical here! Without it, one could use a flash loan to repay a normal loan.
@@ -252,7 +254,7 @@ contract Lender {
         return _convertToAssets({
             shares: balanceOf[account],
             inventory: lastBalance + FullMath.mulDiv(borrowBase, borrowIndex, BORROWS_SCALER),
-            totalSupply: totalSupply
+            totalSupply_: totalSupply
         });
     }
 
@@ -282,6 +284,12 @@ contract Lender {
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
     // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
+    /**
+     * @dev Returns the address of the underlying token used for the Vault for accounting, depositing, and withdrawing.
+     *
+     * - MUST be an ERC-20 token contract.
+     * - MUST NOT revert.
+     */
     function asset() public pure returns (ERC20) {
         return ERC20(ImmutableArgs.addr());
     }
@@ -289,16 +297,16 @@ contract Lender {
     function _convertToShares(
         uint256 assets,
         uint256 inventory,
-        uint256 totalSupply
-    ) private pure returns (uint256 shares) {
-        shares = (totalSupply == 0) ? assets : assets.mulDiv(totalSupply, inventory);
+        uint256 totalSupply_
+    ) internal pure returns (uint256 shares) {
+        shares = (totalSupply_ == 0) ? assets : assets.mulDiv(totalSupply_, inventory);
     }
 
     function _convertToAssets(
         uint256 shares,
         uint256 inventory,
-        uint256 totalSupply
-    ) private pure returns (uint256 assets) {
-        assets = (totalSupply == 0) ? 0 : shares.mulDiv(inventory, totalSupply);
+        uint256 totalSupply_
+    ) internal pure returns (uint256 assets) {
+        assets = (totalSupply_ == 0) ? 0 : shares.mulDiv(inventory, totalSupply_);
     }
 }
