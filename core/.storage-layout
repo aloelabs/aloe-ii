@@ -39,8 +39,10 @@ forge inspect --pretty src/LenderERC20.sol:LenderERC20 storage-layout
 |-----------------+-------------------------------------------------+------+--------+-------+---------------------------------|
 | symbol          | string                                          | 5    | 0      | 32    | src/LenderERC20.sol:LenderERC20 |
 |-----------------+-------------------------------------------------+------+--------+-------+---------------------------------|
-| allowance       | mapping(address => mapping(address => uint256)) | 6    | 0      | 32    | src/LenderERC20.sol:LenderERC20 |
+| decimals        | uint8                                           | 6    | 0      | 1     | src/LenderERC20.sol:LenderERC20 |
 |-----------------+-------------------------------------------------+------+--------+-------+---------------------------------|
-| nonces          | mapping(address => uint256)                     | 7    | 0      | 32    | src/LenderERC20.sol:LenderERC20 |
+| allowance       | mapping(address => mapping(address => uint256)) | 7    | 0      | 32    | src/LenderERC20.sol:LenderERC20 |
+|-----------------+-------------------------------------------------+------+--------+-------+---------------------------------|
+| nonces          | mapping(address => uint256)                     | 8    | 0      | 32    | src/LenderERC20.sol:LenderERC20 |
 +-----------------+-------------------------------------------------+------+--------+-------+---------------------------------+
 
