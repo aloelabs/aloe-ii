@@ -65,6 +65,7 @@ contract Lender {
         lastAccrualTime = uint32(block.timestamp);
     }
 
+    // TODO should emit proper ERC4626 event, either here or in `deposit` wrapper in `LenderERC4626`
     function deposit(uint256 amount, address beneficiary) external returns (uint256 shares) {
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, uint256 inventory) = _load();
@@ -249,7 +250,7 @@ contract Lender {
 
     // TODO inventoryCurrent and stored
 
-    function _accrueInterestView(Cache memory cache) private view returns (Cache memory, uint256, uint256) {
+    function _accrueInterestView(Cache memory cache) internal view returns (Cache memory, uint256, uint256) {
         (uint256 borrowsOld, uint256 accrualFactor) = _getAccrualFactor(cache);
         if (accrualFactor == 0 || borrowsOld == 0) return (cache, cache.lastBalance, cache.totalSupply);
 

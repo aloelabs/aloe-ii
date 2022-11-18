@@ -30,12 +30,12 @@ contract LenderERC4626 is LenderERC20 {
                         DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    // function deposit(uint256 assets, address receiver) public virtual returns (uint256 shares) {
-    //     // TODO
-    // }
-
-    function mint(uint256 shares, address receiver) public virtual returns (uint256 assets) {
-        // TODO
+    // NOTE: Rather than increasing attack surface area, we're reusing the `deposit` implementation
+    // This will be significantly gassier than a raw `deposit`, so we advise consumers to use that
+    // instead. This is really just here to conform to ERC4626.
+    function mint(uint256 shares, address receiver) external returns (uint256 assets) {
+        assets = previewMint(shares);
+        require(this.deposit(assets, receiver) == shares);
     }
 
     // function withdraw(
@@ -59,15 +59,36 @@ contract LenderERC4626 is LenderERC20 {
     //////////////////////////////////////////////////////////////*/
 
     function totalAssets() public view returns (uint256) {
-        // TODO requires view-only accrueInterest
+        (, uint256 inventory, ) = _accrueInterestView(Cache(
+            totalSupply,
+            lastBalance,
+            lastAccrualTime,
+            borrowBase,
+            borrowIndex
+        ));
+        return inventory;
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
-        // TODO requires view-only accrueInterest
+        (, uint256 inventory, uint256 newTotalSupply) = _accrueInterestView(Cache(
+            totalSupply,
+            lastBalance,
+            lastAccrualTime,
+            borrowBase,
+            borrowIndex
+        ));
+        return _convertToShares(assets, inventory, newTotalSupply);
     }
 
     function convertToAssets(uint256 shares) public view returns (uint256) {
-        // TODO requires view-only accrueInterest
+        (, uint256 inventory, uint256 newTotalSupply) = _accrueInterestView(Cache(
+            totalSupply,
+            lastBalance,
+            lastAccrualTime,
+            borrowBase,
+            borrowIndex
+        ));
+        return _convertToAssets(shares, inventory, newTotalSupply);
     }
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
@@ -75,11 +96,25 @@ contract LenderERC4626 is LenderERC20 {
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
-        // TODO requires view-only accrueInterest, make sure to mulDivUp
+        (, uint256 inventory, uint256 newTotalSupply) = _accrueInterestView(Cache(
+            totalSupply,
+            lastBalance,
+            lastAccrualTime,
+            borrowBase,
+            borrowIndex
+        ));
+        return (newTotalSupply == 0) ? shares : shares.mulDivRoundingUp(inventory, newTotalSupply);
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        // TODO requires view-only accrueInterest, make sure to mulDivUp
+        (, uint256 inventory, uint256 newTotalSupply) = _accrueInterestView(Cache(
+            totalSupply,
+            lastBalance,
+            lastAccrualTime,
+            borrowBase,
+            borrowIndex
+        ));
+        return (newTotalSupply == 0) ? assets : assets.mulDivRoundingUp(newTotalSupply, inventory);
     }
 
     function previewRedeem(uint256 shares) public view returns (uint256) {
