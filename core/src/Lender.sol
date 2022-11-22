@@ -21,6 +21,8 @@ contract Lender is Ledger {
     using FullMath for uint256;
     using SafeCastLib for uint256;
 
+    event Approval(address indexed owner, address indexed spender, uint256 amount);
+
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
     constructor(address treasury, InterestModel interestModel) Ledger(treasury, interestModel) {
@@ -30,6 +32,11 @@ contract Lender is Ledger {
         require(borrowIndex == 0, "Already initialized"); // TODO use real Error
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
+
+        ERC20 asset_ = asset();
+        name = string.concat("Aloe II ", asset_.name());
+        symbol = string.concat(asset_.symbol(), "+");
+        decimals = asset_.decimals();
     }
 
     // TODO should emit proper ERC4626 event, either here or in `deposit` wrapper in `LenderERC4626`
@@ -173,6 +180,109 @@ contract Lender is Ledger {
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
         lastAccrualTime = cache.lastAccrualTime.safeCastTo32(); // Disables reentrancy guard
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                               ERC20 LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+
+        emit Approval(msg.sender, spender, amount);
+
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+
+        // Cannot overflow because the sum of all user
+        // balances can't exceed the max uint256 value.
+        unchecked {
+            balanceOf[to] += amount;
+        }
+
+        emit Transfer(msg.sender, to, amount);
+
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.
+
+        if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;
+
+        balanceOf[from] -= amount;
+
+        // Cannot overflow because the sum of all user
+        // balances can't exceed the max uint256 value.
+        unchecked {
+            balanceOf[to] += amount;
+        }
+
+        emit Transfer(from, to, amount);
+
+        return true;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             EIP-2612 LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    function permit(
+        address owner,
+        address spender,
+        uint256 value,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external {
+        require(deadline >= block.timestamp, "PERMIT_DEADLINE_EXPIRED");
+
+        // Unchecked because the only math done is incrementing
+        // the owner's nonce which cannot realistically overflow.
+        unchecked {
+            address recoveredAddress = ecrecover(
+                keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                                ),
+                                owner,
+                                spender,
+                                value,
+                                nonces[owner]++,
+                                deadline
+                            )
+                        )
+                    )
+                ),
+                v,
+                r,
+                s
+            );
+
+            require(recoveredAddress != address(0) && recoveredAddress == owner, "INVALID_SIGNER");
+
+            allowance[recoveredAddress][spender] = value;
+        }
+
+        emit Approval(owner, spender, value);
+    }
+
+    function DOMAIN_SEPARATOR() public returns (bytes32) {
+        if (lastDomainSeparator == bytes32(0) || lastChainId != block.chainid) {
+            lastDomainSeparator = computeDomainSeparator();
+            lastChainId = block.chainid;
+        }
+        
+        return lastDomainSeparator;
     }
 
     /*//////////////////////////////////////////////////////////////
