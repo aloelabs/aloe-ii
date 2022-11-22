@@ -34,9 +34,9 @@ contract LenderERC20 is Lender {
                             EIP-2612 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    uint256 internal immutable INITIAL_CHAIN_ID;
+    bytes32 internal lastDomainSeparator;
 
-    bytes32 internal immutable INITIAL_DOMAIN_SEPARATOR;
+    uint256 internal lastChainId;
 
     mapping(address => uint256) public nonces;
 
@@ -44,10 +44,7 @@ contract LenderERC20 is Lender {
                                CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address treasury, InterestModel interestModel) Lender(treasury, interestModel) {
-        INITIAL_CHAIN_ID = block.chainid;
-        INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();
-    }
+    constructor(address treasury, InterestModel interestModel) Lender(treasury, interestModel) { }
 
     function initialize() public virtual override {
         super.initialize();
@@ -152,8 +149,13 @@ contract LenderERC20 is Lender {
         emit Approval(owner, spender, value);
     }
 
-    function DOMAIN_SEPARATOR() public view returns (bytes32) {
-        return block.chainid == INITIAL_CHAIN_ID ? INITIAL_DOMAIN_SEPARATOR : computeDomainSeparator();
+    function DOMAIN_SEPARATOR() public returns (bytes32) {
+        if (lastDomainSeparator == bytes32(0) || lastChainId != block.chainid) {
+            lastDomainSeparator = computeDomainSeparator();
+            lastChainId = block.chainid;
+        }
+        
+        return lastDomainSeparator;
     }
 
     function computeDomainSeparator() private view returns (bytes32) {
