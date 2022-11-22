@@ -10,53 +10,20 @@ import {SafeCastLib} from "./libraries/SafeCastLib.sol";
 import {InterestModel} from "./InterestModel.sol";
 import {Factory} from "./Factory.sol";
 
+import {Ledger} from "./Ledger.sol";
+
 interface IFlashBorrower {
     function onFlashLoan(address initiator, uint256 amount, bytes calldata data) external;
 }
 
-contract Lender {
+contract Lender is Ledger {
     using SafeTransferLib for ERC20;
     using FullMath for uint256;
     using SafeCastLib for uint256;
 
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
-    uint256 public constant ONE = 1e12;
-
-    uint256 public constant BORROWS_SCALER = type(uint72).max * ONE; // uint72 is from borrowIndex type
-
-    Factory public immutable FACTORY;
-
-    address public immutable TREASURY;
-
-    InterestModel public immutable INTEREST_MODEL;
-
-    struct Cache {
-        uint256 totalSupply;
-        uint256 lastBalance;
-        uint256 lastAccrualTime;
-        uint256 borrowBase;
-        uint256 borrowIndex;
-    }
-
-    uint112 public totalSupply;
-
-    uint112 public lastBalance;
-
-    uint32 public lastAccrualTime;
-
-    uint184 public borrowBase;
-
-    uint72 public borrowIndex;
-
-    mapping(address => uint256) public balanceOf;
-
-    mapping(address => uint256) public borrows;
-
-    constructor(address treasury, InterestModel interestModel) {
-        FACTORY = Factory(msg.sender);
-        TREASURY = treasury;
-        INTEREST_MODEL = interestModel;
+    constructor(address treasury, InterestModel interestModel) Ledger(treasury, interestModel) {
     }
 
     function initialize() public virtual {
@@ -226,90 +193,5 @@ contract Lender {
         balanceOf[from] -= amount;
 
         emit Transfer(from, address(0), amount);
-    }
-
-    // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
-
-    function balanceOfUnderlying(address account) external view returns (uint256) {
-        // TODO this should probably accrueInterest
-        return _convertToAssets({
-            shares: balanceOf[account],
-            inventory: lastBalance + FullMath.mulDiv(borrowBase, borrowIndex, BORROWS_SCALER),
-            totalSupply_: totalSupply
-        });
-    }
-
-    // TODO this is really borrowBalanceStored, not Current (in Compound lingo)
-    function borrowBalanceCurrent(address account) external view returns (uint256) {
-        return borrows[account].mulDiv(borrowIndex, BORROWS_SCALER);
-    }
-
-    // TODO exchangeRateCurrent and stored
-
-    // TODO utilizationCurrent and stored
-
-    // TODO inventoryCurrent and stored
-
-    function _accrueInterestView(Cache memory cache) internal view returns (Cache memory, uint256, uint256) {
-        (uint256 borrowsOld, uint256 accrualFactor) = _getAccrualFactor(cache);
-        if (accrualFactor == 0 || borrowsOld == 0) return (cache, cache.lastBalance, cache.totalSupply);
-
-        // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
-        cache.borrowIndex = cache.borrowIndex.mulDiv(ONE + accrualFactor, ONE);
-        cache.lastAccrualTime = 0; // 0 in storage means locked to reentrancy; 0 in `cache` means `borrowIndex` was updated
-
-        // re-compute borrows and inventory
-        uint256 borrowsNew = cache.borrowBase.mulDiv(cache.borrowIndex, BORROWS_SCALER);
-        uint256 inventory;
-        unchecked {
-            inventory = cache.lastBalance + borrowsNew;
-        }
-
-        uint256 newTotalSupply = cache.totalSupply.mulDiv(
-            inventory,
-            inventory - (borrowsNew - borrowsOld) / 8 // `8` indicates a 1/8=12.5% reserve factor
-        );
-        return (cache, inventory, newTotalSupply);
-    }
-
-    function _getAccrualFactor(Cache memory cache) private view returns (uint256 totalBorrows, uint256 accrualFactor) {
-        if (cache.lastAccrualTime != block.timestamp && cache.borrowBase != 0) {
-            // compute `totalBorrows`
-            totalBorrows = cache.borrowBase.mulDiv(cache.borrowIndex, BORROWS_SCALER);
-            // get `accrualFactor`
-            accrualFactor = INTEREST_MODEL.getAccrualFactor({
-                elapsedTime: block.timestamp - cache.lastAccrualTime,
-                utilization: uint256(1e18).mulDiv(totalBorrows, totalBorrows + cache.lastBalance)
-            });
-        }
-    }
-
-    // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
-    // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
-
-    /**
-     * @dev Returns the address of the underlying token used for the Vault for accounting, depositing, and withdrawing.
-     *
-     * - MUST be an ERC-20 token contract.
-     * - MUST NOT revert.
-     */
-    function asset() public pure returns (ERC20) {
-        return ERC20(ImmutableArgs.addr());
-    }
-
-    function _convertToShares(
-        uint256 assets,
-        uint256 inventory,
-        uint256 totalSupply_
-    ) internal pure returns (uint256 shares) {
-        shares = (totalSupply_ == 0) ? assets : assets.mulDiv(totalSupply_, inventory);
-    }
-
-    function _convertToAssets(
-        uint256 shares,
-        uint256 inventory,
-        uint256 totalSupply_
-    ) internal pure returns (uint256 assets) {
-        assets = (totalSupply_ == 0) ? shares : shares.mulDiv(inventory, totalSupply_);
     }
 }
