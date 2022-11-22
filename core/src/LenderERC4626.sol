@@ -27,34 +27,6 @@ contract LenderERC4626 is LenderERC20 {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        DEPOSIT/WITHDRAWAL LOGIC
-    //////////////////////////////////////////////////////////////*/
-
-    // NOTE: Rather than increasing attack surface area, we're reusing the `deposit` implementation
-    // This will be significantly gassier than a raw `deposit`, so we advise consumers to use that
-    // instead. This is really just here to conform to ERC4626.
-    function mint(uint256 shares, address receiver) external returns (uint256 assets) {
-        assets = previewMint(shares);
-        require(this.deposit(assets, receiver) == shares);
-    }
-
-    // function withdraw(
-    //     uint256 assets,
-    //     address receiver,
-    //     address owner
-    // ) public virtual returns (uint256 shares) {
-    //     // TODO
-    // }
-
-    function redeem(
-        uint256 shares,
-        address receiver,
-        address owner
-    ) public virtual returns (uint256 assets) {
-        // TODO
-    }
-
-    /*//////////////////////////////////////////////////////////////
                             ACCOUNTING LOGIC
     //////////////////////////////////////////////////////////////*/
 
@@ -130,9 +102,9 @@ contract LenderERC4626 is LenderERC20 {
      * Vault for `receiver`, through a deposit call.
      * @return The maximum amount of `asset()` that can be deposited
      *
-     * @dev Should return the *precise* maximum amount. In this case that'd be on the order of 2**112 with weird
-     * constraints coming from both `lastBalance` and `totalSupply`, which changes during interest accrual.
-     * Instead of doing complicated math, we provide a constant conservative estimate of 2**96.
+     * @dev Should return the *precise* maximum. In this case that'd be on the order of 2**112 with weird constraints
+     * coming from both `lastBalance` and `totalSupply`, which changes during interest accrual. Instead of doing
+     * complicated math, we provide a constant conservative estimate of 2**96.
      *
      * - MUST return a limited value if receiver is subject to some deposit limit.
      * - MUST return 2 ** 256 - 1 if there is no limit on the maximum amount of assets that may be deposited.
