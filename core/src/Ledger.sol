@@ -81,7 +81,8 @@ contract Ledger {
         return _convertToAssets({
             shares: balanceOf[account],
             inventory: lastBalance + FullMath.mulDiv(borrowBase, borrowIndex, BORROWS_SCALER),
-            totalSupply_: totalSupply
+            totalSupply_: totalSupply,
+            roundUp: false
         });
     }
 
@@ -156,17 +157,29 @@ contract Ledger {
     function _convertToShares(
         uint256 assets,
         uint256 inventory,
-        uint256 totalSupply_
-    ) internal pure returns (uint256 shares) {
-        shares = (totalSupply_ == 0) ? assets : assets.mulDiv(totalSupply_, inventory);
+        uint256 totalSupply_,
+        bool roundUp
+    ) internal pure returns (uint256) {
+        if (totalSupply_ == 0) return assets;
+
+        uint256 shares = assets.mulDiv(totalSupply_, inventory);
+        if (roundUp && mulmod(assets, totalSupply_, inventory) > 0) shares++;
+
+        return shares;
     }
 
     function _convertToAssets(
         uint256 shares,
         uint256 inventory,
-        uint256 totalSupply_
-    ) internal pure returns (uint256 assets) {
-        assets = (totalSupply_ == 0) ? shares : shares.mulDiv(inventory, totalSupply_);
+        uint256 totalSupply_,
+        bool roundUp
+    ) internal pure returns (uint256) {
+        if (totalSupply_ == 0) return shares;
+
+        uint256 assets = shares.mulDiv(inventory, totalSupply_);
+        if (roundUp && mulmod(shares, inventory, totalSupply_) > 0) assets++;
+
+        return assets;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -192,7 +205,7 @@ contract Ledger {
             borrowBase,
             borrowIndex
         ));
-        return _convertToShares(assets, inventory, newTotalSupply);
+        return _convertToShares(assets, inventory, newTotalSupply, false);
     }
 
     function convertToAssets(uint256 shares) public view returns (uint256) {
@@ -203,11 +216,15 @@ contract Ledger {
             borrowBase,
             borrowIndex
         ));
-        return _convertToAssets(shares, inventory, newTotalSupply);
+        return _convertToAssets(shares, inventory, newTotalSupply, false);
     }
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
         return convertToShares(assets);
+    }
+
+    function previewRedeem(uint256 shares) public view returns (uint256) {
+        return convertToAssets(shares);
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
@@ -218,7 +235,7 @@ contract Ledger {
             borrowBase,
             borrowIndex
         ));
-        return (newTotalSupply == 0) ? shares : shares.mulDivRoundingUp(inventory, newTotalSupply);
+        return _convertToAssets(shares, inventory, newTotalSupply, true);
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
@@ -229,11 +246,7 @@ contract Ledger {
             borrowBase,
             borrowIndex
         ));
-        return (newTotalSupply == 0) ? assets : assets.mulDivRoundingUp(newTotalSupply, inventory);
-    }
-
-    function previewRedeem(uint256 shares) public view returns (uint256) {
-        return convertToAssets(shares);
+        return _convertToShares(assets, inventory, newTotalSupply, true);
     }
 
     /*//////////////////////////////////////////////////////////////

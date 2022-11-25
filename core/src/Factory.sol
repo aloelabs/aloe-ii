@@ -68,7 +68,7 @@ contract Factory {
         account = MARGIN_ACCOUNT_FACTORY.createBorrower(_pool, market.lender0, market.lender1, _owner);
 
         isBorrower[address(account)] = true;
-        // TODO ensure this constrains things properly, i.e. a WETH/USDC margin account and a WETH/WBTC margin account shouldn't be able to borrow from the same WBTC lender
+        // TODO ensure this constrains things properly, i.e. a WETH/USDC margin account and a WETH/WBTC margin account shouldn't be able to borrow from the same WETH lender
         isBorrowerAllowed[market.lender0][address(account)] = true;
         isBorrowerAllowed[market.lender1][address(account)] = true;
         emit CreateBorrower(_pool, account, _owner);

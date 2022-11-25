@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
 import "forge-std/Test.sol";
@@ -46,7 +46,7 @@ contract LenderTest is Test {
         address alice = test_deposit();
 
         hoax(alice);
-        uint256 amount = lender.withdraw(100e6, alice);
+        uint256 amount = lender.redeem(100e6, alice, address(0));
 
         assertEq(amount, 100e6);
         assertEq(lender.totalSupply(), 0);
@@ -83,8 +83,21 @@ contract LenderTest is Test {
         assertEq(lender.borrowBalanceCurrent(jim), 10e6);
 
         skip(3600); // seconds
-        hoax(jim);
+
+        console.log(FullMath.mulDiv(
+            lender.balanceOf(alice),
+            lender.lastBalance() + FullMath.mulDiv(lender.borrowBase(), lender.borrowIndex(), lender.BORROWS_SCALER()),
+            lender.totalSupply()
+        ));
+
         lender.accrueInterest();
+
+        console.log(FullMath.mulDiv(
+            lender.balanceOf(alice),
+            lender.lastBalance() + FullMath.mulDiv(lender.borrowBase(), lender.borrowIndex(), lender.BORROWS_SCALER()),
+            lender.totalSupply()
+        ));
+
 
         assertEq(asset.balanceOf(jim), 10e6);
         assertEq(lender.borrowBalanceCurrent(jim), 10000022);
