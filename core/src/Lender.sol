@@ -25,6 +25,16 @@ contract Lender is Ledger {
 
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
+    event Deposit(address indexed caller, address indexed owner, uint256 assets, uint256 shares);
+
+    event Withdraw(
+        address indexed caller,
+        address indexed receiver,
+        address indexed owner,
+        uint256 assets,
+        uint256 shares
+    );
+
     constructor(address treasury, InterestModel interestModel) Ledger(treasury, interestModel) {
     }
 
@@ -39,12 +49,16 @@ contract Lender is Ledger {
         decimals = asset_.decimals();
     }
 
+    /*//////////////////////////////////////////////////////////////
+                        DEPOSIT/WITHDRAWAL LOGIC
+    //////////////////////////////////////////////////////////////*/
+
     // TODO should emit proper ERC4626 event, either here or in `deposit` wrapper in `LenderERC4626`
     function deposit(uint256 amount, address beneficiary) external returns (uint256 shares) {
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, uint256 inventory) = _load();
 
-        shares = _convertToShares(amount, inventory, cache.totalSupply);
+        shares = _convertToShares(amount, inventory, cache.totalSupply, /* roundUp: */ false);
         require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
 
         // Ensure tokens were transferred
@@ -57,29 +71,95 @@ contract Lender is Ledger {
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ false);
+
+        emit Deposit(msg.sender, beneficiary, amount, shares);
     }
 
-    function withdraw(uint256 shares, address recipient) external returns (uint256 amount) {
+    function redeem(uint256 shares, address recipient, address owner) external returns (uint256 amount) {
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, uint256 inventory) = _load();
 
-        if (shares == type(uint256).max) shares = balanceOf[msg.sender];
-        amount = _convertToAssets(shares, inventory, cache.totalSupply);
+        // Conditionally modify inputs, for convenience
+        if (owner == address(0)) owner = msg.sender; // TODO keep this or not?
+        if (shares == type(uint256).max) shares = balanceOf[owner];
+
+        amount = _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ false);
         require(amount != 0, "Aloe: amount too low"); // TODO use real Error
+
+        if (msg.sender != owner) {
+            uint256 allowed = allowance[owner][msg.sender];
+            if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
+        }
 
         // Transfer tokens
         cache.lastBalance -= amount;
         asset().safeTransfer(recipient, amount);
 
         // Burn shares (emits event that can be interpreted as a withdrawal)
-        _unsafeBurn(msg.sender, shares);
+        _unsafeBurn(owner, shares);
         unchecked {
             cache.totalSupply -= shares;
         }
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ false);
+
+        emit Withdraw(msg.sender, recipient, owner, amount, shares);
     }
+
+    function mint(uint256 shares, address beneficiary) external returns (uint256 amount) {
+        // Guard against reentrancy, accrue interest, and update reserves
+        (Cache memory cache, uint256 inventory) = _load();
+
+        amount = _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ true);
+
+        // Ensure tokens were transferred
+        cache.lastBalance += amount;
+        require(cache.lastBalance <= asset().balanceOf(address(this)));
+
+        // Mint shares (emits event that can be interpreted as a deposit)
+        cache.totalSupply += shares;
+        _unsafeMint(beneficiary, shares);
+
+        // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
+        _save(cache, /* didChangeBorrowBase: */ false);
+
+        emit Deposit(msg.sender, beneficiary, amount, shares);
+    }
+
+    function withdraw(uint256 amount, address recipient, address owner) external returns (uint256 shares) {
+        // Guard against reentrancy, accrue interest, and update reserves
+        (Cache memory cache, uint256 inventory) = _load();
+
+        // Conditionally modify inputs, for convenience
+        if (owner == address(0)) owner = msg.sender; // TODO keep this or not?
+
+        shares = _convertToShares(amount, inventory, cache.totalSupply, /* roundUp: */ true);
+
+        if (msg.sender != owner) {
+            uint256 allowed = allowance[owner][msg.sender];
+            if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
+        }
+
+        // Transfer tokens
+        cache.lastBalance -= amount;
+        asset().safeTransfer(recipient, amount);
+
+        // Burn shares (emits event that can be interpreted as a withdrawal)
+        _unsafeBurn(owner, shares);
+        unchecked {
+            cache.totalSupply -= shares;
+        }
+
+        // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
+        _save(cache, /* didChangeBorrowBase: */ false);
+
+        emit Withdraw(msg.sender, recipient, owner, amount, shares);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           BORROW/REPAY LOGIC
+    //////////////////////////////////////////////////////////////*/
 
     function borrow(uint256 amount, address recipient) external {
         require(FACTORY.isBorrowerAllowed(this, msg.sender), "Aloe: bad account");
