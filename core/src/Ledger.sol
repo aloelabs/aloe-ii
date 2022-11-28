@@ -251,6 +251,10 @@ contract Ledger {
                                  HELPERS
     //////////////////////////////////////////////////////////////*/
 
+    function DOMAIN_SEPARATOR() public returns (bytes32) {
+        return block.chainid == initialChainId ? initialDomainSeparator : _computeDomainSeparator();
+    }
+
     function _computeDomainSeparator() internal view returns (bytes32) {
         return
             keccak256(

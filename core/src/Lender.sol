@@ -75,6 +75,9 @@ contract Lender is Ledger {
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
 
+        initialDomainSeparator = _computeDomainSeparator();
+        initialChainId = block.chainid;
+
         interestModel = interestModel_;
         require(4 <= reserveFactor_ && reserveFactor_ <= 20);
         reserveFactor = reserveFactor_;
@@ -349,15 +352,6 @@ contract Lender is Ledger {
         }
 
         emit Approval(owner, spender, value);
-    }
-
-    function DOMAIN_SEPARATOR() public returns (bytes32) {
-        if (lastDomainSeparator == bytes32(0) || lastChainId != block.chainid) {
-            lastDomainSeparator = _computeDomainSeparator();
-            lastChainId = block.chainid;
-        }
-        
-        return lastDomainSeparator;
     }
 
     /*//////////////////////////////////////////////////////////////
