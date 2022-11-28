@@ -16,6 +16,39 @@ interface IFlashBorrower {
     function onFlashLoan(address initiator, uint256 amount, bytes calldata data) external;
 }
 
+/*
+                                           'K^                                            
+                                          ~Q@@J                                           
+                                         i@@@@@D'                                         
+                                        q@@@@@@@Q!                                        
+                                      `6@@@@@@@@@@!                                       
+                                     ~Q@@@@@@@@@@@@f                                      
+                                    7@@@@@@@@@@@@@@@%'                                    
+                                   K@@@@@@@@@@@@@@@@@Q^                                   
+                                 .q@@@@@@@@@@@@@@@@@@@@^                                  
+                                ;Q@@@@@@@@@@@@@@@@@@@@@@o`                                
+                               z@@@@@@@@@@@@@@@@@@@@@@@@@U`                             ``
+                             `D@@@@@@@@@@@@@@@@@@@@QUs=,                `,;+LzjmqRNQQQbJ;`
+                            .K@@@@@@@@@@@@@@@@&P7!`             `~+\jXgQ@@@@@@@@@@Nyr`    
+                           ;Q@@@@@@@@@@@@NSL~            `~<{XWQ@@@@@@@@@@@@@@QS!`        
+                          s@@@@@@@@@Q67;           .;|jRQ@@@@@@@@@@@@@@@@@Qw<'            
+                        `D@@@@@@QS*.          '^zXQ@@@@@@@@@@@@@@@@@@@@%J~                
+                       'D@@@@K|'          _?5NQQQQ@@@@@@@@@@@@@@@@@@%J'                   
+                      ;Q@K\,         .!zDQQQQQQQ@QQQ@@@@@@@@@@@@@X<.                      
+                     <j!`        .^5WQQQQQQQQQQQQQQ@@@@@@@@@@Qh=`                         
+                              ;zKQQQQQQQQQQQQQQQQQQQQQQ@@@@%*`                            
+                          ,|hQQQQQQQQQQQQQQQQQQQQQQQQQ@Q%c'        ~\hI`                  
+                      `!uNQQQQQQQQQQQQQQQQQQQQQQQQQQQQy,        :7XAqAAw~                 
+                   .LXQQQQQQQQQQQQQQQQQQQQQQQQQQQQQX^`       ,LEAqqqqqqq6?                
+                .<wBQQQQQQQQQQQQQQQQQQQQQQQQQQQQQh:        ;jAAqqqqqqqqqqqJ               
+             .<qQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQBz'       ,iXAqqqqqqqqqqqqqAA}.             
+          '?6QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQB<`       ~yqqqqqqqqqqqqqqqqqqqqh;            
+       `^SQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ#i`      `^SqAqqqqqqqqqqqqqqqqqqqqqAi`          
+     ,JgQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ}.       ^wAAqqqqqqqqqqqqqqqqqqqqqqqqA}`         
+  `+XQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQD,       ;5Aqqqqqqqqqqqqqqqqqqqqqqqqqqqqqy'        
+_}NQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ7`      ,f666666666666666666666666666666666X!       
+*/
+
 contract Lender is Ledger {
     using SafeTransferLib for ERC20;
     using FullMath for uint256;
@@ -42,18 +75,12 @@ contract Lender is Ledger {
         require(borrowIndex == 0, "Already initialized"); // TODO use real Error
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
-
-        ERC20 asset_ = asset();
-        name = string.concat("Aloe II ", asset_.name());
-        symbol = string.concat(asset_.symbol(), "+");
-        decimals = asset_.decimals();
     }
 
     /*//////////////////////////////////////////////////////////////
                         DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    // TODO should emit proper ERC4626 event, either here or in `deposit` wrapper in `LenderERC4626`
     function deposit(uint256 amount, address beneficiary) external returns (uint256 shares) {
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, uint256 inventory) = _load();
@@ -80,7 +107,6 @@ contract Lender is Ledger {
         (Cache memory cache, uint256 inventory) = _load();
 
         // Conditionally modify inputs, for convenience
-        if (owner == address(0)) owner = msg.sender; // TODO keep this or not?
         if (shares == type(uint256).max) shares = balanceOf[owner];
 
         amount = _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ false);
@@ -108,53 +134,13 @@ contract Lender is Ledger {
     }
 
     function mint(uint256 shares, address beneficiary) external returns (uint256 amount) {
-        // Guard against reentrancy, accrue interest, and update reserves
-        (Cache memory cache, uint256 inventory) = _load();
-
-        amount = _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ true);
-
-        // Ensure tokens were transferred
-        cache.lastBalance += amount;
-        require(cache.lastBalance <= asset().balanceOf(address(this)));
-
-        // Mint shares (emits event that can be interpreted as a deposit)
-        cache.totalSupply += shares;
-        _unsafeMint(beneficiary, shares);
-
-        // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
-        _save(cache, /* didChangeBorrowBase: */ false);
-
-        emit Deposit(msg.sender, beneficiary, amount, shares);
+        amount = previewMint(shares);
+        require(shares == this.deposit(amount, beneficiary));
     }
 
     function withdraw(uint256 amount, address recipient, address owner) external returns (uint256 shares) {
-        // Guard against reentrancy, accrue interest, and update reserves
-        (Cache memory cache, uint256 inventory) = _load();
-
-        // Conditionally modify inputs, for convenience
-        if (owner == address(0)) owner = msg.sender; // TODO keep this or not?
-
-        shares = _convertToShares(amount, inventory, cache.totalSupply, /* roundUp: */ true);
-
-        if (msg.sender != owner) {
-            uint256 allowed = allowance[owner][msg.sender];
-            if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
-        }
-
-        // Transfer tokens
-        cache.lastBalance -= amount;
-        asset().safeTransfer(recipient, amount);
-
-        // Burn shares (emits event that can be interpreted as a withdrawal)
-        _unsafeBurn(owner, shares);
-        unchecked {
-            cache.totalSupply -= shares;
-        }
-
-        // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
-        _save(cache, /* didChangeBorrowBase: */ false);
-
-        emit Withdraw(msg.sender, recipient, owner, amount, shares);
+        shares = previewWithdraw(amount);
+        require(amount == this.redeem(shares, recipient, owner));
     }
 
     /*//////////////////////////////////////////////////////////////

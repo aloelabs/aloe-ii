@@ -46,7 +46,7 @@ contract LenderTest is Test {
         address alice = test_deposit();
 
         hoax(alice);
-        uint256 amount = lender.redeem(100e6, alice, address(0));
+        uint256 amount = lender.redeem(100e6, alice, alice);
 
         assertEq(amount, 100e6);
         assertEq(lender.totalSupply(), 0);

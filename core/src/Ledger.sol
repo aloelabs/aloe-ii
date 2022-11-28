@@ -22,12 +22,6 @@ contract Ledger {
 
     InterestModel public immutable INTEREST_MODEL;
 
-    constructor(address treasury, InterestModel interestModel) {
-        FACTORY = Factory(msg.sender);
-        TREASURY = treasury;
-        INTEREST_MODEL = interestModel;
-    }
-
     struct Cache {
         uint256 totalSupply;
         uint256 lastBalance;
@@ -51,16 +45,6 @@ contract Ledger {
     mapping(address => uint256) public borrows;
 
     /*//////////////////////////////////////////////////////////////
-                            METADATA STORAGE
-    //////////////////////////////////////////////////////////////*/
-
-    string public name;
-
-    string public symbol;
-
-    uint8 public decimals;
-
-    /*//////////////////////////////////////////////////////////////
                               ERC20 STORAGE
     //////////////////////////////////////////////////////////////*/
 
@@ -75,6 +59,24 @@ contract Ledger {
     uint256 internal lastChainId;
 
     mapping(address => uint256) public nonces;
+
+    constructor(address treasury, InterestModel interestModel) {
+        FACTORY = Factory(msg.sender);
+        TREASURY = treasury;
+        INTEREST_MODEL = interestModel;
+    }
+
+    function name() external view returns (string memory) {
+        return string.concat("Aloe II ", asset().name());
+    }
+
+    function symbol() external view returns (string memory) {
+        return string.concat(asset().symbol(), "+");
+    }
+
+    function decimals() external view returns (uint8) {
+        return asset().decimals();
+    }
 
     function balanceOfUnderlying(address account) external view returns (uint256) {
         // TODO this should probably accrueInterest
@@ -135,8 +137,7 @@ contract Ledger {
         return
             keccak256(
                 abi.encode(
-                    keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-                    keccak256(bytes(name)),
+                    keccak256("EIP712Domain(string version,uint256 chainId,address verifyingContract)"),
                     keccak256("1"),
                     block.chainid,
                     address(this)
@@ -205,7 +206,7 @@ contract Ledger {
             borrowBase,
             borrowIndex
         ));
-        return _convertToShares(assets, inventory, newTotalSupply, false);
+        return _convertToShares(assets, inventory, newTotalSupply, /* roundUp: */ false);
     }
 
     function convertToAssets(uint256 shares) public view returns (uint256) {
@@ -216,7 +217,7 @@ contract Ledger {
             borrowBase,
             borrowIndex
         ));
-        return _convertToAssets(shares, inventory, newTotalSupply, false);
+        return _convertToAssets(shares, inventory, newTotalSupply, /* roundUp: */ false);
     }
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
@@ -235,7 +236,7 @@ contract Ledger {
             borrowBase,
             borrowIndex
         ));
-        return _convertToAssets(shares, inventory, newTotalSupply, true);
+        return _convertToAssets(shares, inventory, newTotalSupply, /* roundUp: */ true);
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
@@ -246,7 +247,7 @@ contract Ledger {
             borrowBase,
             borrowIndex
         ));
-        return _convertToShares(assets, inventory, newTotalSupply, true);
+        return _convertToShares(assets, inventory, newTotalSupply, /* roundUp: */ true);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -299,7 +300,7 @@ contract Ledger {
      */
     function maxWithdraw(address owner) external view returns (uint256) {
         uint256 a = convertToAssets(balanceOf[owner]);
-        uint256 b = asset().balanceOf(address(this));
+        uint256 b = lastBalance;
         return a < b ? a : b;
     }
 
@@ -316,7 +317,7 @@ contract Ledger {
      */
     function maxRedeem(address owner) external view returns (uint256) {
         uint256 a = balanceOf[owner];
-        uint256 b = convertToShares(asset().balanceOf(address(this)));
+        uint256 b = convertToShares(lastBalance);
         return a < b ? a : b;
     }
 }
