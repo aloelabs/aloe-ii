@@ -1,5 +1,5 @@
 LenderGasTest:test_accrueInterest() (gas: 37058)
-LenderGasTest:test_borrow() (gas: 57939)
+LenderGasTest:test_borrow() (gas: 59816)
 LenderGasTest:test_deposit() (gas: 43932)
 LenderGasTest:test_redeem() (gas: 43525)
-LenderGasTest:test_repay() (gas: 43087)
+LenderGasTest:test_repay() (gas: 45172)

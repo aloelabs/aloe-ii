@@ -83,20 +83,7 @@ contract LenderTest is Test {
         assertEq(lender.borrowBalance(jim), 10e6);
 
         skip(3600); // seconds
-
-        console.log(FullMath.mulDiv(
-            lender.balanceOf(alice),
-            lender.lastBalance() + FullMath.mulDiv(lender.borrowBase(), lender.borrowIndex(), lender.BORROWS_SCALER()),
-            lender.totalSupply()
-        ));
-
         lender.accrueInterest();
-
-        console.log(FullMath.mulDiv(
-            lender.balanceOf(alice),
-            lender.lastBalance() + FullMath.mulDiv(lender.borrowBase(), lender.borrowIndex(), lender.BORROWS_SCALER()),
-            lender.totalSupply()
-        ));
 
         assertEq(asset.balanceOf(jim), 10e6);
         assertEq(lender.borrowBalance(jim), 10000023);

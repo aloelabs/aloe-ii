@@ -2,9 +2,9 @@
 pragma solidity ^0.8.15;
 
 import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
+import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
-import {FullMath} from "./libraries/FullMath.sol";
 import {SafeCastLib} from "./libraries/SafeCastLib.sol";
 
 import {InterestModel} from "./InterestModel.sol";
@@ -51,7 +51,7 @@ _}NQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ7`      ,f66666666666666666666666666666666
 
 contract Lender is Ledger {
     using SafeTransferLib for ERC20;
-    using FullMath for uint256;
+    using FixedPointMathLib for uint256;
     using SafeCastLib for uint256;
 
     event Approval(address indexed owner, address indexed spender, uint256 amount);
@@ -67,6 +67,10 @@ contract Lender is Ledger {
         uint256 assets,
         uint256 shares
     );
+
+    event Borrow(address indexed caller, address indexed recipient, uint256 amount, uint256 units);
+
+    event Repay(address indexed caller, address indexed beneficiary, uint256 amount, uint256 units);
 
     constructor(address treasury) Ledger(treasury) {}
 
@@ -112,7 +116,7 @@ contract Lender is Ledger {
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, uint256 inventory) = _load();
 
-        // Conditionally modify inputs, for convenience
+        // Conditionally modify inputs for convenience
         if (shares == 0) shares = balanceOf[owner];
 
         amount = _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ false);
@@ -159,10 +163,10 @@ contract Lender is Ledger {
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, ) = _load();
 
-        uint256 base = amount.mulDivRoundingUp(BORROWS_SCALER, cache.borrowIndex);
-        cache.borrowBase += base;
+        uint256 units = amount.mulDivUp(BORROWS_SCALER, cache.borrowIndex);
+        cache.borrowBase += units;
         unchecked {
-            borrows[msg.sender] += base;
+            borrows[msg.sender] += units;
         }
 
         // Transfer tokens
@@ -171,25 +175,21 @@ contract Lender is Ledger {
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ true);
-        // TODO emit event
+
+        emit Borrow(msg.sender, recipient, amount, units);
     }
 
-    function repay(uint256 amount, address beneficiary) external {
+    function repay(uint256 units, address beneficiary) external {
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, ) = _load();
 
-        // Conditionally modify inputs, for convenience
-        uint256 base;
-        if (amount == 0) {
-            base = borrows[beneficiary];
-            amount = base.mulDivRoundingUp(cache.borrowIndex, BORROWS_SCALER);
-        } else {
-            base = amount.mulDiv(BORROWS_SCALER, cache.borrowIndex);
-        }
+        // Conditionally modify inputs for convenience
+        if (units == 0) units = borrows[beneficiary];
 
-        borrows[beneficiary] -= base;
+        uint256 amount = units.mulDivUp(cache.borrowIndex, BORROWS_SCALER);
+        borrows[beneficiary] -= units;
         unchecked {
-            cache.borrowBase -= base;
+            cache.borrowBase -= units;
         }
 
         // Ensure tokens were transferred
@@ -198,7 +198,8 @@ contract Lender is Ledger {
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ true);
-        // TODO emit event
+
+        emit Repay(msg.sender, beneficiary, amount, units);
     }
 
     /// @dev Reentrancy guard is critical here! Without it, one could use a flash loan to repay a normal loan.
