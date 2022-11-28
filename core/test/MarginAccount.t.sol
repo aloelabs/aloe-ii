@@ -84,8 +84,8 @@ contract BorrowerTest is Test, IManager {
         bool[4] memory allowances;
         account.modify(this, data, allowances);
 
-        assertEq(lender0.borrowBalanceCurrent(address(account)), 100e6);
-        assertEq(lender1.borrowBalanceCurrent(address(account)), 1e18);
+        assertEq(lender0.borrowBalance(address(account)), 100e6);
+        assertEq(lender1.borrowBalance(address(account)), 1e18);
         assertEq(asset0.balanceOf(address(account)), 10e6 + 100e6);
         assertEq(asset1.balanceOf(address(account)), 1e17 + 1e18);
     }
@@ -99,8 +99,8 @@ contract BorrowerTest is Test, IManager {
         allowances[1] = true;
         account.modify(this, data, allowances);
 
-        assertEq(lender0.borrowBalanceCurrent(address(account)), 50e6);
-        assertEq(lender1.borrowBalanceCurrent(address(account)), 0.5e18);
+        assertEq(lender0.borrowBalance(address(account)), 50e6);
+        assertEq(lender1.borrowBalance(address(account)), 0.5e18);
         assertEq(asset0.balanceOf(address(account)), 10e6 + 50e6);
         assertEq(asset1.balanceOf(address(account)), 1e17 + 0.5e18);
     }
@@ -125,8 +125,8 @@ contract BorrowerTest is Test, IManager {
         lender0.accrueInterest();
         lender1.accrueInterest();
 
-        uint256 liabilities0 = lender0.borrowBalanceCurrent(address(account));
-        uint256 liabilities1 = lender1.borrowBalanceCurrent(address(account));
+        uint256 liabilities0 = lender0.borrowBalance(address(account));
+        uint256 liabilities1 = lender1.borrowBalance(address(account));
         uint256 assets0 = asset0.balanceOf(address(account));
         uint256 assets1 = asset1.balanceOf(address(account));
 
@@ -145,8 +145,8 @@ contract BorrowerTest is Test, IManager {
         lender0.accrueInterest();
         lender1.accrueInterest();
 
-        uint256 liabilities0 = lender0.borrowBalanceCurrent(address(account));
-        uint256 liabilities1 = lender1.borrowBalanceCurrent(address(account));
+        uint256 liabilities0 = lender0.borrowBalance(address(account));
+        uint256 liabilities1 = lender1.borrowBalance(address(account));
         uint256 assets0 = asset0.balanceOf(address(account));
         uint256 assets1 = asset1.balanceOf(address(account));
 

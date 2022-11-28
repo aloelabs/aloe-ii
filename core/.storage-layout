@@ -12,22 +12,20 @@ forge inspect --pretty src/Lender.sol:Lender storage-layout
 |---------------------+-------------------------------------------------+------+--------+-------+-----------------------|
 | borrowIndex         | uint72                                          | 1    | 23     | 9     | src/Lender.sol:Lender |
 |---------------------+-------------------------------------------------+------+--------+-------+-----------------------|
-| balanceOf           | mapping(address => uint256)                     | 2    | 0      | 32    | src/Lender.sol:Lender |
+| borrows             | mapping(address => uint256)                     | 2    | 0      | 32    | src/Lender.sol:Lender |
 |---------------------+-------------------------------------------------+------+--------+-------+-----------------------|
-| borrows             | mapping(address => uint256)                     | 3    | 0      | 32    | src/Lender.sol:Lender |
+| balanceOf           | mapping(address => uint256)                     | 3    | 0      | 32    | src/Lender.sol:Lender |
 |---------------------+-------------------------------------------------+------+--------+-------+-----------------------|
-| name                | string                                          | 4    | 0      | 32    | src/Lender.sol:Lender |
+| allowance           | mapping(address => mapping(address => uint256)) | 4    | 0      | 32    | src/Lender.sol:Lender |
 |---------------------+-------------------------------------------------+------+--------+-------+-----------------------|
-| symbol              | string                                          | 5    | 0      | 32    | src/Lender.sol:Lender |
+| lastDomainSeparator | bytes32                                         | 5    | 0      | 32    | src/Lender.sol:Lender |
 |---------------------+-------------------------------------------------+------+--------+-------+-----------------------|
-| decimals            | uint8                                           | 6    | 0      | 1     | src/Lender.sol:Lender |
+| lastChainId         | uint256                                         | 6    | 0      | 32    | src/Lender.sol:Lender |
 |---------------------+-------------------------------------------------+------+--------+-------+-----------------------|
-| allowance           | mapping(address => mapping(address => uint256)) | 7    | 0      | 32    | src/Lender.sol:Lender |
+| nonces              | mapping(address => uint256)                     | 7    | 0      | 32    | src/Lender.sol:Lender |
 |---------------------+-------------------------------------------------+------+--------+-------+-----------------------|
-| lastDomainSeparator | bytes32                                         | 8    | 0      | 32    | src/Lender.sol:Lender |
+| interestModel       | contract InterestModel                          | 8    | 0      | 20    | src/Lender.sol:Lender |
 |---------------------+-------------------------------------------------+------+--------+-------+-----------------------|
-| lastChainId         | uint256                                         | 9    | 0      | 32    | src/Lender.sol:Lender |
-|---------------------+-------------------------------------------------+------+--------+-------+-----------------------|
-| nonces              | mapping(address => uint256)                     | 10   | 0      | 32    | src/Lender.sol:Lender |
+| reserveFactor       | uint8                                           | 8    | 20     | 1     | src/Lender.sol:Lender |
 +---------------------+-------------------------------------------------+------+--------+-------+-----------------------+
 

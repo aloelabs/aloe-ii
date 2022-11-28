@@ -37,7 +37,7 @@ contract Factory {
     constructor(InterestModel _interestModel, BorrowerFactory _borrowerFactory) {
         INTEREST_MODEL = _interestModel;
         MARGIN_ACCOUNT_FACTORY = _borrowerFactory;
-        lenderImplementation = address(new Lender(address(this), _interestModel));
+        lenderImplementation = address(new Lender(address(this)));
     }
 
     function createMarket(IUniswapV3Pool _pool) external {
@@ -56,8 +56,8 @@ contract Factory {
             data: abi.encodePacked(address(asset1))
         }));
 
-        lender0.initialize();
-        lender1.initialize();
+        lender0.initialize(INTEREST_MODEL, 8);
+        lender1.initialize(INTEREST_MODEL, 8);
 
         getMarket[_pool] = Market(lender0, lender1);
         emit CreateMarket(_pool, lender0, lender1);

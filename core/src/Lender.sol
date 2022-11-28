@@ -68,13 +68,16 @@ contract Lender is Ledger {
         uint256 shares
     );
 
-    constructor(address treasury, InterestModel interestModel) Ledger(treasury, interestModel) {
-    }
+    constructor(address treasury) Ledger(treasury) {}
 
-    function initialize() public virtual {
+    function initialize(InterestModel interestModel_, uint8 reserveFactor_) public virtual {
         require(borrowIndex == 0, "Already initialized"); // TODO use real Error
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
+
+        interestModel = interestModel_;
+        require(4 <= reserveFactor_ && reserveFactor_ <= 20);
+        reserveFactor = reserveFactor_;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -107,7 +110,7 @@ contract Lender is Ledger {
         (Cache memory cache, uint256 inventory) = _load();
 
         // Conditionally modify inputs, for convenience
-        if (shares == type(uint256).max) shares = balanceOf[owner];
+        if (shares == 0) shares = balanceOf[owner];
 
         amount = _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ false);
         require(amount != 0, "Aloe: amount too low"); // TODO use real Error
@@ -172,9 +175,15 @@ contract Lender is Ledger {
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, ) = _load();
 
-        // TODO if `amount` == type(uint256).max, repay max
-        // if (amount == type(uint256).max) amount = borrows[to].mulDivRoundingUp(cache.borrowIndex, BORROWS_SCALER);
-        uint256 base = amount.mulDiv(BORROWS_SCALER, cache.borrowIndex);
+        // Conditionally modify inputs, for convenience
+        uint256 base;
+        if (amount == 0) {
+            base = borrows[beneficiary];
+            amount = base.mulDivRoundingUp(cache.borrowIndex, BORROWS_SCALER);
+        } else {
+            base = amount.mulDiv(BORROWS_SCALER, cache.borrowIndex);
+        }
+
         borrows[beneficiary] -= base;
         unchecked {
             cache.borrowBase -= base;
@@ -344,7 +353,7 @@ contract Lender is Ledger {
 
     function DOMAIN_SEPARATOR() public returns (bytes32) {
         if (lastDomainSeparator == bytes32(0) || lastChainId != block.chainid) {
-            lastDomainSeparator = computeDomainSeparator();
+            lastDomainSeparator = _computeDomainSeparator();
             lastChainId = block.chainid;
         }
         

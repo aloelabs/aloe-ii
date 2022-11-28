@@ -8,9 +8,9 @@ import {InterestModel} from "src/InterestModel.sol";
 import {Lender} from "src/Lender.sol";
 
 function deploySingleLender(ERC20 asset, address treasury, InterestModel interestModel) returns (Lender) {
-    address impl = address(new Lender(treasury, interestModel));
+    address impl = address(new Lender(treasury));
     address proxy = ClonesWithImmutableArgs.clone(address(impl), abi.encodePacked(address(asset)));
 
-    Lender(proxy).initialize();
+    Lender(proxy).initialize(interestModel, 8);
     return Lender(proxy);
 }

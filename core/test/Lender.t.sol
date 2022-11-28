@@ -80,7 +80,7 @@ contract LenderTest is Test {
 
         assertEq(asset.balanceOf(jim), 10e6);
         assertEq(lender.balanceOf(jim), 0);
-        assertEq(lender.borrowBalanceCurrent(jim), 10e6);
+        assertEq(lender.borrowBalance(jim), 10e6);
 
         skip(3600); // seconds
 
@@ -98,10 +98,10 @@ contract LenderTest is Test {
             lender.totalSupply()
         ));
 
-
         assertEq(asset.balanceOf(jim), 10e6);
-        assertEq(lender.borrowBalanceCurrent(jim), 10000022);
+        assertEq(lender.borrowBalance(jim), 10000023);
 
         assertEq(lender.balanceOfUnderlying(alice), 100000020);
+        assertEq(lender.balanceOfUnderlyingStored(alice), 100000020);
     }
 }

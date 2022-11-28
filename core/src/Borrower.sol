@@ -265,8 +265,8 @@ contract Borrower is UniswapHelper {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
         if (c2.includeLenderReceipts) {
-            assets.fixed0 += Lender(LENDER0).balanceOfUnderlying(address(this));
-            assets.fixed1 += Lender(LENDER1).balanceOfUnderlying(address(this));
+            assets.fixed0 += Lender(LENDER0).balanceOfUnderlyingStored(address(this));
+            assets.fixed1 += Lender(LENDER1).balanceOfUnderlyingStored(address(this));
         }
 
         for (uint256 i; i < _uniswapPositions.length; i++) {
@@ -287,8 +287,8 @@ contract Borrower is UniswapHelper {
     }
 
     function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
-        amount0 = Lender(LENDER0).borrowBalanceCurrent(address(this));
-        amount1 = Lender(LENDER1).borrowBalanceCurrent(address(this));
+        amount0 = Lender(LENDER0).borrowBalance(address(this));
+        amount1 = Lender(LENDER1).borrowBalance(address(this));
     }
 
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
