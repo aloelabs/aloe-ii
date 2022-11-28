@@ -2,17 +2,15 @@
 pragma solidity ^0.8.15;
 
 import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
+import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
-
-import {FullMath} from "./libraries/FullMath.sol";
 
 import {InterestModel} from "./InterestModel.sol";
 import {Factory} from "./Factory.sol";
 
 contract Ledger {
     using FixedPointMathLib for uint256;
-    using FullMath for uint256;
 
     uint256 public constant ONE = 1e12;
 
@@ -248,7 +246,7 @@ contract Ledger {
                                  HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    function DOMAIN_SEPARATOR() public returns (bytes32) {
+    function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return block.chainid == initialChainId ? initialDomainSeparator : _computeDomainSeparator();
     }
 
@@ -275,7 +273,8 @@ contract Ledger {
 
             uint256 newInventory = cache.lastBalance + (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
 
-            uint256 newTotalSupply = cache.totalSupply.mulDiv(
+            uint256 newTotalSupply = Math.mulDiv(
+                cache.totalSupply,
                 newInventory,
                 newInventory - (newInventory - oldInventory) / rf
             );
@@ -297,7 +296,7 @@ contract Ledger {
             rf = reserveFactor;
             accrualFactor = interestModel.getAccrualFactor({
                 elapsedTime: block.timestamp - cache.lastAccrualTime,
-                utilization: uint256(1e18).mulDiv(borrows, inventory)
+                utilization: Math.mulDiv(1e18, borrows, inventory)
             });
         }
     }

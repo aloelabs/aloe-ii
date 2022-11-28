@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import "solmate/utils/FixedPointMathLib.sol";
 
 import {FixedPoint96} from "./libraries/FixedPoint96.sol";
-import {FullMath} from "./libraries/FullMath.sol";
 import {Oracle} from "./libraries/Oracle.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 import {Uniswap} from "./libraries/Uniswap.sol";
@@ -227,22 +227,22 @@ contract Borrower is UniswapHelper {
         // 100 * baseRateGasPrice * expectedGasNecessaryForLiquidation, but governance could
         // say "Oh you only put 10 * baseRate, you can still use the product but you have a cap
         // on total leverage and/or total borrows"
-        liabilities0 = FullMath.mulDiv(liabilities0, 1.005e18, 1e18);
-        liabilities1 = FullMath.mulDiv(liabilities1, 1.005e18, 1e18) + liquidationIncentive;
+        liabilities0 = Math.mulDiv(liabilities0, 1.005e18, 1e18);
+        liabilities1 = Math.mulDiv(liabilities1, 1.005e18, 1e18) + liquidationIncentive;
 
         // combine
         uint224 priceX96;
         uint256 liabilities;
         uint256 assets;
 
-        priceX96 = uint224(FullMath.mulDiv(c2.a, c2.a, FixedPoint96.Q96));
-        liabilities = liabilities1 + FullMath.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
-        assets = mem.fluid1A + mem.fixed1 + FullMath.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
+        priceX96 = uint224(Math.mulDiv(c2.a, c2.a, FixedPoint96.Q96));
+        liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
+        assets = mem.fluid1A + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
         if (liabilities > assets) return false;
 
-        priceX96 = uint224(FullMath.mulDiv(c2.b, c2.b, FixedPoint96.Q96));
-        liabilities = liabilities1 + FullMath.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
-        assets = mem.fluid1B + mem.fixed1 + FullMath.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
+        priceX96 = uint224(Math.mulDiv(c2.b, c2.b, FixedPoint96.Q96));
+        liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
+        assets = mem.fluid1B + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
         if (liabilities > assets) return false;
 
         return true;
@@ -303,8 +303,8 @@ contract Borrower is UniswapHelper {
         if (_sigma < MIN_SIGMA) _sigma = MIN_SIGMA;
         else if (_sigma > MAX_SIGMA) _sigma = MAX_SIGMA;
 
-        a = uint160(FullMath.mulDiv(_sqrtMeanPriceX96, FixedPointMathLib.sqrt(1e18 - _sigma), 1e9)); // TODO don't need FullMath here. more gas efficient to use standard * and / ?
-        b = uint160(FullMath.mulDiv(_sqrtMeanPriceX96, FixedPointMathLib.sqrt(1e18 + _sigma), 1e9));
+        a = uint160(Math.mulDiv(_sqrtMeanPriceX96, FixedPointMathLib.sqrt(1e18 - _sigma), 1e9)); // TODO don't need Math here. more gas efficient to use standard * and / ?
+        b = uint160(Math.mulDiv(_sqrtMeanPriceX96, FixedPointMathLib.sqrt(1e18 + _sigma), 1e9));
     }
 
     function _computeLiquidationIncentive(
@@ -314,7 +314,7 @@ contract Borrower is UniswapHelper {
         uint256 _liabilities1,
         uint160 _sqrtMeanPriceX96
     ) private pure returns (uint256 reward1) {
-        uint256 meanPriceX96 = FullMath.mulDiv(_sqrtMeanPriceX96, _sqrtMeanPriceX96, FixedPoint96.Q96);
+        uint256 meanPriceX96 = Math.mulDiv(_sqrtMeanPriceX96, _sqrtMeanPriceX96, FixedPoint96.Q96);
 
         unchecked {
             if (_liabilities0 > _assets0) {
@@ -322,7 +322,7 @@ contract Borrower is UniswapHelper {
                 uint256 shortfall = _liabilities0 - _assets0;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                reward1 += FullMath.mulDiv(shortfall, 0.05e9 * meanPriceX96, 1e9 * FixedPoint96.Q96);
+                reward1 += Math.mulDiv(shortfall, 0.05e9 * meanPriceX96, 1e9 * FixedPoint96.Q96);
             }
 
             if (_liabilities1 > _assets1) {
@@ -330,7 +330,7 @@ contract Borrower is UniswapHelper {
                 uint256 shortfall = _liabilities1 - _assets1;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                reward1 += FullMath.mulDiv(shortfall, 0.05e9, 1e9);
+                reward1 += Math.mulDiv(shortfall, 0.05e9, 1e9);
             }
         }
     }

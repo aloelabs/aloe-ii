@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity ^0.8.15;
 
+import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
+
 import {FixedPoint96} from "./FixedPoint96.sol";
-import {FullMath} from "./FullMath.sol";
 import {SafeCastLib} from "./SafeCastLib.sol";
 
 /// @title Liquidity amount functions
@@ -22,8 +23,8 @@ library LiquidityAmounts {
         uint256 amount0
     ) internal pure returns (uint128 liquidity) {
         assert(sqrtRatioAX96 < sqrtRatioBX96);
-        uint256 intermediate = FullMath.mulDiv(sqrtRatioAX96, sqrtRatioBX96, FixedPoint96.Q96);
-        liquidity = FullMath.mulDiv(amount0, intermediate, sqrtRatioBX96 - sqrtRatioAX96).safeCastTo128();
+        uint256 intermediate = Math.mulDiv(sqrtRatioAX96, sqrtRatioBX96, FixedPoint96.Q96);
+        liquidity = Math.mulDiv(amount0, intermediate, sqrtRatioBX96 - sqrtRatioAX96).safeCastTo128();
     }
 
     /// @notice Computes the amount of liquidity received for a given amount of token1 and price range
@@ -38,7 +39,7 @@ library LiquidityAmounts {
         uint256 amount1
     ) internal pure returns (uint128 liquidity) {
         assert(sqrtRatioAX96 < sqrtRatioBX96);
-        liquidity = FullMath.mulDiv(amount1, FixedPoint96.Q96, sqrtRatioBX96 - sqrtRatioAX96).safeCastTo128();
+        liquidity = Math.mulDiv(amount1, FixedPoint96.Q96, sqrtRatioBX96 - sqrtRatioAX96).safeCastTo128();
     }
 
     /// @notice Computes the maximum amount of liquidity received for a given amount of token0, token1, the current
@@ -83,7 +84,7 @@ library LiquidityAmounts {
         assert(sqrtRatioAX96 <= sqrtRatioBX96);
 
         amount0 =
-            FullMath.mulDiv(
+            Math.mulDiv(
                 uint256(liquidity) << FixedPoint96.RESOLUTION,
                 sqrtRatioBX96 - sqrtRatioAX96,
                 sqrtRatioBX96
@@ -103,7 +104,7 @@ library LiquidityAmounts {
     ) internal pure returns (uint256 amount1) {
         assert(sqrtRatioAX96 <= sqrtRatioBX96);
 
-        amount1 = FullMath.mulDiv(liquidity, sqrtRatioBX96 - sqrtRatioAX96, FixedPoint96.Q96);
+        amount1 = Math.mulDiv(liquidity, sqrtRatioBX96 - sqrtRatioAX96, FixedPoint96.Q96);
     }
 
     /// @notice Computes the token0 and token1 value for a given amount of liquidity, the current
@@ -150,11 +151,11 @@ library LiquidityAmounts {
 
         unchecked {
             if (sqrtRatioX96 <= sqrtRatioAX96) {
-                uint256 priceX96 = FullMath.mulDiv(sqrtRatioX96, sqrtRatioX96, FixedPoint96.Q96);
+                uint256 priceX96 = Math.mulDiv(sqrtRatioX96, sqrtRatioX96, FixedPoint96.Q96);
 
-                value0 = FullMath.mulDiv(
+                value0 = Math.mulDiv(
                     priceX96,
-                    FullMath.mulDiv(
+                    Math.mulDiv(
                         uint256(liquidity) << FixedPoint96.RESOLUTION,
                         sqrtRatioBX96 - sqrtRatioAX96,
                         sqrtRatioBX96
@@ -162,12 +163,12 @@ library LiquidityAmounts {
                     uint256(sqrtRatioAX96) << FixedPoint96.RESOLUTION
                 );
             } else if (sqrtRatioX96 < sqrtRatioBX96) {
-                uint256 numerator = FullMath.mulDiv(sqrtRatioX96, sqrtRatioBX96 - sqrtRatioX96, FixedPoint96.Q96);
+                uint256 numerator = Math.mulDiv(sqrtRatioX96, sqrtRatioBX96 - sqrtRatioX96, FixedPoint96.Q96);
 
-                value0 = FullMath.mulDiv(liquidity, numerator, sqrtRatioBX96);
-                value1 = FullMath.mulDiv(liquidity, sqrtRatioX96 - sqrtRatioAX96, FixedPoint96.Q96);
+                value0 = Math.mulDiv(liquidity, numerator, sqrtRatioBX96);
+                value1 = Math.mulDiv(liquidity, sqrtRatioX96 - sqrtRatioAX96, FixedPoint96.Q96);
             } else {
-                value1 = FullMath.mulDiv(liquidity, sqrtRatioBX96 - sqrtRatioAX96, FixedPoint96.Q96);
+                value1 = Math.mulDiv(liquidity, sqrtRatioBX96 - sqrtRatioAX96, FixedPoint96.Q96);
             }
         }
     }

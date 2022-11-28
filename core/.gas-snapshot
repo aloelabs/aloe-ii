@@ -1,4 +1,4 @@
-LenderGasTest:test_accrueInterest() (gas: 37058)
+LenderGasTest:test_accrueInterest() (gas: 37055)
 LenderGasTest:test_borrow() (gas: 59816)
 LenderGasTest:test_deposit() (gas: 43932)
 LenderGasTest:test_redeem() (gas: 43525)
