@@ -248,7 +248,6 @@ contract Lender is Ledger {
             borrowIndex = cache.borrowIndex.safeCastTo72();
             // Now that we've read the flag, we can update `cache.lastAccrualTime` to a more appropriate value
             cache.lastAccrualTime = block.timestamp;
-
         } else if (didChangeBorrowBase) {
             // Here, `cache.lastAccrualTime` is a real timestamp (could be `block.timestamp` or older). We can infer
             // that `cache.borrowIndex` was *not* updated. So we only have to store `cache.borrowBase`.

@@ -54,9 +54,9 @@ contract Ledger {
                             EIP-2612 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 internal lastDomainSeparator;
+    bytes32 internal initialDomainSeparator;
 
-    uint256 internal lastChainId;
+    uint256 internal initialChainId;
 
     mapping(address => uint256) public nonces;
 
@@ -107,11 +107,7 @@ contract Ledger {
         (Cache memory cache, uint256 inventory, uint256 newTotalSupply) = _accrueInterestView(_getCache());
 
         unchecked {
-            return (
-                newTotalSupply,
-                inventory,
-                cache.borrowBase * cache.borrowIndex / BORROWS_SCALER
-            );
+            return (newTotalSupply, inventory, (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER);
         }
     }
 
@@ -121,12 +117,13 @@ contract Ledger {
 
     function balanceOfUnderlyingStored(address account) external view returns (uint256) {
         unchecked {
-            return _convertToAssets({
-                shares: balanceOf[account],
-                inventory: lastBalance + borrowBase * borrowIndex / BORROWS_SCALER,
-                totalSupply_: totalSupply,
-                roundUp: false
-            });
+            return
+                _convertToAssets({
+                    shares: balanceOf[account],
+                    inventory: lastBalance + (borrowBase * borrowIndex) / BORROWS_SCALER,
+                    totalSupply_: totalSupply,
+                    roundUp: false
+                });
         }
     }
 
@@ -205,7 +202,7 @@ contract Ledger {
      * @dev Should return the *precise* maximum. In this case that'd be on the order of 2**112 with weird constraints
      * coming from both `lastBalance` and `totalSupply`, which changes during interest accrual. Instead of doing
      * complicated math, we provide a constant conservative estimate of 2**96.
-     * 
+     *
      * - MUST return a limited value if receiver is subject to some mint limit.
      * - MUST return 2 ** 256 - 1 if there is no limit on the maximum number of shares that may be minted.
      * - MUST NOT revert.
@@ -273,10 +270,10 @@ contract Ledger {
 
         // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
         unchecked {
-            cache.borrowIndex = cache.borrowIndex * (ONE + accrualFactor) / ONE;
+            cache.borrowIndex = (cache.borrowIndex * (ONE + accrualFactor)) / ONE;
             cache.lastAccrualTime = 0; // 0 in storage means locked to reentrancy; 0 in `cache` means `borrowIndex` was updated
 
-            uint256 newInventory = cache.lastBalance + cache.borrowBase * cache.borrowIndex / BORROWS_SCALER;
+            uint256 newInventory = cache.lastBalance + (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
 
             uint256 newTotalSupply = cache.totalSupply.mulDiv(
                 newInventory,
@@ -286,10 +283,12 @@ contract Ledger {
         }
     }
 
-    function _getAccrualFactor(Cache memory cache) private view returns (uint256 inventory, uint256 accrualFactor, uint8 rf) {
+    function _getAccrualFactor(
+        Cache memory cache
+    ) private view returns (uint256 inventory, uint256 accrualFactor, uint8 rf) {
         uint256 borrows;
         unchecked {
-            borrows = cache.borrowBase * cache.borrowIndex / BORROWS_SCALER;
+            borrows = (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
             inventory = cache.lastBalance + borrows;
         }
 
