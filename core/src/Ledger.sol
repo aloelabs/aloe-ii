@@ -302,11 +302,7 @@ contract Ledger {
         bool roundUp
     ) internal pure returns (uint256) {
         if (totalSupply_ == 0) return assets;
-
-        uint256 shares = assets.mulDivDown(totalSupply_, inventory);
-        if (roundUp && mulmod(assets, totalSupply_, inventory) > 0) shares++; // TODO is this best way of rounding up?
-
-        return shares;
+        return roundUp ? assets.mulDivUp(totalSupply_, inventory) : assets.mulDivDown(totalSupply_, inventory);
     }
 
     function _convertToAssets(
@@ -316,10 +312,6 @@ contract Ledger {
         bool roundUp
     ) internal pure returns (uint256) {
         if (totalSupply_ == 0) return shares;
-
-        uint256 assets = shares.mulDivDown(inventory, totalSupply_);
-        if (roundUp && mulmod(shares, inventory, totalSupply_) > 0) assets++; // TODO is this best way of rounding up?
-
-        return assets;
+        return roundUp ? shares.mulDivUp(inventory, totalSupply_) : shares.mulDivDown(inventory, totalSupply_);
     }
 }
