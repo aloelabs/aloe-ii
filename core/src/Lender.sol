@@ -8,7 +8,6 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {SafeCastLib} from "./libraries/SafeCastLib.sol";
 
 import {InterestModel} from "./InterestModel.sol";
-import {Factory} from "./Factory.sol";
 
 import {Ledger} from "./Ledger.sol";
 
@@ -72,9 +71,9 @@ contract Lender is Ledger {
 
     event Repay(address indexed caller, address indexed beneficiary, uint256 amount, uint256 units);
 
-    constructor(address treasury) Ledger(treasury) {}
+    constructor(address reserve) Ledger(reserve) {}
 
-    function initialize(InterestModel interestModel_, uint8 reserveFactor_) public virtual {
+    function initialize(InterestModel interestModel_, uint8 reserveFactor_) external {
         require(borrowIndex == 0, "Already initialized"); // TODO use real Error
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
@@ -85,6 +84,11 @@ contract Lender is Ledger {
         interestModel = interestModel_;
         require(4 <= reserveFactor_ && reserveFactor_ <= 20);
         reserveFactor = reserveFactor_;
+    }
+
+    function whitelist(address borrower) external {
+        require(msg.sender == FACTORY && borrows[borrower] == 0);
+        borrows[borrower] = 1;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -158,7 +162,8 @@ contract Lender is Ledger {
     //////////////////////////////////////////////////////////////*/
 
     function borrow(uint256 amount, address recipient) external {
-        require(FACTORY.isBorrowerAllowed(this, msg.sender), "Aloe: bad account");
+        uint256 b = borrows[msg.sender];
+        require(b != 0);
 
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, ) = _load();
@@ -166,7 +171,7 @@ contract Lender is Ledger {
         uint256 units = amount.mulDivUp(BORROWS_SCALER, cache.borrowIndex);
         cache.borrowBase += units;
         unchecked {
-            borrows[msg.sender] += units;
+            borrows[msg.sender] = b + units;
         }
 
         // Transfer tokens
@@ -180,15 +185,18 @@ contract Lender is Ledger {
     }
 
     function repay(uint256 units, address beneficiary) external {
+        uint256 b = borrows[beneficiary];
+        require(b != 0);
+        unchecked {
+            if (units == 0 || units >= b) units = b - 1;
+        }
+
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, ) = _load();
 
-        // Conditionally modify inputs for convenience
-        if (units == 0) units = borrows[beneficiary];
-
         uint256 amount = units.mulDivUp(cache.borrowIndex, BORROWS_SCALER);
-        borrows[beneficiary] -= units;
         unchecked {
+            borrows[beneficiary] = b - units;
             cache.borrowBase -= units;
         }
 
@@ -236,7 +244,7 @@ contract Lender is Ledger {
 
         // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
         if (newTotalSupply != cache.totalSupply) {
-            _unsafeMint(TREASURY, newTotalSupply - cache.totalSupply);
+            _unsafeMint(RESERVE, newTotalSupply - cache.totalSupply);
             cache.totalSupply = newTotalSupply;
         }
     }

@@ -20,6 +20,9 @@ contract LenderGasTest is Test {
     }
 
     function setUp() public {
+        lender.whitelist(address(this));
+        lender.whitelist(bob);
+
         // Give `bob` 1 WETH
         deal(address(asset), bob, 1e18);
 
@@ -65,10 +68,5 @@ contract LenderGasTest is Test {
     function test_repay() public {
         asset.transferFrom(bob, address(lender), 0.1e18);
         lender.repay(0.1e18, bob);
-    }
-
-    // mock Factory
-    function isBorrowerAllowed(Lender _lender, address _account) external returns (bool) {
-        return true;
     }
 }

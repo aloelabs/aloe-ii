@@ -7,7 +7,6 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import {InterestModel} from "./InterestModel.sol";
-import {Factory} from "./Factory.sol";
 
 contract Ledger {
     using FixedPointMathLib for uint256;
@@ -16,9 +15,9 @@ contract Ledger {
 
     uint256 public constant BORROWS_SCALER = type(uint72).max * ONE; // uint72 is from borrowIndex type
 
-    Factory public immutable FACTORY;
+    address public immutable FACTORY;
 
-    address public immutable TREASURY;
+    address public immutable RESERVE;
 
     struct Cache {
         uint256 totalSupply;
@@ -27,6 +26,10 @@ contract Ledger {
         uint256 borrowBase;
         uint256 borrowIndex;
     }
+
+    /*//////////////////////////////////////////////////////////////
+                              BANK STORAGE
+    //////////////////////////////////////////////////////////////*/
 
     uint112 public totalSupply;
 
@@ -41,7 +44,7 @@ contract Ledger {
     mapping(address => uint256) public borrows;
 
     /*//////////////////////////////////////////////////////////////
-                              ERC20 STORAGE
+                             ERC20 STORAGE
     //////////////////////////////////////////////////////////////*/
 
     mapping(address => uint256) public balanceOf;
@@ -59,7 +62,7 @@ contract Ledger {
     mapping(address => uint256) public nonces;
 
     /*//////////////////////////////////////////////////////////////
-                          GOVERNABLE PARAMETERS
+                         GOVERNABLE PARAMETERS
     //////////////////////////////////////////////////////////////*/
 
     InterestModel public interestModel;
@@ -67,12 +70,12 @@ contract Ledger {
     uint8 public reserveFactor;
 
     /*//////////////////////////////////////////////////////////////
-                               CONSTRUCTOR
+                              CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address treasury) {
-        FACTORY = Factory(msg.sender);
-        TREASURY = treasury;
+    constructor(address reserve) {
+        FACTORY = msg.sender;
+        RESERVE = reserve;
     }
 
     /// @notice The address of the underlying token.
@@ -96,7 +99,7 @@ contract Ledger {
     }
 
     /**
-     * @notice Gets basic lending information.
+     * @notice Gets basic lending statistics.
      * @return The sum of all banknote balances
      * @return The sum of all banknote balances, in underlying units (increases as interest accrues)
      * @return The sum of all outstanding debts, in underlying units (increases as interest accrues)

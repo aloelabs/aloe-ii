@@ -18,7 +18,7 @@
     "lint": "yarn prettier && yarn solhint",
     "lint:check": "yarn prettier:check && yarn solhint:check",
     "prettier": "yarn prettier:check --write",
-    "prettier:check": "prettier --check core/src/**/*.sol periphery/src/**/*.sol",
+    "prettier:check": "prettier --check core/src/**/*.sol core/src/*.sol periphery/src/**/*.sol periphery/src/*.sol",
     "solhint": "yarn solhint:check --fix",
     "solhint:check": "solhint --config ./.solhint.json core/src/**/*.sol periphery/src/**/*.sol"
   }

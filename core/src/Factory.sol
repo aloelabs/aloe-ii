@@ -32,8 +32,6 @@ contract Factory {
 
     mapping(address => bool) public isBorrower;
 
-    mapping(Lender => mapping(address => bool)) public isBorrowerAllowed;
-
     constructor(InterestModel _interestModel, BorrowerFactory _borrowerFactory) {
         INTEREST_MODEL = _interestModel;
         MARGIN_ACCOUNT_FACTORY = _borrowerFactory;
@@ -66,9 +64,8 @@ contract Factory {
         account = MARGIN_ACCOUNT_FACTORY.createBorrower(_pool, market.lender0, market.lender1, _owner);
 
         isBorrower[address(account)] = true;
-        // TODO ensure this constrains things properly, i.e. a WETH/USDC margin account and a WETH/WBTC margin account shouldn't be able to borrow from the same WETH lender
-        isBorrowerAllowed[market.lender0][address(account)] = true;
-        isBorrowerAllowed[market.lender1][address(account)] = true;
+        market.lender0.whitelist(address(account));
+        market.lender1.whitelist(address(account));
         emit CreateBorrower(_pool, account, _owner);
 
         // TODO could append account address to a (address => address[]) mapping to make it easier to fetch all accounts for a given user.

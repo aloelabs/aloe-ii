@@ -12,13 +12,6 @@ contract LenderTest is Test {
 
     Lender lender;
 
-    bool shouldEnableBorrowAndRepay;
-
-    // mock Factory
-    function isBorrowerAllowed(Lender _lender, address _account) external returns (bool) {
-        return shouldEnableBorrowAndRepay;
-    }
-
     function setUp() public {
         lender = deploySingleLender(asset, address(this), new InterestModel());
     }
@@ -72,15 +65,16 @@ contract LenderTest is Test {
     function test_borrow() public {
         address alice = test_deposit();
 
-        shouldEnableBorrowAndRepay = true;
-
         address jim = makeAddr("jim");
+        lender.whitelist(jim);
+        assertEq(lender.borrowBalance(jim), 1);
+
         hoax(jim, 1e18);
         lender.borrow(10e6, jim);
 
         assertEq(asset.balanceOf(jim), 10e6);
         assertEq(lender.balanceOf(jim), 0);
-        assertEq(lender.borrowBalance(jim), 10e6);
+        assertEq(lender.borrowBalance(jim), 10000001);
 
         skip(3600); // seconds
         lender.accrueInterest();
