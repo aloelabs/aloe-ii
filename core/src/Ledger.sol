@@ -263,41 +263,31 @@ contract Ledger {
     }
 
     function _accrueInterestView(Cache memory cache) internal view returns (Cache memory, uint256, uint256) {
-        (uint256 oldInventory, uint256 accrualFactor, uint8 rf) = _getAccrualFactor(cache);
-        if (accrualFactor == 0 || oldInventory == 0) return (cache, oldInventory, cache.totalSupply);
-
-        // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
         unchecked {
+            uint256 oldBorrows = (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
+            uint256 oldInventory = cache.lastBalance + oldBorrows;
+
+            if (cache.lastAccrualTime == block.timestamp || oldBorrows == 0) {
+                return (cache, oldInventory, cache.totalSupply);
+            }
+
+            uint8 rf = reserveFactor;
+            uint256 accrualFactor = interestModel.getAccrualFactor({
+                elapsedTime: block.timestamp - cache.lastAccrualTime,
+                utilization: Math.mulDiv(1e18, oldBorrows, oldInventory)
+            });
+
+            // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
             cache.borrowIndex = (cache.borrowIndex * (ONE + accrualFactor)) / ONE;
             cache.lastAccrualTime = 0; // 0 in storage means locked to reentrancy; 0 in `cache` means `borrowIndex` was updated
 
             uint256 newInventory = cache.lastBalance + (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
-
             uint256 newTotalSupply = Math.mulDiv(
                 cache.totalSupply,
                 newInventory,
                 newInventory - (newInventory - oldInventory) / rf
             );
             return (cache, newInventory, newTotalSupply);
-        }
-    }
-
-    function _getAccrualFactor(
-        Cache memory cache
-    ) private view returns (uint256 inventory, uint256 accrualFactor, uint8 rf) {
-        uint256 borrows;
-        unchecked {
-            borrows = (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
-            inventory = cache.lastBalance + borrows;
-        }
-
-        if (cache.lastAccrualTime != block.timestamp && cache.borrowBase != 0) {
-            // get `accrualFactor`, and since `interestModel` and `reserveFactor` are in the same slot, load both
-            rf = reserveFactor;
-            accrualFactor = interestModel.getAccrualFactor({
-                elapsedTime: block.timestamp - cache.lastAccrualTime,
-                utilization: Math.mulDiv(1e18, borrows, inventory)
-            });
         }
     }
 
@@ -314,7 +304,7 @@ contract Ledger {
         if (totalSupply_ == 0) return assets;
 
         uint256 shares = assets.mulDivDown(totalSupply_, inventory);
-        if (roundUp && mulmod(assets, totalSupply_, inventory) > 0) shares++;
+        if (roundUp && mulmod(assets, totalSupply_, inventory) > 0) shares++; // TODO is this best way of rounding up?
 
         return shares;
     }
@@ -328,7 +318,7 @@ contract Ledger {
         if (totalSupply_ == 0) return shares;
 
         uint256 assets = shares.mulDivDown(inventory, totalSupply_);
-        if (roundUp && mulmod(shares, inventory, totalSupply_) > 0) assets++;
+        if (roundUp && mulmod(shares, inventory, totalSupply_) > 0) assets++; // TODO is this best way of rounding up?
 
         return assets;
     }

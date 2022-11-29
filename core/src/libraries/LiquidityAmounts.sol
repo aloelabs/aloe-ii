@@ -84,11 +84,7 @@ library LiquidityAmounts {
         assert(sqrtRatioAX96 <= sqrtRatioBX96);
 
         amount0 =
-            Math.mulDiv(
-                uint256(liquidity) << FixedPoint96.RESOLUTION,
-                sqrtRatioBX96 - sqrtRatioAX96,
-                sqrtRatioBX96
-            ) /
+            Math.mulDiv(uint256(liquidity) << FixedPoint96.RESOLUTION, sqrtRatioBX96 - sqrtRatioAX96, sqrtRatioBX96) /
             sqrtRatioAX96;
     }
 
