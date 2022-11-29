@@ -2,7 +2,11 @@
 pragma solidity ^0.8.15;
 
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
-import "solmate/utils/FixedPointMathLib.sol";
+import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+
+import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
+import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {FixedPoint96} from "./libraries/FixedPoint96.sol";
 import {Oracle} from "./libraries/Oracle.sol";
@@ -10,7 +14,6 @@ import {TickMath} from "./libraries/TickMath.sol";
 import {Uniswap} from "./libraries/Uniswap.sol";
 
 import {Lender} from "./Lender.sol";
-import "./UniswapHelper.sol";
 
 interface IManager {
     function callback(
@@ -20,8 +23,8 @@ interface IManager {
 
 // TODO should there be minium margin requirements? (to ensure that incentives make sense surrounding cost of gas)
 // TODO related, would it help to keep margin locked anytime there are outstanding liabilities?
-contract Borrower is UniswapHelper {
-    using SafeERC20 for IERC20;
+contract Borrower is IUniswapV3MintCallback {
+    using SafeTransferLib for ERC20;
     using Uniswap for Uniswap.Position;
 
     uint8 public constant B = 2;
@@ -30,10 +33,25 @@ contract Borrower is UniswapHelper {
 
     uint256 public constant MAX_SIGMA = 15e16;
 
+    /// @notice The Uniswap pair in which the vault will manage positions
+    IUniswapV3Pool public immutable UNISWAP_POOL;
+
+    /// @notice The first token of the Uniswap pair
+    ERC20 public immutable TOKEN0;
+
+    /// @notice The second token of the Uniswap pair
+    ERC20 public immutable TOKEN1;
+
+    /// @dev The Uniswap pool's tick spacing
+    int24 internal immutable TICK_SPACING;
+
+    /// @notice TODO
     address public immutable LENDER0;
 
+    /// @notice TODO
     address public immutable LENDER1;
 
+    /// @notice TODO
     address public OWNER;
 
     struct PackedSlot {
@@ -54,12 +72,18 @@ contract Borrower is UniswapHelper {
 
     Uniswap.Position[] public uniswapPositions; // TODO constrain the number of uniswap positions (otherwise gas danger)
 
-    constructor(IUniswapV3Pool _pool, Lender _lender0, Lender _lender1, address _owner) UniswapHelper(_pool) {
+    constructor(IUniswapV3Pool _pool, Lender _lender0, Lender _lender1, address _owner) {
         require(_pool.token0() == address(_lender0.asset()));
         require(_pool.token1() == address(_lender1.asset()));
 
+        UNISWAP_POOL = _pool;
+        TOKEN0 = ERC20(_pool.token0());
+        TOKEN1 = ERC20(_pool.token1());
+        TICK_SPACING = _pool.tickSpacing();
+
         LENDER0 = address(_lender0);
         LENDER1 = address(_lender1);
+
         OWNER = _owner;
     }
 
@@ -94,8 +118,8 @@ contract Borrower is UniswapHelper {
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
-        if (allowances[2]) IERC20(LENDER0).approve(address(callee), type(uint256).max);
-        if (allowances[3]) IERC20(LENDER1).approve(address(callee), type(uint256).max);
+        if (allowances[2]) ERC20(LENDER0).approve(address(callee), type(uint256).max);
+        if (allowances[3]) ERC20(LENDER1).approve(address(callee), type(uint256).max);
 
         packedSlot.isInCallback = true;
         (Uniswap.Position[] memory _uniswapPositions, bool includeLenderReceipts) = callee.callback(data);
@@ -103,8 +127,8 @@ contract Borrower is UniswapHelper {
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 0);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 0);
-        if (allowances[2]) IERC20(LENDER0).approve(address(callee), 0);
-        if (allowances[3]) IERC20(LENDER1).approve(address(callee), 0);
+        if (allowances[2]) ERC20(LENDER0).approve(address(callee), 0);
+        if (allowances[3]) ERC20(LENDER1).approve(address(callee), 0);
 
         SolvencyCache memory c = _getSolvencyCache(includeLenderReceipts);
 
@@ -289,6 +313,13 @@ contract Borrower is UniswapHelper {
     function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
         amount0 = Lender(LENDER0).borrowBalance(address(this));
         amount1 = Lender(LENDER1).borrowBalance(address(this));
+    }
+
+    /// @dev Callback for Uniswap V3 pool.
+    function uniswapV3MintCallback(uint256 _amount0, uint256 _amount1, bytes calldata) external {
+        require(msg.sender == address(UNISWAP_POOL));
+        if (_amount0 != 0) TOKEN0.safeTransfer(msg.sender, _amount0);
+        if (_amount1 != 0) TOKEN1.safeTransfer(msg.sender, _amount1);
     }
 
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
