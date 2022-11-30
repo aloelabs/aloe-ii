@@ -8,7 +8,6 @@ import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {InterestModel} from "./InterestModel.sol";
 import {Lender} from "./Lender.sol";
 import {Borrower} from "./Borrower.sol";
-import {BorrowerFactory} from "./BorrowerFactory.sol";
 
 contract Factory {
     using ClonesWithImmutableArgs for address;
@@ -24,17 +23,14 @@ contract Factory {
 
     InterestModel public immutable INTEREST_MODEL;
 
-    BorrowerFactory public immutable MARGIN_ACCOUNT_FACTORY;
-
     address public immutable lenderImplementation;
 
     mapping(IUniswapV3Pool => Market) public getMarket;
 
     mapping(address => bool) public isBorrower;
 
-    constructor(InterestModel _interestModel, BorrowerFactory _borrowerFactory) {
+    constructor(InterestModel _interestModel) {
         INTEREST_MODEL = _interestModel;
-        MARGIN_ACCOUNT_FACTORY = _borrowerFactory;
         lenderImplementation = address(new Lender(address(this)));
     }
 
@@ -61,7 +57,7 @@ contract Factory {
 
     function createBorrower(IUniswapV3Pool _pool, address _owner) external returns (Borrower account) {
         Market memory market = getMarket[_pool];
-        account = MARGIN_ACCOUNT_FACTORY.createBorrower(_pool, market.lender0, market.lender1, _owner);
+        account = new Borrower(_pool, market.lender0, market.lender1, _owner);
 
         isBorrower[address(account)] = true;
         market.lender0.whitelist(address(account));

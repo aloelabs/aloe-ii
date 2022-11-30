@@ -255,7 +255,7 @@ contract Lender is Ledger {
             // `cache.borrowBase` MAY also have been updated, so we store both components of the slot.
             borrowBase = cache.borrowBase.safeCastTo184();
             borrowIndex = cache.borrowIndex.safeCastTo72();
-            // Now that we've read the flag, we can update `cache.lastAccrualTime` to a more appropriate value
+            // Now that we've read the flag, we can update `cache.lastAccrualTime` to the real, appropriate value
             cache.lastAccrualTime = block.timestamp;
         } else if (didChangeBorrowBase) {
             // Here, `cache.lastAccrualTime` is a real timestamp (could be `block.timestamp` or older). We can infer
