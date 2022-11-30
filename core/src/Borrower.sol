@@ -112,10 +112,6 @@ contract Borrower is IUniswapV3MintCallback {
         require(!packedSlot.isLocked);
         packedSlot.isLocked = true;
 
-        // ensure liabilities are up-to-date TODO is this necessary?
-        // LENDER0.accrueInterest();
-        // LENDER1.accrueInterest();
-
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
         if (allowances[2]) ERC20(LENDER0).approve(address(callee), type(uint256).max);

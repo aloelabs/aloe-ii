@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
 import "forge-std/Test.sol";
@@ -67,14 +67,13 @@ contract LenderTest is Test {
 
         address jim = makeAddr("jim");
         lender.whitelist(jim);
-        assertEq(lender.borrowBalance(jim), 1);
 
         hoax(jim, 1e18);
         lender.borrow(10e6, jim);
 
         assertEq(asset.balanceOf(jim), 10e6);
         assertEq(lender.balanceOf(jim), 0);
-        assertEq(lender.borrowBalance(jim), 10000001);
+        assertEq(lender.borrowBalance(jim), 10e6);
 
         skip(3600); // seconds
         lender.accrueInterest();

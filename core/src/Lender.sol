@@ -161,14 +161,14 @@ contract Lender is Ledger {
                            BORROW/REPAY LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function borrow(uint256 amount, address recipient) external {
+    function borrow(uint256 amount, address recipient) external returns (uint256 units) {
         uint256 b = borrows[msg.sender];
         require(b != 0);
 
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, ) = _load();
 
-        uint256 units = amount.mulDivUp(BORROWS_SCALER, cache.borrowIndex);
+        units = amount.mulDivUp(BORROWS_SCALER, cache.borrowIndex);
         cache.borrowBase += units;
         unchecked {
             borrows[msg.sender] = b + units;
@@ -184,18 +184,18 @@ contract Lender is Ledger {
         emit Borrow(msg.sender, recipient, amount, units);
     }
 
-    function repay(uint256 units, address beneficiary) external {
+    function repay(uint256 amount, address beneficiary) external returns (uint256 units) {
         uint256 b = borrows[beneficiary];
         require(b != 0);
-        unchecked {
-            if (units == 0 || units >= b) units = b - 1;
-        }
 
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, ) = _load();
 
-        uint256 amount = units.mulDivUp(cache.borrowIndex, BORROWS_SCALER);
         unchecked {
+            if (amount == 0 || (units = amount.mulDivDown(BORROWS_SCALER, cache.borrowIndex)) >= b) {
+                units = b - 1;
+                amount = units.mulDivUp(cache.borrowIndex, BORROWS_SCALER);
+            }
             borrows[beneficiary] = b - units;
             cache.borrowBase -= units;
         }

@@ -17,11 +17,6 @@ contract BorrowerTest is Test, IManager {
     Lender lender1;
     Borrower account;
 
-    // mock Factory
-    function isBorrowerAllowed(Lender _lender, address _account) external returns (bool) {
-        return true;
-    }
-
     function callback(bytes calldata data)
         external
         returns (Uniswap.Position[] memory positions, bool includeLenderReceipts)
@@ -47,6 +42,8 @@ contract BorrowerTest is Test, IManager {
         lender0 = deploySingleLender(asset0, address(this), new InterestModel());
         lender1 = deploySingleLender(asset1, address(this), new InterestModel());
         account = new Borrower(pool, lender0, lender1, address(this));
+        lender0.whitelist(address(account));
+        lender1.whitelist(address(account));
     }
 
     function test_empty() public {
@@ -93,16 +90,14 @@ contract BorrowerTest is Test, IManager {
     function test_repay() public {
         test_borrow();
 
-        bytes memory data = abi.encode(0, 0, 50e6, 0.5e18, 0, 0);
+        bytes memory data = abi.encode(0, 0, 40e6, 0.4e18, 0, 0);
         bool[4] memory allowances;
-        allowances[0] = true;
-        allowances[1] = true;
         account.modify(this, data, allowances);
 
-        assertEq(lender0.borrowBalance(address(account)), 50e6);
-        assertEq(lender1.borrowBalance(address(account)), 0.5e18);
-        assertEq(asset0.balanceOf(address(account)), 10e6 + 50e6);
-        assertEq(asset1.balanceOf(address(account)), 1e17 + 0.5e18);
+        assertEq(lender0.borrowBalance(address(account)), 60e6);
+        assertEq(lender1.borrowBalance(address(account)), 0.6e18);
+        assertEq(asset0.balanceOf(address(account)), 10e6 + 60e6);
+        assertEq(asset1.balanceOf(address(account)), 1e17 + 0.6e18);
     }
 
     function testFail_completelyInsolvent() public {
@@ -165,21 +160,12 @@ contract BorrowerTest is Test, IManager {
     }
 
     function _prepareKitties() private {
-        // give alice some tokens
         address alice = makeAddr("alice");
-        deal(address(asset0), alice, 10000e6);
-        deal(address(asset1), alice, 3e18);
 
-        // have alice approve both kitties
-        hoax(alice, 1e18);
-        asset0.approve(address(lender0), type(uint256).max);
-        hoax(alice);
-        asset1.approve(address(lender1), type(uint256).max);
-
-        // have alice deposit to both kitties
-        hoax(alice);
+        deal(address(asset0), address(lender0), 10000e6);
         lender0.deposit(10000e6, alice);
-        hoax(alice);
+
+        deal(address(asset1), address(lender1), 3e18);
         lender1.deposit(3e18, alice);
     }
 }

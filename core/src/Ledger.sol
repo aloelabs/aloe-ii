@@ -129,12 +129,22 @@ contract Ledger {
     }
 
     function borrowBalance(address account) external view returns (uint256) {
+        uint256 b = borrows[account];
+        if (b == 0) return 0;
+
         (Cache memory cache, , ) = _accrueInterestView(_getCache());
-        return borrows[account].mulDivUp(cache.borrowIndex, BORROWS_SCALER);
+        unchecked {
+            return (b - 1).mulDivUp(cache.borrowIndex, BORROWS_SCALER);
+        }
     }
 
     function borrowBalanceStored(address account) external view returns (uint256) {
-        return borrows[account].mulDivUp(borrowIndex, BORROWS_SCALER);
+        uint256 b = borrows[account];
+        if (b == 0) return 0;
+
+        unchecked {
+            return (b - 1).mulDivUp(borrowIndex, BORROWS_SCALER);
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
