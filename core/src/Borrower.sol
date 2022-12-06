@@ -46,10 +46,10 @@ contract Borrower is IUniswapV3MintCallback {
     int24 internal immutable TICK_SPACING;
 
     /// @notice TODO
-    address public immutable LENDER0;
+    Lender public immutable LENDER0;
 
     /// @notice TODO
-    address public immutable LENDER1;
+    Lender public immutable LENDER1;
 
     /// @notice TODO
     address public OWNER;
@@ -81,8 +81,8 @@ contract Borrower is IUniswapV3MintCallback {
         TOKEN1 = ERC20(_pool.token1());
         TICK_SPACING = _pool.tickSpacing();
 
-        LENDER0 = address(_lender0);
-        LENDER1 = address(_lender1);
+        LENDER0 = _lender0;
+        LENDER1 = _lender1;
 
         OWNER = _owner;
     }
@@ -114,8 +114,8 @@ contract Borrower is IUniswapV3MintCallback {
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
-        if (allowances[2]) ERC20(LENDER0).approve(address(callee), type(uint256).max);
-        if (allowances[3]) ERC20(LENDER1).approve(address(callee), type(uint256).max);
+        if (allowances[2]) LENDER0.approve(address(callee), type(uint256).max);
+        if (allowances[3]) LENDER1.approve(address(callee), type(uint256).max);
 
         packedSlot.isInCallback = true;
         (Uniswap.Position[] memory _uniswapPositions, bool includeLenderReceipts) = callee.callback(data);
@@ -123,8 +123,8 @@ contract Borrower is IUniswapV3MintCallback {
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 0);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 0);
-        if (allowances[2]) ERC20(LENDER0).approve(address(callee), 0);
-        if (allowances[3]) ERC20(LENDER1).approve(address(callee), 0);
+        if (allowances[2]) LENDER0.approve(address(callee), 0);
+        if (allowances[3]) LENDER1.approve(address(callee), 0);
 
         SolvencyCache memory c = _getSolvencyCache(includeLenderReceipts);
 
@@ -154,21 +154,24 @@ contract Borrower is IUniswapV3MintCallback {
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
         require(packedSlot.isInCallback);
 
-        if (amount0 != 0) Lender(LENDER0).borrow(amount0, recipient);
-        if (amount1 != 0) Lender(LENDER1).borrow(amount1, recipient);
+        if (amount0 != 0) LENDER0.borrow(amount0, recipient);
+        if (amount1 != 0) LENDER1.borrow(amount1, recipient);
     }
 
-    // TODO technically uneccessary. keep?
+    // Technically uneccessary. but:
+    // --> Keep because it allows us to use transfer instead of transferFrom, saving allowance reads in the underlying asset contracts
+    // --> Keep for integrator convenience
+    // --> Keep because it allows integrators to repay debts without configuring the `allowances` bool array
     function repay(uint256 amount0, uint256 amount1) external {
         require(packedSlot.isInCallback);
 
         if (amount0 != 0) {
-            TOKEN0.safeTransfer(LENDER0, amount0);
-            Lender(LENDER0).repay(amount0, address(this));
+            TOKEN0.safeTransfer(address(LENDER0), amount0);
+            LENDER0.repay(amount0, address(this));
         }
         if (amount1 != 0) {
-            TOKEN1.safeTransfer(LENDER1, amount1);
-            Lender(LENDER1).repay(amount1, address(this));
+            TOKEN1.safeTransfer(address(LENDER1), amount1);
+            LENDER1.repay(amount1, address(this));
         }
     }
 
@@ -285,8 +288,8 @@ contract Borrower is IUniswapV3MintCallback {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
         if (c2.includeLenderReceipts) {
-            assets.fixed0 += Lender(LENDER0).balanceOfUnderlyingStored(address(this));
-            assets.fixed1 += Lender(LENDER1).balanceOfUnderlyingStored(address(this));
+            assets.fixed0 += LENDER0.balanceOfUnderlyingStored(address(this));
+            assets.fixed1 += LENDER1.balanceOfUnderlyingStored(address(this));
         }
 
         for (uint256 i; i < _uniswapPositions.length; i++) {
@@ -307,8 +310,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
-        amount0 = Lender(LENDER0).borrowBalance(address(this));
-        amount1 = Lender(LENDER1).borrowBalance(address(this));
+        amount0 = LENDER0.borrowBalance(address(this));
+        amount1 = LENDER1.borrowBalance(address(this));
     }
 
     /// @dev Callback for Uniswap V3 pool.

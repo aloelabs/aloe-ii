@@ -15,39 +15,6 @@ interface IFlashBorrower {
     function onFlashLoan(address initiator, uint256 amount, bytes calldata data) external;
 }
 
-/*
-                                           'K^                                            
-                                          ~Q@@J                                           
-                                         i@@@@@D'                                         
-                                        q@@@@@@@Q!                                        
-                                      `6@@@@@@@@@@!                                       
-                                     ~Q@@@@@@@@@@@@f                                      
-                                    7@@@@@@@@@@@@@@@%'                                    
-                                   K@@@@@@@@@@@@@@@@@Q^                                   
-                                 .q@@@@@@@@@@@@@@@@@@@@^                                  
-                                ;Q@@@@@@@@@@@@@@@@@@@@@@o`                                
-                               z@@@@@@@@@@@@@@@@@@@@@@@@@U`                             ``
-                             `D@@@@@@@@@@@@@@@@@@@@QUs=,                `,;+LzjmqRNQQQbJ;`
-                            .K@@@@@@@@@@@@@@@@&P7!`             `~+\jXgQ@@@@@@@@@@Nyr`    
-                           ;Q@@@@@@@@@@@@NSL~            `~<{XWQ@@@@@@@@@@@@@@QS!`        
-                          s@@@@@@@@@Q67;           .;|jRQ@@@@@@@@@@@@@@@@@Qw<'            
-                        `D@@@@@@QS*.          '^zXQ@@@@@@@@@@@@@@@@@@@@%J~                
-                       'D@@@@K|'          _?5NQQQQ@@@@@@@@@@@@@@@@@@%J'                   
-                      ;Q@K\,         .!zDQQQQQQQ@QQQ@@@@@@@@@@@@@X<.                      
-                     <j!`        .^5WQQQQQQQQQQQQQQ@@@@@@@@@@Qh=`                         
-                              ;zKQQQQQQQQQQQQQQQQQQQQQQ@@@@%*`                            
-                          ,|hQQQQQQQQQQQQQQQQQQQQQQQQQ@Q%c'        ~\hI`                  
-                      `!uNQQQQQQQQQQQQQQQQQQQQQQQQQQQQy,        :7XAqAAw~                 
-                   .LXQQQQQQQQQQQQQQQQQQQQQQQQQQQQQX^`       ,LEAqqqqqqq6?                
-                .<wBQQQQQQQQQQQQQQQQQQQQQQQQQQQQQh:        ;jAAqqqqqqqqqqqJ               
-             .<qQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQBz'       ,iXAqqqqqqqqqqqqqAA}.             
-          '?6QQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQB<`       ~yqqqqqqqqqqqqqqqqqqqqh;            
-       `^SQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ#i`      `^SqAqqqqqqqqqqqqqqqqqqqqqAi`          
-     ,JgQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ}.       ^wAAqqqqqqqqqqqqqqqqqqqqqqqqA}`         
-  `+XQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQD,       ;5Aqqqqqqqqqqqqqqqqqqqqqqqqqqqqqy'        
-_}NQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ7`      ,f666666666666666666666666666666666X!       
-*/
-
 contract Lender is Ledger {
     using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
@@ -171,7 +138,7 @@ contract Lender is Ledger {
         units = amount.mulDivUp(BORROWS_SCALER, cache.borrowIndex);
         cache.borrowBase += units;
         unchecked {
-            borrows[msg.sender] = b + units;
+            borrows[msg.sender] = b + units; // TODO verify that this can't overflow, given that for a single borrower, this would now be equal to borrowBase + 1. Should it be checked math?
         }
 
         // Transfer tokens

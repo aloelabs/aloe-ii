@@ -30,6 +30,17 @@ contract BorrowerTest is Test, IManager {
             _account.borrow(borrow0, borrow1, msg.sender);
         }
 
+        // if (repay0 != 0) {
+        //     Lender lender = Lender(_account.LENDER0());
+        //     asset0.transferFrom(msg.sender, address(lender), repay0);
+        //     lender.repay(repay0, msg.sender);
+        // }
+        // if (repay1 != 0) {
+        //     Lender lender = Lender(_account.LENDER1());
+        //     asset1.transferFrom(msg.sender, address(lender), repay1);
+        //     lender.repay(repay1, msg.sender);
+        // }
+
         if (repay0 != 0 || repay1 != 0) {
             _account.repay(repay0, repay1);
         }
