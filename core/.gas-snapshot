@@ -1,3 +1,8 @@
+BorrowerGasTest:test_addMargin() (gas: 15980)
+BorrowerGasTest:test_borrow() (gas: 110311)
+BorrowerGasTest:test_modify() (gas: 83101)
+BorrowerGasTest:test_repay() (gas: 110969)
+BorrowerGasTest:test_withdraw() (gas: 108640)
 LenderGasTest:test_accrueInterest() (gas: 36818)
 LenderGasTest:test_borrow() (gas: 41864)
 LenderGasTest:test_deposit() (gas: 43720)

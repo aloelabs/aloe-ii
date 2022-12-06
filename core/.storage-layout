@@ -29,3 +29,14 @@ forge inspect --pretty src/Lender.sol:Lender storage-layout
 | reserveFactor          | uint8                                           | 8    | 20     | 1     | src/Lender.sol:Lender |
 +------------------------+-------------------------------------------------+------+--------+-------+-----------------------+
 
+forge inspect --pretty src/Borrower.sol:Borrower storage-layout
++------------------+----------------------------+------+--------+-------+---------------------------+
+| Name             | Type                       | Slot | Offset | Bytes | Contract                  |
++===================================================================================================+
+| OWNER            | address                    | 0    | 0      | 20    | src/Borrower.sol:Borrower |
+|------------------+----------------------------+------+--------+-------+---------------------------|
+| packedSlot       | struct Borrower.PackedSlot | 1    | 0      | 32    | src/Borrower.sol:Borrower |
+|------------------+----------------------------+------+--------+-------+---------------------------|
+| uniswapPositions | struct Uniswap.Position[]  | 2    | 0      | 32    | src/Borrower.sol:Borrower |
++------------------+----------------------------+------+--------+-------+---------------------------+
+

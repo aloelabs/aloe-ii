@@ -8,3 +8,4 @@ function inspect_and_print {
 
 rm .storage-layout
 inspect_and_print Lender
+inspect_and_print Borrower
