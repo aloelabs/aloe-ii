@@ -52,7 +52,7 @@ contract Borrower is IUniswapV3MintCallback {
     Lender public immutable LENDER1;
 
     /// @notice TODO
-    address public OWNER;
+    address public owner;
 
     struct PackedSlot {
         int24 tickAtLastModify; // TODO maybe move this elsewhere or in an event emission. not used for logic, just frontend (probably belongs in FrontendManager)
@@ -84,7 +84,7 @@ contract Borrower is IUniswapV3MintCallback {
         LENDER0 = _lender0;
         LENDER1 = _lender1;
 
-        OWNER = _owner;
+        owner = _owner;
     }
 
     // TODO liquidations
@@ -104,11 +104,11 @@ contract Borrower is IUniswapV3MintCallback {
             c
         );
 
-        if (!isSolvent) OWNER = msg.sender;
+        if (!isSolvent) owner = msg.sender;
     }
 
     function modify(IManager callee, bytes calldata data, bool[4] calldata allowances) external {
-        require(msg.sender == OWNER, "Aloe: only owner");
+        require(msg.sender == owner, "Aloe: only owner");
         require(!packedSlot.isLocked);
         packedSlot.isLocked = true;
 

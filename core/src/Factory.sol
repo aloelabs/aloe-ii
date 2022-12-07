@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
+import {Clones} from "clones-with-immutable-args/Clones.sol";
 import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
-import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {InterestModel} from "./InterestModel.sol";
 import {Lender} from "./Lender.sol";
@@ -14,11 +15,12 @@ contract Factory {
 
     event CreateMarket(IUniswapV3Pool indexed pool, Lender indexed lender0, Lender indexed lender1);
 
-    event CreateBorrower(IUniswapV3Pool indexed pool, Borrower indexed account, address indexed owner);
+    event CreateBorrower(IUniswapV3Pool indexed pool, address indexed account, address owner);
 
     struct Market {
         Lender lender0;
         Lender lender1;
+        Borrower borrowerImplementation;
     }
 
     InterestModel public immutable INTEREST_MODEL;
@@ -26,8 +28,6 @@ contract Factory {
     address public immutable lenderImplementation;
 
     mapping(IUniswapV3Pool => Market) public getMarket;
-
-    mapping(address => bool) public isBorrower;
 
     constructor(InterestModel _interestModel) {
         INTEREST_MODEL = _interestModel;
@@ -51,19 +51,19 @@ contract Factory {
         lender0.initialize(INTEREST_MODEL, 8);
         lender1.initialize(INTEREST_MODEL, 8);
 
-        getMarket[_pool] = Market(lender0, lender1);
+        Borrower borrowerImplementation = new Borrower(_pool, lender0, lender1, address(0));
+
+        getMarket[_pool] = Market(lender0, lender1, borrowerImplementation);
         emit CreateMarket(_pool, lender0, lender1);
     }
 
-    function createBorrower(IUniswapV3Pool _pool, address _owner) external returns (Borrower account) {
+    function createBorrower(IUniswapV3Pool _pool, address _owner) external returns (address account) {
         Market memory market = getMarket[_pool];
-        account = new Borrower(_pool, market.lender0, market.lender1, _owner);
 
-        isBorrower[address(account)] = true;
-        market.lender0.whitelist(address(account));
-        market.lender1.whitelist(address(account));
+        account = Clones.clone(address(market.borrowerImplementation));
+        market.lender0.whitelist(account);
+        market.lender1.whitelist(account);
+
         emit CreateBorrower(_pool, account, _owner);
-
-        // TODO could append account address to a (address => address[]) mapping to make it easier to fetch all accounts for a given user.
     }
 }
