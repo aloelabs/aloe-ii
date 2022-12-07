@@ -51,7 +51,7 @@ contract Factory {
         lender0.initialize(INTEREST_MODEL, 8);
         lender1.initialize(INTEREST_MODEL, 8);
 
-        Borrower borrowerImplementation = new Borrower(_pool, lender0, lender1, address(0));
+        Borrower borrowerImplementation = new Borrower(_pool, lender0, lender1);
 
         getMarket[_pool] = Market(lender0, lender1, borrowerImplementation);
         emit CreateMarket(_pool, lender0, lender1);
@@ -61,6 +61,8 @@ contract Factory {
         Market memory market = getMarket[_pool];
 
         account = Clones.clone(address(market.borrowerImplementation));
+        Borrower(account).initialize(_owner);
+
         market.lender0.whitelist(account);
         market.lender1.whitelist(account);
 

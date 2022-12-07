@@ -72,7 +72,7 @@ contract Borrower is IUniswapV3MintCallback {
 
     Uniswap.Position[] public uniswapPositions; // TODO constrain the number of uniswap positions (otherwise gas danger)
 
-    constructor(IUniswapV3Pool _pool, Lender _lender0, Lender _lender1, address _owner) {
+    constructor(IUniswapV3Pool _pool, Lender _lender0, Lender _lender1) {
         require(_pool.token0() == address(_lender0.asset()));
         require(_pool.token1() == address(_lender1.asset()));
 
@@ -83,7 +83,10 @@ contract Borrower is IUniswapV3MintCallback {
 
         LENDER0 = _lender0;
         LENDER1 = _lender1;
+    }
 
+    function initialize(address _owner) external {
+        require(owner == address(0));
         owner = _owner;
     }
 

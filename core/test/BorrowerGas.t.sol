@@ -20,13 +20,13 @@ contract BorrowerGasTest is Test, IManager {
     constructor() {
         lender0 = deploySingleLender(asset0, address(this), new InterestModel());
         lender1 = deploySingleLender(asset1, address(this), new InterestModel());
-        account = new Borrower(pool, lender0, lender1, address(this));
+        account = new Borrower(pool, lender0, lender1);
+        account.initialize(address(this));
+        lender0.whitelist(address(account));
+        lender1.whitelist(address(account));
     }
 
     function setUp() public {
-        lender0.whitelist(address(account));
-        lender1.whitelist(address(account));
-
         // deal to this contract (so we're able to test add margin)
         deal(address(asset0), address(this), 99e18); // DAI
         deal(address(asset1), address(this), 0.8e18); // WETH

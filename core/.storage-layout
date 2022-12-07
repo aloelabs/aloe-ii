@@ -33,7 +33,7 @@ forge inspect --pretty src/Borrower.sol:Borrower storage-layout
 +------------------+----------------------------+------+--------+-------+---------------------------+
 | Name             | Type                       | Slot | Offset | Bytes | Contract                  |
 +===================================================================================================+
-| OWNER            | address                    | 0    | 0      | 20    | src/Borrower.sol:Borrower |
+| owner            | address                    | 0    | 0      | 20    | src/Borrower.sol:Borrower |
 |------------------+----------------------------+------+--------+-------+---------------------------|
 | packedSlot       | struct Borrower.PackedSlot | 1    | 0      | 32    | src/Borrower.sol:Borrower |
 |------------------+----------------------------+------+--------+-------+---------------------------|

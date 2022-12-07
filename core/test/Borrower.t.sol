@@ -52,7 +52,8 @@ contract BorrowerTest is Test, IManager {
     function setUp() public {
         lender0 = deploySingleLender(asset0, address(this), new InterestModel());
         lender1 = deploySingleLender(asset1, address(this), new InterestModel());
-        account = new Borrower(pool, lender0, lender1, address(this));
+        account = new Borrower(pool, lender0, lender1);
+        account.initialize(address(this));
         lender0.whitelist(address(account));
         lender1.whitelist(address(account));
     }
