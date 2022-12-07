@@ -15,8 +15,8 @@ contract FactoryWithFaucet {
         FACTORY = _factory;
     }
 
-    function createMarginAccount(IUniswapV3Pool _pool, address _owner) external {
-        FACTORY.createMarginAccount(_pool, _owner);
+    function createBorrower(IUniswapV3Pool _pool, address _owner) external {
+        FACTORY.createBorrower(_pool, _owner);
         if (ERC20(0x3C80ca907Ee39f6C3021B66b5a55CCC18e07141A).balanceOf(address(this)) < 20e6) {
             MockERC20(0x3C80ca907Ee39f6C3021B66b5a55CCC18e07141A).request();
         }

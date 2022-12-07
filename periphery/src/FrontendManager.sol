@@ -7,9 +7,9 @@ import "v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 
 import {Uniswap} from "aloe-ii-core/libraries/Uniswap.sol";
 
-import {Kitty} from "aloe-ii-core/Kitty.sol";
+import {Lender} from "aloe-ii-core/Lender.sol";
 import {Factory} from "aloe-ii-core/Factory.sol";
-import {IManager, MarginAccount} from "aloe-ii-core/MarginAccount.sol";
+import {IManager, Borrower} from "aloe-ii-core/Borrower.sol";
 
 contract FrontendManager is IManager, IUniswapV3SwapCallback {
     using SafeTransferLib for ERC20;
@@ -22,14 +22,16 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
         FACTORY = _factory;
     }
 
+    /* solhint-disable code-complexity */
+
     // TODO this is an external function that does lots of different stuff. be extra sure that it's not a security risk,
     // especially given that frontend users will be approving it to spend their tokens.
     function callback(bytes calldata data) external returns (Uniswap.Position[] memory, bool) {
         delete positions;
 
-        require(FACTORY.isMarginAccount(msg.sender), "Aloe: bad account");
+        require(FACTORY.isBorrower(msg.sender), "Aloe: bad account");
 
-        MarginAccount account = MarginAccount(msg.sender);
+        Borrower account = Borrower(msg.sender);
         IUniswapV3Pool pool = account.UNISWAP_POOL();
 
         (uint8[] memory actions, bytes[] memory args) = abi.decode(data, (uint8[], bytes[]));
@@ -40,46 +42,39 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
             // transfer in
             if (action == 0) {
                 (address asset, uint256 amount) = abi.decode(args[i], (address, uint256));
-                ERC20(asset).safeTransferFrom(account.OWNER(), msg.sender, amount);
+                ERC20(asset).safeTransferFrom(account.owner(), msg.sender, amount);
                 continue;
             }
 
             // transfer out
             if (action == 1) {
                 (address asset, uint256 amount) = abi.decode(args[i], (address, uint256));
-                ERC20(asset).safeTransferFrom(msg.sender, account.OWNER(), amount);
+                ERC20(asset).safeTransferFrom(msg.sender, account.owner(), amount);
                 continue;
             }
 
             // mint
             if (action == 2) {
-                (address kitty, uint256 amount) = abi.decode(args[i], (address, uint256));
-                ERC20 asset = Kitty(kitty).asset();
-                asset.safeTransferFrom(address(account), address(this), amount);
+                (address lender, uint256 amount) = abi.decode(args[i], (address, uint256));
+                ERC20 asset = Lender(lender).asset();
 
-                _approve(address(asset), kitty, amount);
-                uint256 shares = Kitty(kitty).deposit(amount);
+                asset.safeTransferFrom(address(account), lender, amount);
+                Lender(lender).deposit(amount, address(account));
 
-                ERC20(kitty).safeTransfer(address(account), shares);
                 continue;
             }
 
             // burn
             if (action == 3) {
-                (address kitty, uint256 shares) = abi.decode(args[i], (address, uint256));
-                ERC20 asset = Kitty(kitty).asset();
-                ERC20(kitty).safeTransferFrom(address(account), address(this), shares);
-
-                uint256 amount = Kitty(kitty).withdraw(shares);
-
-                asset.safeTransfer(address(account), amount);
+                (address lender, uint256 shares) = abi.decode(args[i], (address, uint256));
+                Lender(lender).redeem(shares, address(account), address(account));
                 continue;
             }
 
             // borrow
             if (action == 4) {
                 (uint256 amount0, uint256 amount1) = abi.decode(args[i], (uint256, uint256));
-                account.borrow(amount0, amount1);
+                account.borrow(amount0, amount1, address(account));
                 continue;
             }
 
@@ -128,10 +123,12 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
             if (liquidity != 0) positions.push(position);
         }
 
-        bool includeKittyReceipts = ERC20(account.KITTY0()).balanceOf(address(account)) != 0 ||
-            ERC20(account.KITTY1()).balanceOf(address(account)) != 0;
-        return (positions, includeKittyReceipts);
+        bool includeLenderReceipts = account.LENDER0().balanceOf(address(account)) != 0 ||
+            account.LENDER1().balanceOf(address(account)) != 0;
+        return (positions, includeLenderReceipts);
     }
+
+    /* solhint-enable code-complexity */
 
     /// @notice Called to `msg.sender` after executing a swap via IUniswapV3Pool#swap.
     /// @dev In the implementation you must pay the pool tokens owed for the swap.
@@ -142,29 +139,21 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
     /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
     /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
     /// @param data Any data passed through by the caller via the IUniswapV3PoolActions#swap call
-    function uniswapV3SwapCallback(
-        int256 amount0Delta,
-        int256 amount1Delta,
-        bytes calldata data
-    ) external {
-        address marginAccount = abi.decode(data, (address));
+    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external {
+        address borrower = abi.decode(data, (address));
 
         if (amount0Delta > 0) {
             ERC20 token0 = ERC20(IUniswapV3Pool(msg.sender).token0());
-            token0.safeTransferFrom(marginAccount, msg.sender, uint256(amount0Delta));
+            token0.safeTransferFrom(borrower, msg.sender, uint256(amount0Delta));
         }
 
         if (amount1Delta > 0) {
             ERC20 token1 = ERC20(IUniswapV3Pool(msg.sender).token1());
-            token1.safeTransferFrom(marginAccount, msg.sender, uint256(amount1Delta));
+            token1.safeTransferFrom(borrower, msg.sender, uint256(amount1Delta));
         }
     }
 
-    function _approve(
-        address token,
-        address spender,
-        uint256 amount
-    ) private {
+    function _approve(address token, address spender, uint256 amount) private {
         // 200 gas to read uint256
         if (ERC20(token).allowance(address(this), spender) < amount) {
             // 20000 gas to write uint256 if changing from zero to non-zero

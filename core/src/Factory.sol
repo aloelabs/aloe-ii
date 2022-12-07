@@ -29,6 +29,8 @@ contract Factory {
 
     mapping(IUniswapV3Pool => Market) public getMarket;
 
+    mapping(address => bool) public isBorrower;
+
     constructor(InterestModel _interestModel) {
         INTEREST_MODEL = _interestModel;
         lenderImplementation = address(new Lender(address(this)));
@@ -62,6 +64,7 @@ contract Factory {
 
         account = Clones.clone(address(market.borrowerImplementation));
         Borrower(account).initialize(_owner);
+        isBorrower[account] = true;
 
         market.lender0.whitelist(account);
         market.lender1.whitelist(account);
