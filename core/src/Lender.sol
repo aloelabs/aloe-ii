@@ -74,8 +74,8 @@ contract Lender is Ledger {
         require(cache.lastBalance <= asset().balanceOf(address(this)));
 
         // Mint shares (emits event that can be interpreted as a deposit)
-        cache.totalSupply += shares;
         _unsafeMint(beneficiary, shares);
+        cache.totalSupply += shares;
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ false);
@@ -86,9 +86,6 @@ contract Lender is Ledger {
     function redeem(uint256 shares, address recipient, address owner) external returns (uint256 amount) {
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, uint256 inventory) = _load();
-
-        // Conditionally modify inputs for convenience
-        if (shares == 0) shares = balanceOf[owner];
 
         amount = _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ false);
         require(amount != 0, "Aloe: amount too low"); // TODO use real Error
