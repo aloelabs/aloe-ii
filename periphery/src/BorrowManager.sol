@@ -21,7 +21,7 @@ contract BorrowManager is IManager {
 
     /**
      * @notice This should be called by a borrower during its modify function
-     * @param data actions, amount0, amount1
+     * @param data Obtained from `abi.encode(actions, amounts0, amounts1)`. User should pass this in when calling `borrower.modify`
      * @dev actions: 0 = borrow, 1 = repay, 2 = withdraw
      * @return positions
      * @return includeLenderReceipts
@@ -35,6 +35,9 @@ contract BorrowManager is IManager {
             data,
             (uint8[], uint256[], uint256[])
         );
+        address owner = account.owner();
+        ERC20 token0 = account.TOKEN0();
+        ERC20 token1 = account.TOKEN1();
 
         require(actions.length == amounts0.length && actions.length == amounts1.length, "Aloe: bad data");
         for (uint256 i; i < actions.length; i++) {
@@ -42,28 +45,26 @@ contract BorrowManager is IManager {
             uint256 amount0 = amounts0[i];
             uint256 amount1 = amounts1[i];
             if (action == 0) {
-                account.borrow(amount0, amount1, account.owner());
+                account.borrow(amount0, amount1, owner);
             } else if (action == 1) {
                 if (amount0 != 0) {
-                    ERC20 token0 = account.TOKEN0();
                     Lender lender0 = account.LENDER0();
-                    token0.safeTransferFrom(account.owner(), address(lender0), amount0);
+                    token0.safeTransferFrom(owner, address(lender0), amount0);
                     lender0.repay(amount0, address(account));
                 }
                 if (amount1 != 0) {
-                    ERC20 token1 = account.TOKEN1();
                     Lender lender1 = account.LENDER1();
-                    token1.safeTransferFrom(account.owner(), address(lender1), amount1);
+                    token1.safeTransferFrom(owner, address(lender1), amount1);
                     lender1.repay(amount1, address(account));
                 }
             } else if (action == 2) {
                 if (amount0 != 0) {
                     ERC20 token0 = account.TOKEN0();
-                    token0.safeTransferFrom(address(account), account.owner(), amount0);
+                    token0.safeTransferFrom(address(account), owner, amount0);
                 }
                 if (amount1 != 0) {
                     ERC20 token1 = account.TOKEN1();
-                    token1.safeTransferFrom(address(account), account.owner(), amount1);
+                    token1.safeTransferFrom(address(account), owner, amount1);
                 }
             }
         }
