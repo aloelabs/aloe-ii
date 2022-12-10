@@ -59,11 +59,9 @@ contract BorrowManager is IManager {
                 }
             } else if (action == 2) {
                 if (amount0 != 0) {
-                    ERC20 token0 = account.TOKEN0();
                     token0.safeTransferFrom(address(account), owner, amount0);
                 }
                 if (amount1 != 0) {
-                    ERC20 token1 = account.TOKEN1();
                     token1.safeTransferFrom(address(account), owner, amount1);
                 }
             }
