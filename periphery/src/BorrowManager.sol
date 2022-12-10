@@ -26,17 +26,21 @@ contract BorrowManager is IManager {
      * @return positions
      * @return includeLenderReceipts
      */
-    function callback(bytes calldata data)
-        public
-        returns (Uniswap.Position[] memory positions, bool includeLenderReceipts)
-    {
+    function callback(
+        bytes calldata data
+    ) public returns (Uniswap.Position[] memory positions, bool includeLenderReceipts) {
         require(FACTORY.isBorrower(msg.sender), "Aloe: bad account");
         Borrower account = Borrower(msg.sender);
-        (uint8[] memory actions, bytes[] memory args) = abi.decode(data, (uint8[], bytes[]));
-        require(actions.length == args.length, "Aloe: bad data");
+        (uint8[] memory actions, uint256[] memory amounts0, uint256[] memory amounts1) = abi.decode(
+            data,
+            (uint8[], uint256[], uint256[])
+        );
+
+        require(actions.length == amounts0.length && actions.length == amounts1.length, "Aloe: bad data");
         for (uint256 i; i < actions.length; i++) {
             uint8 action = actions[i];
-            (uint256 amount0, uint256 amount1) = abi.decode(args[i], (uint256, uint256));
+            uint256 amount0 = amounts0[i];
+            uint256 amount1 = amounts1[i];
             if (action == 0) {
                 account.borrow(amount0, amount1, account.owner());
             } else if (action == 1) {

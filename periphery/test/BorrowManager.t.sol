@@ -45,10 +45,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 0;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([5e18, 0]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 5e18;
+        amounts1[0] = 0;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances;
 
         hoax(hayden);
@@ -70,10 +71,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 0;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([0, 1e15]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 0;
+        amounts1[0] = 1e15;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances;
 
         hoax(hayden);
@@ -95,10 +97,11 @@ contract BorrowManagerTest is Test {
         uint8 action0 = 0;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action0;
-        bytes memory arg0 = abi.encode([5e18, 1e15]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg0;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 5e18;
+        amounts1[0] = 1e15;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances;
 
         hoax(hayden);
@@ -122,12 +125,13 @@ contract BorrowManagerTest is Test {
         uint8[] memory actions = new uint8[](2);
         actions[0] = action0;
         actions[1] = action1;
-        bytes memory arg0 = abi.encode([5e18, 0]);
-        bytes memory arg1 = abi.encode([0, 1e15]);
-        bytes[] memory args = new bytes[](2);
-        args[0] = arg0;
-        args[1] = arg1;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](2);
+        uint256[] memory amounts1 = new uint256[](2);
+        amounts0[0] = 5e18;
+        amounts0[1] = 0;
+        amounts1[0] = 0;
+        amounts1[1] = 1e15;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances;
 
         hoax(hayden);
@@ -149,10 +153,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 0;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([10e19, 0]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 10e19;
+        amounts1[0] = 0;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances;
 
         hoax(hayden);
@@ -175,10 +180,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 0;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([0, 10e18]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 0;
+        amounts1[0] = 10e18;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances;
 
         hoax(hayden);
@@ -200,10 +206,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 1;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([5e18, 0]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 5e18;
+        amounts1[0] = 0;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances;
 
         hoax(hayden);
@@ -226,10 +233,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 1;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([0, 1e18]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 0;
+        amounts1[0] = 1e18;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances;
 
         hoax(hayden);
@@ -252,10 +260,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 1;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([5e18, 1e18]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 5e18;
+        amounts1[0] = 1e18;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances;
 
         hoax(hayden);
@@ -280,10 +289,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 1;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([3e18, 1e18]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 3e18;
+        amounts1[0] = 1e18;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances;
 
         hoax(hayden);
@@ -308,10 +318,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 1;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([5e18, 0]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 5e18;
+        amounts1[0] = 0;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances;
 
         hoax(hayden);
@@ -334,10 +345,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 2;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([10e18, 0]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 10e18;
+        amounts1[0] = 0;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances = [true, false, false, false];
 
         hoax(hayden);
@@ -357,10 +369,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 2;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([0, 1e18]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 0;
+        amounts1[0] = 1e18;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances = [false, true, false, false];
 
         hoax(hayden);
@@ -380,10 +393,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 2;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([5e18, 0]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 5e18;
+        amounts1[0] = 0;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances = [true, false, false, false];
 
         hoax(hayden);
@@ -403,10 +417,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 2;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([0, 1e18]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 0;
+        amounts1[0] = 1e18;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances = [false, true, false, false];
 
         hoax(hayden);
@@ -426,10 +441,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 2;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([10e18, 1e18]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 10e18;
+        amounts1[0] = 1e18;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances = [true, true, false, false];
 
         hoax(hayden);
@@ -449,10 +465,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 2;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([5e18, 1e18]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 5e18;
+        amounts1[0] = 1e18;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances = [true, true, false, false];
 
         hoax(hayden);
@@ -472,10 +489,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 2;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([11e18, 0]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 11e18;
+        amounts1[0] = 0;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances = [true, false, false, false];
 
         hoax(hayden);
@@ -496,10 +514,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 2;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([0, 2e18]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 0;
+        amounts1[0] = 2e18;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances = [false, true, false, false];
 
         hoax(hayden);
@@ -520,10 +539,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 2;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([10e18, 2e18]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 10e18;
+        amounts1[0] = 2e18;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances = [true, true, false, false];
 
         hoax(hayden);
@@ -544,10 +564,11 @@ contract BorrowManagerTest is Test {
         uint8 action = 2;
         uint8[] memory actions = new uint8[](1);
         actions[0] = action;
-        bytes memory arg = abi.encode([20e18, 1e18]);
-        bytes[] memory args = new bytes[](1);
-        args[0] = arg;
-        bytes memory data = abi.encode(actions, args);
+        uint256[] memory amounts0 = new uint256[](1);
+        uint256[] memory amounts1 = new uint256[](1);
+        amounts0[0] = 20e18;
+        amounts1[0] = 1e18;
+        bytes memory data = abi.encode(actions, amounts0, amounts1);
         bool[4] memory allowances = [true, true, false, false];
 
         hoax(hayden);
