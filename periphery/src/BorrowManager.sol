@@ -31,22 +31,28 @@ contract BorrowManager is IManager {
     ) public returns (Uniswap.Position[] memory positions, bool includeLenderReceipts) {
         require(FACTORY.isBorrower(msg.sender), "Aloe: bad account");
         Borrower account = Borrower(msg.sender);
+
         (uint8[] memory actions, uint256[] memory amounts0, uint256[] memory amounts1) = abi.decode(
             data,
             (uint8[], uint256[], uint256[])
         );
+
         address owner = account.owner();
+
         ERC20 token0;
         ERC20 token1;
 
         require(actions.length == amounts0.length && actions.length == amounts1.length, "Aloe: bad data");
+
         for (uint256 i; i < actions.length; i++) {
             uint8 action = actions[i];
             uint256 amount0 = amounts0[i];
             uint256 amount1 = amounts1[i];
             if (action == 0) {
+                // borrow
                 account.borrow(amount0, amount1, owner);
             } else if (action == 1) {
+                // repay
                 if (amount0 != 0) {
                     if (address(token0) == address(0)) token0 = account.TOKEN0();
                     Lender lender0 = account.LENDER0();
@@ -60,6 +66,7 @@ contract BorrowManager is IManager {
                     lender1.repay(amount1, address(account));
                 }
             } else if (action == 2) {
+                // withdraw
                 if (amount0 != 0) {
                     if (address(token0) == address(0)) token0 = account.TOKEN0();
                     token0.safeTransferFrom(address(account), owner, amount0);
@@ -71,4 +78,6 @@ contract BorrowManager is IManager {
             }
         }
     }
+
+    /* solhint-enable code-complexity */
 }
