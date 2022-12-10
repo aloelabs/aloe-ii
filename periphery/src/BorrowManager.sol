@@ -30,6 +30,7 @@ contract BorrowManager is IManager {
         bytes calldata data
     ) public returns (Uniswap.Position[] memory positions, bool includeLenderReceipts) {
         require(FACTORY.isBorrower(msg.sender), "Aloe: bad account");
+
         Borrower account = Borrower(msg.sender);
 
         (uint8[] memory actions, uint256[] memory amounts0, uint256[] memory amounts1) = abi.decode(
@@ -48,17 +49,19 @@ contract BorrowManager is IManager {
             uint8 action = actions[i];
             uint256 amount0 = amounts0[i];
             uint256 amount1 = amounts1[i];
+
             if (action == 0) {
-                // borrow
+                // Borrow
                 account.borrow(amount0, amount1, owner);
             } else if (action == 1) {
-                // repay
+                // Repay
                 if (amount0 != 0) {
                     if (address(token0) == address(0)) token0 = account.TOKEN0();
                     Lender lender0 = account.LENDER0();
                     token0.safeTransferFrom(owner, address(lender0), amount0);
                     lender0.repay(amount0, address(account));
                 }
+
                 if (amount1 != 0) {
                     if (address(token1) == address(0)) token1 = account.TOKEN1();
                     Lender lender1 = account.LENDER1();
@@ -66,11 +69,12 @@ contract BorrowManager is IManager {
                     lender1.repay(amount1, address(account));
                 }
             } else if (action == 2) {
-                // withdraw
+                // Withdraw
                 if (amount0 != 0) {
                     if (address(token0) == address(0)) token0 = account.TOKEN0();
                     token0.safeTransferFrom(address(account), owner, amount0);
                 }
+
                 if (amount1 != 0) {
                     if (address(token1) == address(0)) token1 = account.TOKEN1();
                     token1.safeTransferFrom(address(account), owner, amount1);
