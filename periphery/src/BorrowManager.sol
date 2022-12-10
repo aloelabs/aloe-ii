@@ -36,8 +36,8 @@ contract BorrowManager is IManager {
             (uint8[], uint256[], uint256[])
         );
         address owner = account.owner();
-        ERC20 token0 = account.TOKEN0();
-        ERC20 token1 = account.TOKEN1();
+        ERC20 token0;
+        ERC20 token1;
 
         require(actions.length == amounts0.length && actions.length == amounts1.length, "Aloe: bad data");
         for (uint256 i; i < actions.length; i++) {
@@ -48,20 +48,24 @@ contract BorrowManager is IManager {
                 account.borrow(amount0, amount1, owner);
             } else if (action == 1) {
                 if (amount0 != 0) {
+                    if (address(token0) == address(0)) token0 = account.TOKEN0();
                     Lender lender0 = account.LENDER0();
                     token0.safeTransferFrom(owner, address(lender0), amount0);
                     lender0.repay(amount0, address(account));
                 }
                 if (amount1 != 0) {
+                    if (address(token1) == address(0)) token1 = account.TOKEN1();
                     Lender lender1 = account.LENDER1();
                     token1.safeTransferFrom(owner, address(lender1), amount1);
                     lender1.repay(amount1, address(account));
                 }
             } else if (action == 2) {
                 if (amount0 != 0) {
+                    if (address(token0) == address(0)) token0 = account.TOKEN0();
                     token0.safeTransferFrom(address(account), owner, amount0);
                 }
                 if (amount1 != 0) {
+                    if (address(token1) == address(0)) token1 = account.TOKEN1();
                     token1.safeTransferFrom(address(account), owner, amount1);
                 }
             }
