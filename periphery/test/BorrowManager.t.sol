@@ -243,10 +243,88 @@ contract BorrowManagerTest is Test {
         assertEq(asset1.balanceOf(hayden), 0);
     }
 
-    // // TODO: Test repay both
-    // // TODO: Test repay partial
-    // // TODO: Test repay partial fail
-    // // TODO: Test repay fail
+    function test_repay_both() public {
+        test_borrow_dai_and_weth_combined();
+
+        deal(address(asset0), hayden, 5e18);
+        deal(address(asset1), hayden, 1e18);
+
+        uint8 action = 1;
+        uint8[] memory actions = new uint8[](1);
+        actions[0] = action;
+        bytes memory arg = abi.encode([5e18, 1e18]);
+        bytes[] memory args = new bytes[](1);
+        args[0] = arg;
+        bytes memory data = abi.encode(actions, args);
+        bool[4] memory allowances;
+
+        hoax(hayden);
+        asset0.approve(address(borrowManager), 5e18);
+        hoax(hayden);
+        asset1.approve(address(borrowManager), 1e18);
+        hoax(hayden);
+        borrower.modify(borrowManager, data, allowances);
+
+        assertEq(lender0.borrowBalance(address(borrower)), 0);
+        assertEq(lender1.borrowBalance(address(borrower)), 0);
+        assertEq(asset0.balanceOf(hayden), 0);
+        assertEq(asset1.balanceOf(hayden), 0);
+    }
+
+    function test_repay_partial() public {
+        test_borrow_dai_and_weth_combined();
+
+        deal(address(asset0), hayden, 5e18);
+        deal(address(asset1), hayden, 1e18);
+
+        uint8 action = 1;
+        uint8[] memory actions = new uint8[](1);
+        actions[0] = action;
+        bytes memory arg = abi.encode([3e18, 1e18]);
+        bytes[] memory args = new bytes[](1);
+        args[0] = arg;
+        bytes memory data = abi.encode(actions, args);
+        bool[4] memory allowances;
+
+        hoax(hayden);
+        asset0.approve(address(borrowManager), 3e18);
+        hoax(hayden);
+        asset1.approve(address(borrowManager), 1e18);
+        hoax(hayden);
+        borrower.modify(borrowManager, data, allowances);
+
+        assertEq(lender0.borrowBalance(address(borrower)), 2e18);
+        assertEq(lender1.borrowBalance(address(borrower)), 0);
+        assertEq(asset0.balanceOf(hayden), 2e18);
+        assertEq(asset1.balanceOf(hayden), 0);
+    }
+
+    function test_repay_fail() public {
+        test_borrow_dai();
+
+        deal(address(asset0), hayden, 4e18);
+        deal(address(asset1), hayden, 0);
+
+        uint8 action = 1;
+        uint8[] memory actions = new uint8[](1);
+        actions[0] = action;
+        bytes memory arg = abi.encode([5e18, 0]);
+        bytes[] memory args = new bytes[](1);
+        args[0] = arg;
+        bytes memory data = abi.encode(actions, args);
+        bool[4] memory allowances;
+
+        hoax(hayden);
+        asset0.approve(address(borrowManager), 5e18);
+        hoax(hayden);
+        vm.expectRevert();
+        borrower.modify(borrowManager, data, allowances);
+
+        assertEq(lender0.borrowBalance(address(borrower)), 5e18);
+        assertEq(lender1.borrowBalance(address(borrower)), 0);
+        assertEq(asset0.balanceOf(hayden), 4e18);
+        assertEq(asset1.balanceOf(hayden), 0);
+    }
 
     function test_withdraw_dai() public {
         // give this contract some tokens
