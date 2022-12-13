@@ -28,5 +28,7 @@ fi
 
 # Run forge tests
 source ../.env
-forge test -vv --fork-url $FOUNDRY_ETH_RPC_URL --fork-block-number 15348451 --match-contract Lender --gas-report
-forge test -vv --fork-url $FOUNDRY_ETH_RPC_URL --fork-block-number 15348451 --match-contract Borrower
+MAINNET_RPC_URL=$FOUNDRY_ETH_RPC_URL forge test -vv --gas-report
+
+# Get coverage
+MAINNET_RPC_URL=$FOUNDRY_ETH_RPC_URL forge coverage --report lcov --report summary

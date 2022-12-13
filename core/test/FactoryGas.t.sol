@@ -13,6 +13,9 @@ contract FactoryGasTest is Test {
     Factory immutable factory;
 
     constructor() {
+        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"));
+        vm.rollFork(15_348_451);
+
         factory = new Factory(new InterestModel());
     }
 
