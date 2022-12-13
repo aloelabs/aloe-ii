@@ -45,7 +45,7 @@ contract VolatilityTest is Test {
             Volatility.FeeGrowthGlobals(
                 1501968291161650295867029090958139,
                 527315901327546020416261134123578344760082,
-                uint32(block.timestamp)
+                uint32(1660599905)
             ),
             1 days
         );

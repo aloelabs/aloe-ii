@@ -15,6 +15,9 @@ contract LenderGasTest is Test {
     address immutable bob;
 
     constructor() {
+        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"));
+        vm.rollFork(15_348_451);
+
         lender = deploySingleLender(asset, address(this), new InterestModel());
         bob = makeAddr("bob");
     }

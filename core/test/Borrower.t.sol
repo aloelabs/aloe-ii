@@ -50,6 +50,9 @@ contract BorrowerTest is Test, IManager {
     }
 
     function setUp() public {
+        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"));
+        vm.rollFork(15_348_451);
+
         lender0 = deploySingleLender(asset0, address(this), new InterestModel());
         lender1 = deploySingleLender(asset1, address(this), new InterestModel());
         account = new Borrower(pool, lender0, lender1);
