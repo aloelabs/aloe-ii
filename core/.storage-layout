@@ -14,7 +14,7 @@ forge inspect --pretty src/Lender.sol:Lender storage-layout
 |------------------------+-------------------------------------------------+------+--------+-------+-----------------------|
 | borrows                | mapping(address => uint256)                     | 2    | 0      | 32    | src/Lender.sol:Lender |
 |------------------------+-------------------------------------------------+------+--------+-------+-----------------------|
-| balanceOf              | mapping(address => uint256)                     | 3    | 0      | 32    | src/Lender.sol:Lender |
+| balances               | mapping(address => uint256)                     | 3    | 0      | 32    | src/Lender.sol:Lender |
 |------------------------+-------------------------------------------------+------+--------+-------+-----------------------|
 | allowance              | mapping(address => mapping(address => uint256)) | 4    | 0      | 32    | src/Lender.sol:Lender |
 |------------------------+-------------------------------------------------+------+--------+-------+-----------------------|
@@ -24,9 +24,11 @@ forge inspect --pretty src/Lender.sol:Lender storage-layout
 |------------------------+-------------------------------------------------+------+--------+-------+-----------------------|
 | nonces                 | mapping(address => uint256)                     | 7    | 0      | 32    | src/Lender.sol:Lender |
 |------------------------+-------------------------------------------------+------+--------+-------+-----------------------|
-| interestModel          | contract InterestModel                          | 8    | 0      | 20    | src/Lender.sol:Lender |
+| couriers               | mapping(uint32 => struct Ledger.Courier)        | 8    | 0      | 32    | src/Lender.sol:Lender |
 |------------------------+-------------------------------------------------+------+--------+-------+-----------------------|
-| reserveFactor          | uint8                                           | 8    | 20     | 1     | src/Lender.sol:Lender |
+| interestModel          | contract InterestModel                          | 9    | 0      | 20    | src/Lender.sol:Lender |
+|------------------------+-------------------------------------------------+------+--------+-------+-----------------------|
+| reserveFactor          | uint8                                           | 9    | 20     | 1     | src/Lender.sol:Lender |
 +------------------------+-------------------------------------------------+------+--------+-------+-----------------------+
 
 forge inspect --pretty src/Borrower.sol:Borrower storage-layout
