@@ -11,9 +11,11 @@ import {InterestModel} from "./InterestModel.sol";
 contract Ledger {
     using FixedPointMathLib for uint256;
 
-    uint256 public constant ONE = 1e12;
+    uint256 internal constant ONE = 1e12;
 
-    uint256 public constant BORROWS_SCALER = type(uint72).max * ONE; // uint72 is from borrowIndex type
+    uint256 internal constant Q112 = 1 << 112;
+
+    uint256 internal constant BORROWS_SCALER = type(uint72).max * ONE; // uint72 is from borrowIndex type
 
     address public immutable FACTORY;
 
@@ -28,7 +30,7 @@ contract Ledger {
     }
 
     /*//////////////////////////////////////////////////////////////
-                              BANK STORAGE
+                             LENDER STORAGE
     //////////////////////////////////////////////////////////////*/
 
     uint112 public totalSupply;
@@ -47,7 +49,9 @@ contract Ledger {
                              ERC20 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    mapping(address => uint256) public balanceOf;
+    // TODO Confirm that 2**32 unique referral codes is sufficient to prevent griefing
+    /// @dev Highest 32 bits are the referral code, next 112 are the principle, lowest 112 are the shares.
+    mapping(address => uint256) public balances;
 
     mapping(address => mapping(address => uint256)) public allowance;
 
@@ -60,6 +64,17 @@ contract Ledger {
     uint256 internal initialChainId;
 
     mapping(address => uint256) public nonces;
+
+    /*//////////////////////////////////////////////////////////////
+                           INCENTIVE STORAGE
+    //////////////////////////////////////////////////////////////*/
+
+    struct Courier {
+        address wallet;
+        uint16 cut;
+    }
+
+    mapping(uint32 => Courier) public couriers;
 
     /*//////////////////////////////////////////////////////////////
                          GOVERNABLE PARAMETERS
@@ -112,15 +127,20 @@ contract Ledger {
         }
     }
 
+    /// @notice The number of shares held by `account`
+    function balanceOf(address account) external view returns (uint256) {
+        return balances[account] % Q112;
+    }
+
     function balanceOfUnderlying(address account) external view returns (uint256) {
-        return convertToAssets(balanceOf[account]);
+        return convertToAssets(balances[account] % Q112);
     }
 
     function balanceOfUnderlyingStored(address account) external view returns (uint256) {
         unchecked {
             return
                 _convertToAssets({
-                    shares: balanceOf[account],
+                    shares: balances[account] % Q112,
                     inventory: lastBalance + (borrowBase * borrowIndex) / BORROWS_SCALER,
                     totalSupply_: totalSupply,
                     roundUp: false
@@ -233,7 +253,7 @@ contract Ledger {
      * - MUST NOT revert.
      */
     function maxWithdraw(address owner) external view returns (uint256) {
-        uint256 a = convertToAssets(balanceOf[owner]);
+        uint256 a = convertToAssets(balances[owner] % Q112);
         uint256 b = lastBalance;
         return a < b ? a : b;
     }
@@ -250,7 +270,7 @@ contract Ledger {
      * - MUST NOT revert.
      */
     function maxRedeem(address owner) external view returns (uint256) {
-        uint256 a = balanceOf[owner];
+        uint256 a = balances[owner] % Q112;
         uint256 b = convertToShares(lastBalance);
         return a < b ? a : b;
     }

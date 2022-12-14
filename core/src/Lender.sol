@@ -58,6 +58,17 @@ contract Lender is Ledger {
         borrows[borrower] = 1;
     }
 
+    function enrollCourier(uint32 id, address wallet, uint16 cut) external {
+        require(couriers[id].wallet == address(0) && cut != 0);
+        couriers[id] = Courier(wallet, cut);
+    }
+
+    function creditCourier(uint32 id, address account) external {
+        require(msg.sender == account || allowance[account][msg.sender] != 0);
+        require(balances[account] % Q112 == 0);
+        balances[account] = id << 224;
+    }
+
     /*//////////////////////////////////////////////////////////////
                         DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
@@ -73,8 +84,8 @@ contract Lender is Ledger {
         cache.lastBalance += amount;
         require(cache.lastBalance <= asset().balanceOf(address(this)));
 
-        // Mint shares (emits event that can be interpreted as a deposit)
-        _unsafeMint(beneficiary, shares);
+        // Mint shares and (if applicable) handle courier accounting
+        _unsafeMint(beneficiary, shares, amount);
         cache.totalSupply += shares;
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
@@ -95,15 +106,15 @@ contract Lender is Ledger {
             if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
         }
 
-        // Transfer tokens
-        cache.lastBalance -= amount;
-        asset().safeTransfer(recipient, amount);
-
-        // Burn shares (emits event that can be interpreted as a withdrawal)
-        _unsafeBurn(owner, shares);
+        // Burn shares and (if applicable) handle courier accounting
+        amount = _unsafeBurn(owner, shares, amount);
         unchecked {
             cache.totalSupply -= shares;
         }
+
+        // Transfer tokens
+        cache.lastBalance -= amount;
+        asset().safeTransfer(recipient, amount);
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ false);
@@ -196,6 +207,7 @@ contract Lender is Ledger {
         _save(cache, /* didChangeBorrowBase: */ false);
     }
 
+    /// @dev Note that if `RESERVE` ever gives credit to a courier, its principle won't be tracked properly.
     function _load() private returns (Cache memory cache, uint256 inventory) {
         cache = Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
         // Guard against reentrancy
@@ -208,7 +220,7 @@ contract Lender is Ledger {
 
         // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
         if (newTotalSupply != cache.totalSupply) {
-            _unsafeMint(RESERVE, newTotalSupply - cache.totalSupply);
+            _unsafeMint(RESERVE, newTotalSupply - cache.totalSupply, 0);
             cache.totalSupply = newTotalSupply;
         }
     }
@@ -236,42 +248,25 @@ contract Lender is Ledger {
                                ERC20 LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
+    function approve(address spender, uint256 shares) external returns (bool) {
+        allowance[msg.sender][spender] = shares;
 
-        emit Approval(msg.sender, spender, amount);
-
-        return true;
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        balanceOf[msg.sender] -= amount;
-
-        // Cannot overflow because the sum of all user
-        // balances can't exceed the max uint256 value.
-        unchecked {
-            balanceOf[to] += amount;
-        }
-
-        emit Transfer(msg.sender, to, amount);
+        emit Approval(msg.sender, spender, shares);
 
         return true;
     }
 
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.
+    function transfer(address to, uint256 shares) external returns (bool) {
+        _transfer(msg.sender, to, shares);
 
-        if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;
+        return true;
+    }
 
-        balanceOf[from] -= amount;
+    function transferFrom(address from, address to, uint256 shares) external returns (bool) {
+        uint256 allowed = allowance[from][msg.sender];
+        if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - shares;
 
-        // Cannot overflow because the sum of all user
-        // balances can't exceed the max uint256 value.
-        unchecked {
-            balanceOf[to] += amount;
-        }
-
-        emit Transfer(from, to, amount);
+        _transfer(from, to, shares);
 
         return true;
     }
@@ -327,22 +322,89 @@ contract Lender is Ledger {
     }
 
     /*//////////////////////////////////////////////////////////////
-                        INTERNAL MINT/BURN LOGIC
+                                HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev You must do `totalSupply += amount` separately. Do so in a checked context.
-    function _unsafeMint(address to, uint256 amount) private {
+    function _transfer(address from, address to, uint256 shares) private {
         unchecked {
-            balanceOf[to] += amount;
+            // From most to least significant...
+            // -------------------------------
+            // | courier id       | 32 bits  |
+            // | user's principle | 112 bits |
+            // | user's balance   | 112 bits |
+            // -------------------------------
+            uint256 data = balances[from];
+            require(data >> 224 == 0);
+            require(shares <= data % Q112);
+
+            balances[from] = data - shares;
+            balances[to] += shares;
         }
 
-        emit Transfer(address(0), to, amount);
+        emit Transfer(from, to, shares);
     }
 
-    /// @dev You must do `totalSupply -= amount` separately. Do so in an unchecked context.
-    function _unsafeBurn(address from, uint256 amount) private {
-        balanceOf[from] -= amount;
+    /// @dev You must do `totalSupply += shares` separately. Do so in a checked context.
+    function _unsafeMint(address to, uint256 shares, uint256 amount) private {
+        unchecked {
+            // From most to least significant...
+            // -------------------------------
+            // | courier id       | 32 bits  |
+            // | user's principle | 112 bits |
+            // | user's balance   | 112 bits |
+            // -------------------------------
+            uint256 data = balances[to];
 
-        emit Transfer(from, address(0), amount);
+            if (data >> 224 != 0) {
+                // Keep track of principle iff courier deserves credit
+                require(amount + ((data >> 112) % Q112) < Q112);
+                data += amount << 112;
+            }
+
+            // Keep track of balance regardless of courier.
+            // Since `totalSupply` fits in uint112, the user's balance will too. No need to check here.
+            balances[to] = data + shares;
+        }
+
+        emit Transfer(address(0), to, shares);
+    }
+
+    /// @dev You must do `totalSupply -= shares` separately. Do so in an unchecked context.
+    function _unsafeBurn(address from, uint256 shares, uint256 amount) private returns (uint256) {
+        // From most to least significant...
+        // -------------------------------
+        // | courier id       | 32 bits  |
+        // | user's principle | 112 bits |
+        // | user's balance   | 112 bits |
+        // -------------------------------
+        uint256 data = balances[from];
+
+        unchecked {
+            uint256 balance = data % Q112;
+            require(shares <= balance);
+            data -= shares;
+
+            uint32 id = uint32(data >> 224);
+            if (id != 0) {
+                // TODO explain this math
+                uint256 principle = ((data >> 112) % Q112).mulDivDown(shares, balance);
+
+                if (amount > principle) {
+                    Courier memory courier = couriers[id];
+
+                    uint256 fee = (amount - principle).mulDivDown(courier.cut, 10_000);
+                    // This conversion works because [inventory : totalSupply :: amount : shares]
+                    _unsafeMint(courier.wallet, _convertToShares(fee, amount, shares, false), fee);
+
+                    amount -= fee;
+                }
+
+                data -= principle << 112;
+            }
+        }
+
+        balances[from] = data;
+        emit Transfer(from, address(0), shares);
+        return amount;
     }
 }
