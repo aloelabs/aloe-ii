@@ -58,19 +58,24 @@ contract Lender is Ledger {
         borrows[borrower] = 1;
     }
 
+    // enroll as a courier
     function enrollCourier(uint32 id, address wallet, uint16 cut) external {
         require(id != 0 && wallet != address(0) && cut != 0 && cut < 10_000);
         require(couriers[id].wallet == address(0));
         couriers[id] = Courier(wallet, cut);
     }
 
+    // credit a courier
     function creditCourier(uint32 id, address account) external {
+        // you can't credit yourself on behalf of random users
         require(msg.sender == account || allowance[account][msg.sender] != 0);
 
         address courier = couriers[id].wallet;
         require(courier != address(0) && courier != account);
 
+        // you can't credit a referrer that alread has a balance
         require(balances[account] % Q112 == 0);
+        // set the referrer id
         balances[account] = uint256(id) << 224;
     }
 
@@ -255,6 +260,7 @@ contract Lender is Ledger {
     //////////////////////////////////////////////////////////////*/
 
     function approve(address spender, uint256 shares) external returns (bool) {
+        // Approve the spender to transfer the specified number of shares on behalf of the caller
         allowance[msg.sender][spender] = shares;
 
         emit Approval(msg.sender, spender, shares);
@@ -340,10 +346,15 @@ contract Lender is Ledger {
             // | user's balance   | 112 bits |
             // -------------------------------
             uint256 data = balances[from];
+            // Receipt tokens cannot be transferred if the user is associated with a courier.
+            // Limitation of the logic to mitigate extra complexity
             require(data >> 224 == 0);
+            // The user cannot transfer more than they have (in their balance)
             require(shares <= data % Q112);
 
+            // Safe because of the require above it
             balances[from] = data - shares;
+            // Safe because it has to be less than the total supply
             balances[to] += shares;
         }
 
@@ -361,9 +372,13 @@ contract Lender is Ledger {
             // -------------------------------
             uint256 data = balances[to];
 
+            // If they have a courier...
             if (data >> 224 != 0) {
                 // Keep track of principle iff courier deserves credit
+                // amount depositing + principal (mod gets rid of courier id)
+                // check that this is less than Q112 to prevent overflow
                 require(amount + ((data >> 112) % Q112) < Q112);
+                // Add amount to principle
                 data += amount << 112;
             }
 
@@ -394,8 +409,10 @@ contract Lender is Ledger {
             uint32 id = uint32(data >> 224);
             if (id != 0) {
                 // TODO explain this math
+                // Since principal and balance/shares are not 1:1
                 uint256 principle = ((data >> 112) % Q112).mulDivDown(shares, balance);
 
+                // They should always be making a profit, but just in case...
                 if (amount > principle) {
                     Courier memory courier = couriers[id];
 

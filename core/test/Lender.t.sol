@@ -145,16 +145,18 @@ contract LenderTest is Test {
     }
 
     function test_depositMultipleDestinations(uint112 amountA, uint112 amountB, address toA, address toB) public {
+        if (toA == toB) toB = address(toA) == address(0) ? address(1) : address(0);
         if (uint256(amountA) + uint256(amountB) > type(uint112).max) {
             amountA = amountA / 2;
             amountB = amountB / 2;
         }
-        
+
         deal(address(asset), address(lender), amountA + amountB);
         if (amountA == 0) {
             vm.expectRevert(bytes("Aloe: 0 shares"));
             lender.deposit(amountA, toA);
         } else lender.deposit(amountA, toA);
+
         if (amountB == 0) {
             vm.expectRevert(bytes("Aloe: 0 shares"));
             lender.deposit(amountB, toB);
