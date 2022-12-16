@@ -127,6 +127,14 @@ contract Ledger {
         }
     }
 
+    function courierOf(address account) external view returns (uint32) {
+        return uint32(balances[account] >> 224);
+    }
+
+    function principleOf(address account) external view returns (uint256) {
+        return (balances[account] >> 112) % Q112;
+    }
+
     /// @notice The number of shares held by `account`
     function balanceOf(address account) external view returns (uint256) {
         return balances[account] % Q112;

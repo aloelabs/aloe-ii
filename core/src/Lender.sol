@@ -59,14 +59,19 @@ contract Lender is Ledger {
     }
 
     function enrollCourier(uint32 id, address wallet, uint16 cut) external {
-        require(couriers[id].wallet == address(0) && cut != 0);
+        require(id != 0 && wallet != address(0) && cut != 0 && cut < 10_000);
+        require(couriers[id].wallet == address(0));
         couriers[id] = Courier(wallet, cut);
     }
 
     function creditCourier(uint32 id, address account) external {
         require(msg.sender == account || allowance[account][msg.sender] != 0);
+
+        address courier = couriers[id].wallet;
+        require(courier != address(0) && courier != account);
+
         require(balances[account] % Q112 == 0);
-        balances[account] = id << 224;
+        balances[account] = uint256(id) << 224;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -107,9 +112,10 @@ contract Lender is Ledger {
         }
 
         // Burn shares and (if applicable) handle courier accounting
-        amount = _unsafeBurn(owner, shares, amount);
+        uint256 minted;
+        (amount, minted) = _unsafeBurn(owner, shares, amount);
         unchecked {
-            cache.totalSupply -= shares;
+            cache.totalSupply -= (shares - minted);
         }
 
         // Transfer tokens
@@ -370,7 +376,7 @@ contract Lender is Ledger {
     }
 
     /// @dev You must do `totalSupply -= shares` separately. Do so in an unchecked context.
-    function _unsafeBurn(address from, uint256 shares, uint256 amount) private returns (uint256) {
+    function _unsafeBurn(address from, uint256 shares, uint256 amount) private returns (uint256, uint256) {
         // From most to least significant...
         // -------------------------------
         // | courier id       | 32 bits  |
@@ -378,6 +384,7 @@ contract Lender is Ledger {
         // | user's balance   | 112 bits |
         // -------------------------------
         uint256 data = balances[from];
+        uint256 minted;
 
         unchecked {
             uint256 balance = data % Q112;
@@ -393,8 +400,7 @@ contract Lender is Ledger {
                     Courier memory courier = couriers[id];
 
                     uint256 fee = (amount - principle).mulDivDown(courier.cut, 10_000);
-                    // This conversion works because [inventory : totalSupply :: amount : shares]
-                    _unsafeMint(courier.wallet, _convertToShares(fee, amount, shares, false), fee);
+                    _unsafeMint(courier.wallet, minted = shares.mulDivDown(fee, amount), fee);
 
                     amount -= fee;
                 }
@@ -405,6 +411,6 @@ contract Lender is Ledger {
 
         balances[from] = data;
         emit Transfer(from, address(0), shares);
-        return amount;
+        return (amount, minted);
     }
 }
