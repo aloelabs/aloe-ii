@@ -84,10 +84,7 @@ contract LenderTest is Test {
         // Both `totalAssets` and `balanceOfUnderlyingStored` should have updated now
         assertEqDecimal(lender.totalAssets(), newInventory, 18);
         assertLeDecimal(
-            stdMath.delta(
-                lender.balanceOfUnderlyingStored(address(this)),
-                newInventory - reserves
-            ),
+            stdMath.delta(lender.balanceOfUnderlyingStored(address(this)), newInventory - reserves),
             epsilon,
             18
         );
@@ -95,14 +92,7 @@ contract LenderTest is Test {
         if (accrualFactor > 0) assertGt(lender.borrowIndex(), 1e12);
 
         assertEq(lender.lastAccrualTime(), block.timestamp);
-        assertLeDecimal(
-            stdMath.delta(
-                lender.balanceOfUnderlying(lender.RESERVE()),
-                reserves
-            ),
-            epsilon,
-            18
-        );
+        assertLeDecimal(stdMath.delta(lender.balanceOfUnderlying(lender.RESERVE()), reserves), epsilon, 18);
 
         vm.clearMockedCalls();
     }
@@ -138,7 +128,7 @@ contract LenderTest is Test {
         assertEq(shares, expectedShares);
         assertEq(lender.balanceOf(to), expectedShares);
         assertEq(lender.totalSupply(), totalSupply + shares);
-        
+
         // Check underlying correctness
         assertEq(lender.balanceOfUnderlyingStored(to), amount);
         assertEq(lender.balanceOfUnderlying(to), amount);
@@ -149,7 +139,7 @@ contract LenderTest is Test {
             amountA = amountA / 2;
             amountB = amountB / 2;
         }
-        
+
         deal(address(asset), address(lender), amountA + amountB);
         if (amountA == 0) {
             vm.expectRevert(bytes("Aloe: 0 shares"));

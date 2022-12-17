@@ -16,7 +16,8 @@ contract LenderERC20Test is Test {
 
     event Transfer(address indexed from, address indexed to, uint256 amount);
 
-    bytes32 constant PERMIT_TYPEHASH = keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
+    bytes32 constant PERMIT_TYPEHASH =
+        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
 
     ERC20 asset;
 
@@ -56,7 +57,7 @@ contract LenderERC20Test is Test {
         lender.transfer(to, shares);
     }
 
-    function test_cannotTransferOthersTokens(address from, address to, uint112 shares) public  {
+    function test_cannotTransferOthersTokens(address from, address to, uint112 shares) public {
         if (from == address(this)) return;
         if (shares == 0) shares = 1;
 
@@ -120,7 +121,12 @@ contract LenderERC20Test is Test {
         lender.transferFrom(from, to, shares);
     }
 
-    function test_cannotTransferFromMoreThanAllowance(address from, address to, uint112 shares, uint112 allowance) public {
+    function test_cannotTransferFromMoreThanAllowance(
+        address from,
+        address to,
+        uint112 shares,
+        uint112 allowance
+    ) public {
         if (allowance == shares) return;
         if (allowance > shares) (allowance, shares) = (shares, allowance);
 
@@ -196,7 +202,12 @@ contract LenderERC20Test is Test {
         lender.permit(owner, spender, amount, block.timestamp - 1, v, r, s);
     }
 
-    function test_cannotPermitWithBadSignature(uint256 privateKey, address spender, uint256 amount, uint256 nonce) public {
+    function test_cannotPermitWithBadSignature(
+        uint256 privateKey,
+        address spender,
+        uint256 amount,
+        uint256 nonce
+    ) public {
         privateKey = privateKey / 2 + 1;
         address owner = vm.addr(privateKey);
 
@@ -216,5 +227,5 @@ contract LenderERC20Test is Test {
 
         vm.expectRevert(bytes("INVALID_SIGNER"));
         lender.permit(owner, spender, amount, block.timestamp, v, r, s);
-    } 
+    }
 }

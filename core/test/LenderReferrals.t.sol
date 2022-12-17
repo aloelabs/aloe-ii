@@ -117,7 +117,12 @@ contract LenderReferralsTest is Test {
         lender.creditCourier(id, account);
     }
 
-    function test_cannotCreditCourierAfterAcquiringTokens(uint32 id, address wallet, uint16 cut, address account) public {
+    function test_cannotCreditCourierAfterAcquiringTokens(
+        uint32 id,
+        address wallet,
+        uint16 cut,
+        address account
+    ) public {
         (id, wallet, cut) = _enroll(id, wallet, cut);
 
         vm.prank(account);
@@ -129,7 +134,14 @@ contract LenderReferralsTest is Test {
         lender.creditCourier(id, account);
     }
 
-    function test_depositDoesIncreasePrinciple(uint32 id, address wallet, uint16 cut, address caller, address to, uint112 amount) public {
+    function test_depositDoesIncreasePrinciple(
+        uint32 id,
+        address wallet,
+        uint16 cut,
+        address caller,
+        address to,
+        uint112 amount
+    ) public {
         if (amount <= 1) return;
         (id, wallet, cut) = _enroll(id, wallet, cut);
 
@@ -151,7 +163,7 @@ contract LenderReferralsTest is Test {
         assertEq(lender.balanceOfUnderlying(to), amount / 2);
 
         uint256 val = uint256(vm.load(address(lender), bytes32(uint256(1))));
-        val += (amount / 4 * uint256(type(uint72).max));
+        val += ((amount / 4) * uint256(type(uint72).max));
         val += (1e12) << 184;
         vm.store(address(lender), bytes32(uint256(1)), bytes32(val));
 
@@ -165,17 +177,18 @@ contract LenderReferralsTest is Test {
 
         assertEq(lender.courierOf(to), id);
         assertEq(lender.principleOf(to), amount / 2 + amount / 2);
-        assertLe(stdMath.delta(
-            lender.balanceOf(to),
-            amount / 2 + amount / 4
-        ), 1);
-        assertLe(stdMath.delta(
-            lender.balanceOfUnderlying(to),
-            uint256(amount) + amount / 2
-        ), 2);
+        assertLe(stdMath.delta(lender.balanceOf(to), amount / 2 + amount / 4), 1);
+        assertLe(stdMath.delta(lender.balanceOfUnderlying(to), uint256(amount) + amount / 2), 2);
     }
 
-    function test_withdrawDoesPayout(uint32 id, address wallet, uint16 cut, address caller, address to, uint104 amount) public {
+    function test_withdrawDoesPayout(
+        uint32 id,
+        address wallet,
+        uint16 cut,
+        address caller,
+        address to,
+        uint104 amount
+    ) public {
         // MARK: Start by doing everything that `test_depositDoesIncreasePrinciple` does
 
         if (amount <= 1) return;
@@ -195,7 +208,7 @@ contract LenderReferralsTest is Test {
         lender.deposit(amount / 2, to);
 
         uint256 val = uint256(vm.load(address(lender), bytes32(uint256(1))));
-        val += (amount / 4 * uint256(type(uint72).max));
+        val += ((amount / 4) * uint256(type(uint72).max));
         val += uint256(1e12) << 184;
         vm.store(address(lender), bytes32(uint256(1)), bytes32(val));
 
@@ -211,27 +224,21 @@ contract LenderReferralsTest is Test {
         // pretend that borrower pays off a big loan so that lender can make full payout
         deal(address(asset), address(lender), type(uint128).max);
         val = uint256(vm.load(address(lender), bytes32(uint256(1))));
-        val -= (amount / 4 * uint256(type(uint72).max));
+        val -= ((amount / 4) * uint256(type(uint72).max));
         vm.store(address(lender), bytes32(uint256(1)), bytes32(val));
         val = uint256(vm.load(address(lender), bytes32(uint256(0))));
         val += uint256(amount / 2) << 112;
         vm.store(address(lender), bytes32(uint256(0)), bytes32(val));
 
-        uint256 reward = profit * uint256(cut) / 10_000;
+        uint256 reward = (profit * uint256(cut)) / 10_000;
         uint256 rewardShares = lender.convertToShares(reward);
 
         vm.prank(to);
         lender.redeem(bal, to, to);
 
-        assertLe(stdMath.delta(
-            lender.balanceOf(wallet),
-            rewardShares
-        ), 1);
+        assertLe(stdMath.delta(lender.balanceOf(wallet), rewardShares), 1);
 
-        assertLe(stdMath.delta(
-            lender.balanceOfUnderlying(wallet),
-            reward
-        ), 2);
+        assertLe(stdMath.delta(lender.balanceOfUnderlying(wallet), reward), 2);
     }
 
     function _enroll(uint32 id, address wallet, uint16 cut) private returns (uint32, address, uint16) {

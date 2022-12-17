@@ -83,20 +83,14 @@ contract BorrowerGasTest is Test, IManager {
         WITHDRAW
     }
 
-    function callback(bytes calldata data) external returns (
-        Uniswap.Position[] memory positions,
-        bool includeLenderReceipts
-    ) {
+    function callback(
+        bytes calldata data
+    ) external returns (Uniswap.Position[] memory positions, bool includeLenderReceipts) {
         require(msg.sender == address(account));
 
-        (
-            Action action,
-            uint256 amount0,
-            uint256 amount1
-        ) = abi.decode(data, (Action, uint256, uint256));
+        (Action action, uint256 amount0, uint256 amount1) = abi.decode(data, (Action, uint256, uint256));
 
-        if (action == Action.NONE) {
-        } else if (action == Action.BORROW) {
+        if (action == Action.NONE) {} else if (action == Action.BORROW) {
             account.borrow(amount0, amount1, msg.sender);
         } else if (action == Action.REPAY) {
             account.repay(amount0, amount1);
