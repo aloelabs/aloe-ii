@@ -71,7 +71,8 @@ contract LenderERC20Test is Test {
         if (id == 0) id = 1;
 
         uint256 value = (uint256(id) << 224) + shares;
-        stdstore.target(address(lender)).sig("balances(address)").with_key(from).depth(0).checked_write(value);
+        address key = shares % 2 == 0 ? from : to;
+        stdstore.target(address(lender)).sig("balances(address)").with_key(key).depth(0).checked_write(value);
 
         vm.prank(from);
         vm.expectRevert(bytes(""));

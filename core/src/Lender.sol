@@ -339,12 +339,15 @@ contract Lender is Ledger {
             // | user's principle | 112 bits |
             // | user's balance   | 112 bits |
             // -------------------------------
-            uint256 data = balances[from];
-            require(data >> 224 == 0);
-            require(shares <= data % Q112);
+            uint256 data;
 
+            data = balances[from];
+            require(data >> 224 == 0 && shares <= data % Q112);
             balances[from] = data - shares;
-            balances[to] += shares;
+
+            data = balances[to];
+            require(data >> 224 == 0);
+            balances[to] = data + shares;
         }
 
         emit Transfer(from, to, shares);
