@@ -135,6 +135,8 @@ contract LenderTest is Test {
     }
 
     function test_depositMultipleDestinations(uint112 amountA, uint112 amountB, address toA, address toB) public {
+        if (toA == toB) return;
+
         if (uint256(amountA) + uint256(amountB) > type(uint112).max) {
             amountA = amountA / 2;
             amountB = amountB / 2;
@@ -145,6 +147,7 @@ contract LenderTest is Test {
             vm.expectRevert(bytes("Aloe: 0 shares"));
             lender.deposit(amountA, toA);
         } else lender.deposit(amountA, toA);
+
         if (amountB == 0) {
             vm.expectRevert(bytes("Aloe: 0 shares"));
             lender.deposit(amountB, toB);
