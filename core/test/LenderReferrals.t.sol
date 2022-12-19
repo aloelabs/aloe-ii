@@ -170,15 +170,23 @@ contract LenderReferralsTest is Test {
         assertEq(lender.courierOf(to), id);
         assertEq(lender.principleOf(to), amount / 2);
         assertEq(lender.balanceOf(to), amount / 2);
-        assertLe(stdMath.delta(lender.underlyingBalance(to), amount), 2);
+        assertApproxEqAbs(
+            lender.convertToAssets(lender.balanceOf(to)),
+            amount,
+            2
+        );
 
         vm.prank(caller);
         lender.deposit(amount / 2, to);
 
         assertEq(lender.courierOf(to), id);
         assertEq(lender.principleOf(to), amount / 2 + amount / 2);
-        assertLe(stdMath.delta(lender.balanceOf(to), amount / 2 + amount / 4), 1);
-        assertLe(stdMath.delta(lender.underlyingBalance(to), uint256(amount) + amount / 2), 2);
+        assertApproxEqAbs(lender.balanceOf(to), amount / 2 + amount / 4, 1);
+        assertApproxEqAbs(
+            lender.convertToAssets(lender.balanceOf(to)),
+            uint256(amount) + amount / 2,
+            2
+        );
     }
 
     function test_withdrawDoesPayout(
@@ -216,10 +224,9 @@ contract LenderReferralsTest is Test {
         lender.deposit(amount / 2, to);
 
         // MARK: Now do withdrawal stuff
-        if (lender.underlyingBalance(to) == 0) return;
 
         uint256 bal = lender.balanceOf(to);
-        uint256 profit = lender.underlyingBalance(to) - lender.principleOf(to);
+        uint256 profit = lender.convertToAssets(bal) - lender.principleOf(to);
 
         // pretend that borrower pays off a big loan so that lender can make full payout
         deal(address(asset), address(lender), type(uint128).max);
@@ -233,12 +240,17 @@ contract LenderReferralsTest is Test {
         uint256 reward = (profit * uint256(cut)) / 10_000;
         uint256 rewardShares = lender.convertToShares(reward);
 
+        uint256 maxRedeem = lender.maxRedeem(to);
+        assertLe(maxRedeem, bal - rewardShares);
+        if (bal - rewardShares >= 1) {
+            assertGe(maxRedeem, bal - rewardShares - 1);
+        }
+
         vm.prank(to);
-        lender.redeem(bal, to, to);
+        lender.redeem(maxRedeem, to, to);
 
-        assertLe(stdMath.delta(lender.balanceOf(wallet), rewardShares), 1);
-
-        assertLe(stdMath.delta(lender.underlyingBalance(wallet), reward), 2);
+        assertApproxEqAbs(lender.balanceOf(wallet), rewardShares, 1);
+        assertApproxEqAbs(lender.underlyingBalance(wallet), reward, 1);
     }
 
     function _enroll(uint32 id, address wallet, uint16 cut) private returns (uint32, address, uint16) {

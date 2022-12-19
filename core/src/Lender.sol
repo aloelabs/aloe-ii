@@ -112,10 +112,9 @@ contract Lender is Ledger {
         }
 
         // Burn shares and (if applicable) handle courier accounting
-        uint256 minted;
-        (amount, minted) = _unsafeBurn(owner, shares, amount);
+        _unsafeBurn(owner, shares, inventory, cache.totalSupply);
         unchecked {
-            cache.totalSupply -= (shares - minted);
+            cache.totalSupply -= shares;
         }
 
         // Transfer tokens
@@ -379,41 +378,42 @@ contract Lender is Ledger {
     }
 
     /// @dev You must do `totalSupply -= shares` separately. Do so in an unchecked context.
-    function _unsafeBurn(address from, uint256 shares, uint256 amount) private returns (uint256, uint256) {
-        // From most to least significant...
-        // -------------------------------
-        // | courier id       | 32 bits  |
-        // | user's principle | 112 bits |
-        // | user's balance   | 112 bits |
-        // -------------------------------
-        uint256 data = balances[from];
-        uint256 minted;
-
+    function _unsafeBurn(address from, uint256 shares, uint256 inventory, uint256 totalSupply_) private {
         unchecked {
+            // From most to least significant...
+            // -------------------------------
+            // | courier id       | 32 bits  |
+            // | user's principle | 112 bits |
+            // | user's balance   | 112 bits |
+            // -------------------------------
+            uint256 data = balances[from];
             uint256 balance = data % Q112;
-            require(shares <= balance);
-            data -= shares;
 
             uint32 id = uint32(data >> 224);
             if (id != 0) {
-                // TODO explain this math
-                uint256 principle = ((data >> 112) % Q112).mulDivDown(shares, balance);
+                uint256 principle = (data >> 112) % Q112;
+                uint256 a = principle.mulDivUp(totalSupply_, inventory);
 
-                if (amount > principle) {
+                if (balance > a) {
                     Courier memory courier = couriers[id];
 
-                    uint256 fee = (amount - principle).mulDivDown(courier.cut, 10_000);
-                    _unsafeMint(courier.wallet, minted = shares.mulDivDown(fee, amount), fee);
+                    uint256 feeShares = (balance - a).mulDivDown(courier.cut, 10_000);
+                    balance -= feeShares;
 
-                    amount -= fee;
+                    feeShares = feeShares.mulDivDown(shares, balance);
+                    data -= feeShares; // TODO verify no underflow
+
+                    balances[courier.wallet] += feeShares;
+                    emit Transfer(from, courier.wallet, feeShares);
                 }
 
-                data -= principle << 112;
+                data -= principle.mulDivDown(shares, balance) << 112;
             }
+
+            require(shares <= balance);
+            balances[from] = data - shares;
         }
 
-        balances[from] = data;
         emit Transfer(from, address(0), shares);
-        return (amount, minted);
     }
 }

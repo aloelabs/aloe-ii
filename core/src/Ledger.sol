@@ -141,19 +141,17 @@ contract Ledger {
     }
 
     function underlyingBalance(address account) external view returns (uint256) {
-        return convertToAssets(balances[account] % Q112);
+        (, uint256 inventory, uint256 newTotalSupply) = _accrueInterestView(_getCache());
+        return _nominalAssets(account, inventory, newTotalSupply);
     }
 
     function underlyingBalanceStored(address account) external view returns (uint256) {
-        unchecked {
-            return
-                _convertToAssets({
-                    shares: balances[account] % Q112,
-                    inventory: lastBalance + (borrowBase * borrowIndex) / BORROWS_SCALER,
-                    totalSupply_: totalSupply,
-                    roundUp: false
-                });
-        }
+        return
+            _nominalAssets({
+                account: account,
+                inventory: lastBalance + (borrowBase * borrowIndex) / BORROWS_SCALER,
+                totalSupply_: totalSupply
+            });
     }
 
     function borrowBalance(address account) external view returns (uint256) {
@@ -261,8 +259,11 @@ contract Ledger {
      * - MUST NOT revert.
      */
     function maxWithdraw(address owner) external view returns (uint256) {
-        uint256 a = convertToAssets(balances[owner] % Q112);
-        uint256 b = lastBalance;
+        (Cache memory cache, uint256 inventory, uint256 newTotalSupply) = _accrueInterestView(_getCache());
+
+        uint256 a = _nominalAssets(owner, inventory, newTotalSupply);
+        uint256 b = cache.lastBalance;
+
         return a < b ? a : b;
     }
 
@@ -278,8 +279,11 @@ contract Ledger {
      * - MUST NOT revert.
      */
     function maxRedeem(address owner) external view returns (uint256) {
-        uint256 a = balances[owner] % Q112;
-        uint256 b = convertToShares(lastBalance);
+        (Cache memory cache, uint256 inventory, uint256 newTotalSupply) = _accrueInterestView(_getCache());
+
+        uint256 a = _nominalShares(owner, inventory, newTotalSupply);
+        uint256 b = _convertToShares(cache.lastBalance, inventory, newTotalSupply, false);
+
         return a < b ? a : b;
     }
 
@@ -303,6 +307,7 @@ contract Ledger {
             );
     }
 
+    // TODO
     function _accrueInterestView(Cache memory cache) internal view returns (Cache memory, uint256, uint256) {
         unchecked {
             uint256 oldBorrows = (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
@@ -334,6 +339,46 @@ contract Ledger {
 
     function _getCache() private view returns (Cache memory) {
         return Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
+    }
+
+    function _nominalShares(
+        address account,
+        uint256 inventory,
+        uint256 totalSupply_
+    ) private view returns (uint256 shares) {
+        unchecked {
+            uint256 data = balances[account];
+            shares = data % Q112;
+
+            uint32 id = uint32(data >> 224);
+            if (id != 0) {
+                uint256 principle = _convertToShares((data >> 112) % Q112, inventory, totalSupply_, true);
+
+                if (shares > principle) {
+                    shares -= (shares - principle).mulDivDown(couriers[id].cut, 10_000);
+                }
+            }
+        }
+    }
+
+    function _nominalAssets(
+        address account,
+        uint256 inventory,
+        uint256 totalSupply_
+    ) private view returns (uint256 assets) {
+        unchecked {
+            uint256 data = balances[account];
+            assets = _convertToAssets(data % Q112, inventory, totalSupply_, false);
+
+            uint32 id = uint32(data >> 224);
+            if (id != 0) {
+                uint256 principle = (data >> 112) % Q112;
+
+                if (assets > principle) {
+                    assets -= (assets - principle).mulDivDown(couriers[id].cut, 10_000);
+                }
+            }
+        }
     }
 
     function _convertToShares(
