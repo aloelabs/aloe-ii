@@ -140,11 +140,11 @@ contract Ledger {
         return balances[account] % Q112;
     }
 
-    function balanceOfUnderlying(address account) external view returns (uint256) {
+    function underlyingBalance(address account) external view returns (uint256) {
         return convertToAssets(balances[account] % Q112);
     }
 
-    function balanceOfUnderlyingStored(address account) external view returns (uint256) {
+    function underlyingBalanceStored(address account) external view returns (uint256) {
         unchecked {
             return
                 _convertToAssets({

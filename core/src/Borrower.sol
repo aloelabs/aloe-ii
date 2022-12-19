@@ -291,8 +291,8 @@ contract Borrower is IUniswapV3MintCallback {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
         if (c2.includeLenderReceipts) {
-            assets.fixed0 += LENDER0.balanceOfUnderlyingStored(address(this));
-            assets.fixed1 += LENDER1.balanceOfUnderlyingStored(address(this));
+            assets.fixed0 += LENDER0.underlyingBalanceStored(address(this));
+            assets.fixed1 += LENDER1.underlyingBalanceStored(address(this));
         }
 
         for (uint256 i; i < _uniswapPositions.length; i++) {

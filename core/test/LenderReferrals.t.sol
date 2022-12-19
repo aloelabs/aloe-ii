@@ -160,7 +160,7 @@ contract LenderReferralsTest is Test {
         assertEq(lender.courierOf(to), id);
         assertEq(lender.principleOf(to), amount / 2);
         assertEq(lender.balanceOf(to), amount / 2);
-        assertEq(lender.balanceOfUnderlying(to), amount / 2);
+        assertEq(lender.underlyingBalance(to), amount / 2);
 
         uint256 val = uint256(vm.load(address(lender), bytes32(uint256(1))));
         val += ((amount / 4) * uint256(type(uint72).max));
@@ -170,7 +170,7 @@ contract LenderReferralsTest is Test {
         assertEq(lender.courierOf(to), id);
         assertEq(lender.principleOf(to), amount / 2);
         assertEq(lender.balanceOf(to), amount / 2);
-        assertLe(stdMath.delta(lender.balanceOfUnderlying(to), amount), 2);
+        assertLe(stdMath.delta(lender.underlyingBalance(to), amount), 2);
 
         vm.prank(caller);
         lender.deposit(amount / 2, to);
@@ -178,7 +178,7 @@ contract LenderReferralsTest is Test {
         assertEq(lender.courierOf(to), id);
         assertEq(lender.principleOf(to), amount / 2 + amount / 2);
         assertLe(stdMath.delta(lender.balanceOf(to), amount / 2 + amount / 4), 1);
-        assertLe(stdMath.delta(lender.balanceOfUnderlying(to), uint256(amount) + amount / 2), 2);
+        assertLe(stdMath.delta(lender.underlyingBalance(to), uint256(amount) + amount / 2), 2);
     }
 
     function test_withdrawDoesPayout(
@@ -216,10 +216,10 @@ contract LenderReferralsTest is Test {
         lender.deposit(amount / 2, to);
 
         // MARK: Now do withdrawal stuff
-        if (lender.balanceOfUnderlying(to) == 0) return;
+        if (lender.underlyingBalance(to) == 0) return;
 
         uint256 bal = lender.balanceOf(to);
-        uint256 profit = lender.balanceOfUnderlying(to) - lender.principleOf(to);
+        uint256 profit = lender.underlyingBalance(to) - lender.principleOf(to);
 
         // pretend that borrower pays off a big loan so that lender can make full payout
         deal(address(asset), address(lender), type(uint128).max);
@@ -238,7 +238,7 @@ contract LenderReferralsTest is Test {
 
         assertLe(stdMath.delta(lender.balanceOf(wallet), rewardShares), 1);
 
-        assertLe(stdMath.delta(lender.balanceOfUnderlying(wallet), reward), 2);
+        assertLe(stdMath.delta(lender.underlyingBalance(wallet), reward), 2);
     }
 
     function _enroll(uint32 id, address wallet, uint16 cut) private returns (uint32, address, uint16) {

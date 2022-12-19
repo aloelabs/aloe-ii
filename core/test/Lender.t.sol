@@ -77,14 +77,14 @@ contract LenderTest is Test {
         skip(13);
         // `totalAssets` uses view-only methods to compute interest, so it should have updated
         assertEqDecimal(lender.totalAssets(), newInventory, 18);
-        // But `balanceOfUnderlyingStored` just reads from storage, so it should still have old value
-        assertEqDecimal(lender.balanceOfUnderlyingStored(address(this)), 2e18, 18);
+        // But `underlyingBalanceStored` just reads from storage, so it should still have old value
+        assertEqDecimal(lender.underlyingBalanceStored(address(this)), 2e18, 18);
         // Now actually store interest updates
         lender.accrueInterest();
-        // Both `totalAssets` and `balanceOfUnderlyingStored` should have updated now
+        // Both `totalAssets` and `underlyingBalanceStored` should have updated now
         assertEqDecimal(lender.totalAssets(), newInventory, 18);
         assertLeDecimal(
-            stdMath.delta(lender.balanceOfUnderlyingStored(address(this)), newInventory - reserves),
+            stdMath.delta(lender.underlyingBalanceStored(address(this)), newInventory - reserves),
             epsilon,
             18
         );
@@ -92,7 +92,7 @@ contract LenderTest is Test {
         if (accrualFactor > 0) assertGt(lender.borrowIndex(), 1e12);
 
         assertEq(lender.lastAccrualTime(), block.timestamp);
-        assertLeDecimal(stdMath.delta(lender.balanceOfUnderlying(lender.RESERVE()), reserves), epsilon, 18);
+        assertLeDecimal(stdMath.delta(lender.underlyingBalance(lender.RESERVE()), reserves), epsilon, 18);
 
         vm.clearMockedCalls();
     }
@@ -101,10 +101,10 @@ contract LenderTest is Test {
         deal(address(asset), address(lender), 1e18);
         lender.deposit(1e18, address(12345));
 
-        uint256 balance = lender.balanceOfUnderlying(address(12345));
+        uint256 balance = lender.underlyingBalance(address(12345));
         deal(address(asset), address(lender), amount);
 
-        assertEq(lender.balanceOfUnderlying(address(12345)), balance);
+        assertEq(lender.underlyingBalance(address(12345)), balance);
     }
 
     function test_cannotDepositWithoutERC20Transfer(uint112 amount, address to) public {
@@ -130,8 +130,8 @@ contract LenderTest is Test {
         assertEq(lender.totalSupply(), totalSupply + shares);
 
         // Check underlying correctness
-        assertEq(lender.balanceOfUnderlyingStored(to), amount);
-        assertEq(lender.balanceOfUnderlying(to), amount);
+        assertEq(lender.underlyingBalanceStored(to), amount);
+        assertEq(lender.underlyingBalance(to), amount);
     }
 
     function test_depositMultipleDestinations(uint112 amountA, uint112 amountB, address toA, address toB) public {
@@ -153,8 +153,8 @@ contract LenderTest is Test {
             lender.deposit(amountB, toB);
         } else lender.deposit(amountB, toB);
 
-        assertEq(lender.balanceOfUnderlying(toA), amountA);
-        assertEq(lender.balanceOfUnderlying(toB), amountB);
+        assertEq(lender.underlyingBalance(toA), amountA);
+        assertEq(lender.underlyingBalance(toB), amountB);
     }
 
     function test_previewAndDepositWithInterest(uint16 time, uint112 amount, address to) public {
@@ -223,7 +223,7 @@ contract LenderTest is Test {
         assertEq(asset.balanceOf(jim), 10e6);
         assertEq(lender.borrowBalance(jim), 10000023);
 
-        assertEq(lender.balanceOfUnderlying(alice), 100000020);
-        assertEq(lender.balanceOfUnderlyingStored(alice), 100000020);
+        assertEq(lender.underlyingBalance(alice), 100000020);
+        assertEq(lender.underlyingBalanceStored(alice), 100000020);
     }
 }
