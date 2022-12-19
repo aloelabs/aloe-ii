@@ -221,7 +221,7 @@ contract Lender is Ledger {
 
         // Accrue interest (only in memory)
         uint256 newTotalSupply;
-        (cache, inventory, newTotalSupply) = _accrueInterestView(cache);
+        (cache, inventory, newTotalSupply) = _previewInterest(cache);
 
         // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
         if (newTotalSupply != cache.totalSupply) {
