@@ -146,12 +146,14 @@ contract Ledger {
     }
 
     function underlyingBalanceStored(address account) external view returns (uint256) {
-        return
-            _nominalAssets({
-                account: account,
-                inventory: lastBalance + (borrowBase * borrowIndex) / BORROWS_SCALER,
-                totalSupply_: totalSupply
-            });
+        unchecked {
+            return
+                _nominalAssets({
+                    account: account,
+                    inventory: lastBalance + (uint256(borrowBase) * borrowIndex) / BORROWS_SCALER,
+                    totalSupply_: totalSupply
+                });
+        }
     }
 
     function borrowBalance(address account) external view returns (uint256) {
