@@ -54,16 +54,22 @@ contract LenderGasTest is Test {
         vm.prank(alice);
         asset.approve(address(this), type(uint256).max);
 
-        skip(3600); // seconds
-        lender.accrueInterest();
+        // `alice` allows this test contract to manage his WETH+
+        vm.prank(alice);
+        lender.approve(address(this), type(uint256).max);
 
         // Setup courier#1
         lender.enrollCourier(1, address(12345), 1000);
 
         // `alice` credits courier#1
-        vm.prank(alice);
-        lender.approve(address(this), 1);
         lender.creditCourier(1, alice);
+
+        // `alice` deposits 0.5 WETH
+        asset.transferFrom(alice, address(lender), 0.5e18);
+        lender.deposit(0.5e18, alice);
+
+        skip(3600); // seconds
+        lender.accrueInterest();
     }
 
     function test_accrueInterest() public {
@@ -83,6 +89,10 @@ contract LenderGasTest is Test {
 
     function test_redeem() public {
         lender.redeem(0.1e18, bob, bob);
+    }
+
+    function test_redeemWithCourier() public {
+        lender.redeem(0.1e18, alice, alice);
     }
 
     function test_borrow() public {

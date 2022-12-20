@@ -29,9 +29,15 @@ contract LenderReferralsTest is Test {
         assertEq(b, cut);
     }
 
+    function test_cannotSetCutTo0(uint32 id, address wallet) public {
+        vm.assume(id != 0);
+
+        vm.expectRevert(bytes(""));
+        lender.enrollCourier(id, wallet, 0);
+    }
+
     function test_cannotSetCutAbove10000(uint32 id, address wallet, uint16 cut) public {
-        if (id == 0) id = 1;
-        if (wallet == address(0)) wallet = address(1);
+        vm.assume(id != 0);
         if (cut < 10_000) cut += 10_000;
 
         vm.expectRevert(bytes(""));
@@ -39,8 +45,7 @@ contract LenderReferralsTest is Test {
     }
 
     function test_cannotEnrollId0(address wallet, uint16 cut) public {
-        if (wallet == address(0)) wallet = address(1);
-        if (cut == 0) cut = 1;
+        vm.assume(cut != 0);
 
         vm.expectRevert(bytes(""));
         lender.enrollCourier(0, wallet, cut);
@@ -49,10 +54,10 @@ contract LenderReferralsTest is Test {
     function test_cannotEditCourierCut(uint32 id, address wallet, uint16 cutA, uint16 cutB) public {
         cutA = cutA % 10_000;
         cutB = cutB % 10_000;
-        if (id == 0) id = 1;
-        if (wallet == address(0)) wallet = address(1);
-        if (cutA == 0) cutA = 1;
-        if (cutB == 0) cutB = 1;
+
+        vm.assume(id != 0);
+        vm.assume(cutA != 0);
+        vm.assume(cutB != 0);
 
         lender.enrollCourier(id, wallet, cutA);
 
@@ -62,10 +67,8 @@ contract LenderReferralsTest is Test {
 
     function test_cannotEditCourierWallet(uint32 id, address walletA, address walletB, uint16 cut) public {
         cut = cut % 10_000;
-        if (id == 0) id = 1;
-        if (walletA == address(0)) walletA = address(1);
-        if (walletB == address(0)) walletB = address(1);
-        if (cut == 0) cut = 1;
+        vm.assume(id != 0);
+        vm.assume(cut != 0);
 
         lender.enrollCourier(id, walletA, cut);
 
@@ -75,7 +78,7 @@ contract LenderReferralsTest is Test {
 
     function test_canCreditCourier(uint32 id, address wallet, uint16 cut) public {
         (id, wallet, cut) = _enroll(id, wallet, cut);
-        if (wallet == address(this)) return;
+        vm.assume(wallet != address(this));
 
         lender.creditCourier(id, address(this));
         assertEq(lender.courierOf(address(this)), id);
@@ -83,7 +86,7 @@ contract LenderReferralsTest is Test {
 
     function test_canCreditCourierWithPermission(uint32 id, address wallet, uint16 cut, address account) public {
         (id, wallet, cut) = _enroll(id, wallet, cut);
-        if (wallet == account) return;
+        vm.assume(wallet != account);
 
         vm.prank(account);
         lender.approve(address(this), 1);
@@ -102,8 +105,7 @@ contract LenderReferralsTest is Test {
 
     function test_cannotCreditCourierWithoutPermission(uint32 id, address wallet, uint16 cut, address account) public {
         (id, wallet, cut) = _enroll(id, wallet, cut);
-
-        if (account == address(this)) return;
+        vm.assume(account != address(this));
 
         vm.expectRevert(bytes(""));
         lender.creditCourier(id, account);
@@ -142,7 +144,7 @@ contract LenderReferralsTest is Test {
         address to,
         uint112 amount
     ) public {
-        if (amount <= 1) return;
+        vm.assume(amount > 1);
         (id, wallet, cut) = _enroll(id, wallet, cut);
 
         vm.prank(to);
@@ -199,7 +201,7 @@ contract LenderReferralsTest is Test {
     ) public {
         // MARK: Start by doing everything that `test_depositDoesIncreasePrinciple` does
 
-        if (amount <= 1) return;
+        vm.assume(amount > 1);
         (id, wallet, cut) = _enroll(id, wallet, cut);
         if (to == wallet || to == address(lender)) return;
 
@@ -253,12 +255,19 @@ contract LenderReferralsTest is Test {
         assertApproxEqAbs(lender.underlyingBalance(wallet), reward, 1);
     }
 
+    // TODO test chaining
+
+    // TODO test withdrawing in 25% chunks
+
+    // TODO test that nominalShares = balanceOf before any interest has accrued
+
+    // TODO expect revert if shares > post-fee balance, even if shares < pre-fee balance
+
     function _enroll(uint32 id, address wallet, uint16 cut) private returns (uint32, address, uint16) {
         cut = cut % 10_000;
 
-        if (id == 0) id = 1;
-        if (wallet == address(0)) wallet = address(1);
-        if (cut == 0) cut = 1;
+        vm.assume(id != 0);
+        vm.assume(cut != 0);
 
         lender.enrollCourier(id, wallet, cut);
 

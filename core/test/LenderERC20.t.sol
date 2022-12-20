@@ -47,7 +47,7 @@ contract LenderERC20Test is Test {
     }
 
     function test_cannotTransferMoreThanBalance(address from, address to, uint112 balance, uint112 shares) public {
-        if (balance == shares) return;
+        vm.assume(balance != shares);
         if (balance > shares) (balance, shares) = (shares, balance);
 
         deal(address(lender), from, balance);
@@ -58,8 +58,8 @@ contract LenderERC20Test is Test {
     }
 
     function test_cannotTransferOthersTokens(address from, address to, uint112 shares) public {
-        if (from == address(this)) return;
-        if (shares == 0) shares = 1;
+        vm.assume(from != address(this));
+        vm.assume(shares != 0);
 
         deal(address(lender), from, shares);
 
@@ -67,12 +67,22 @@ contract LenderERC20Test is Test {
         lender.transfer(to, shares);
     }
 
-    function test_cannotTransferIfAssociatedWithCourier(address from, address to, uint112 shares, uint32 id) public {
-        if (id == 0) id = 1;
+    function test_cannotTransferIfFromAssociatedWithCourier(address from, address to, uint112 shares, uint32 id) public {
+        vm.assume(id != 0);
 
         uint256 value = (uint256(id) << 224) + shares;
-        address key = shares % 2 == 0 ? from : to;
-        stdstore.target(address(lender)).sig("balances(address)").with_key(key).depth(0).checked_write(value);
+        stdstore.target(address(lender)).sig("balances(address)").with_key(from).depth(0).checked_write(value);
+
+        vm.prank(from);
+        vm.expectRevert(bytes(""));
+        lender.transfer(to, shares);
+    }
+
+    function test_cannotTransferIfToAssociatedWithCourier(address from, address to, uint112 shares, uint32 id) public {
+        vm.assume(id != 0);
+
+        stdstore.target(address(lender)).sig("balances(address)").with_key(from).depth(0).checked_write(shares);
+        stdstore.target(address(lender)).sig("balances(address)").with_key(to).depth(0).checked_write(uint256(id) << 224);
 
         vm.prank(from);
         vm.expectRevert(bytes(""));
@@ -110,7 +120,7 @@ contract LenderERC20Test is Test {
     }
 
     function test_cannotTransferFromMoreThanBalance(address from, address to, uint112 balance, uint112 shares) public {
-        if (balance == shares) return;
+        vm.assume(balance != shares);
         if (balance > shares) (balance, shares) = (shares, balance);
 
         deal(address(lender), from, balance);
@@ -128,7 +138,7 @@ contract LenderERC20Test is Test {
         uint112 shares,
         uint112 allowance
     ) public {
-        if (allowance == shares) return;
+        vm.assume(allowance != shares);
         if (allowance > shares) (allowance, shares) = (shares, allowance);
 
         deal(address(lender), from, type(uint112).max);
@@ -144,7 +154,7 @@ contract LenderERC20Test is Test {
     }
 
     function test_canApproveInfinite(address from, address to, uint112 shares) public {
-        if (from == to) return;
+        vm.assume(from != to);
 
         deal(address(lender), from, type(uint112).max);
 
