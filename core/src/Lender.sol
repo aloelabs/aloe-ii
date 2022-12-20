@@ -54,22 +54,38 @@ contract Lender is Ledger {
     }
 
     function whitelist(address borrower) external {
+        // Requirements:
+        // - `msg.sender == FACTORY` so that only the factory can whitelist borrowers
+        // - `borrows[borrower] == 0` ensures we don't accidentally erase debt
         require(msg.sender == FACTORY && borrows[borrower] == 0);
-        borrows[borrower] = 1;
+
+        // `borrow` and `repay` have to read the `borrows` mapping anyway, so setting this to 1
+        // allows them to efficiently check whether a given borrower is whitelisted. This extra
+        // unit of debt won't accrue interest or impact solvency calculations.
+        borrows[borrower] = 1; // TODO test that `repay` can never trigger this to go back to 0
     }
 
     function enrollCourier(uint32 id, address wallet, uint16 cut) external {
-        require(id != 0 && wallet != address(0) && cut != 0 && cut < 10_000);
-        require(couriers[id].wallet == address(0));
+        // Requirements:
+        // - `id != 0` because 0 is reserved as the no-courier case
+        // - `cut != 0 && cut < 10_000` just means between 0 and 100%
+        require(id != 0 && cut != 0 && cut < 10_000);
+        // Once an `id` has been enrolled, its info can't be changed
+        require(couriers[id].cut == 0);
+
         couriers[id] = Courier(wallet, cut);
     }
 
     function creditCourier(uint32 id, address account) external {
+        // Callers are free to set their own courier, but they need permission to mess with others'
         require(msg.sender == account || allowance[account][msg.sender] != 0);
 
-        address courier = couriers[id].wallet;
-        require(courier != address(0) && courier != account);
+        // Payout logic can't handle self-reference, so don't let accounts credit themselves
+        Courier memory courier = couriers[id];
+        require(courier.cut != 0 && courier.wallet != account);
 
+        // Only set courier if account balance is 0. Otherwise a previous courier may
+        // be cheated out of their fees.
         require(balances[account] % Q112 == 0);
         balances[account] = uint256(id) << 224;
     }
@@ -150,9 +166,7 @@ contract Lender is Ledger {
 
         units = amount.mulDivUp(BORROWS_SCALER, cache.borrowIndex);
         cache.borrowBase += units;
-        unchecked {
-            borrows[msg.sender] = b + units; // TODO verify that this can't overflow, given that for a single borrower, this would now be equal to borrowBase + 1. Should it be checked math?
-        }
+        borrows[msg.sender] = b + units;
 
         // Transfer tokens
         cache.lastBalance -= amount;
@@ -172,7 +186,7 @@ contract Lender is Ledger {
         (Cache memory cache, ) = _load();
 
         unchecked {
-            if (amount == 0 || (units = amount.mulDivDown(BORROWS_SCALER, cache.borrowIndex)) >= b) {
+            if (amount == 0 || (units = (amount * BORROWS_SCALER) / cache.borrowIndex) >= b) {
                 units = b - 1;
                 amount = units.mulDivUp(cache.borrowIndex, BORROWS_SCALER);
             }
@@ -391,23 +405,30 @@ contract Lender is Ledger {
 
             uint32 id = uint32(data >> 224);
             if (id != 0) {
-                uint256 principle = (data >> 112) % Q112;
-                uint256 a = principle.mulDivUp(totalSupply_, inventory);
+                uint256 principleAssets = (data >> 112) % Q112;
+                uint256 principleShares = principleAssets.mulDivUp(totalSupply_, inventory);
 
-                if (balance > a) {
+                if (balance > principleShares) {
                     Courier memory courier = couriers[id];
 
-                    uint256 feeShares = (balance - a).mulDivDown(courier.cut, 10_000);
-                    balance -= feeShares;
+                    // Compute total fee owed to courier. Take it out of balance so that
+                    // comparison is correct (`shares <= balance`)
+                    uint256 fee = ((balance - principleShares) * courier.cut) / 10_000;
+                    balance -= fee;
 
-                    feeShares = feeShares.mulDivDown(shares, balance);
-                    data -= feeShares; // TODO verify no underflow
+                    // Compute portion of fee to pay out during this burn.
+                    fee = (fee * shares) / balance;
 
-                    balances[courier.wallet] += feeShares;
-                    emit Transfer(from, courier.wallet, feeShares);
+                    // Send `fee` from `from` to `courier.wallet`. NOTE: We skip principle
+                    // update on courier, so if couriers credit each other, 100% of `fee`
+                    // is treated as profit.
+                    data -= fee;
+                    balances[courier.wallet] += fee;
+                    emit Transfer(from, courier.wallet, fee);
                 }
 
-                data -= principle.mulDivDown(shares, balance) << 112;
+                // Update principle
+                data -= ((principleAssets * shares) / balance) << 112;
             }
 
             require(shares <= balance);

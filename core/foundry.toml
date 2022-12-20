@@ -14,4 +14,4 @@ gas_reports = []
 auto_detect_remappings = true
 
 [fuzz]
-runs = 1024
+runs = 2048

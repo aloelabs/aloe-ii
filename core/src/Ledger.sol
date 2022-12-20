@@ -354,7 +354,7 @@ contract Ledger {
                 uint256 principle = _convertToShares((data >> 112) % Q112, inventory, totalSupply_, true);
 
                 if (shares > principle) {
-                    shares -= (shares - principle).mulDivDown(couriers[id].cut, 10_000);
+                    shares -= ((shares - principle) * couriers[id].cut) / 10_000;
                 }
             }
         }
@@ -374,7 +374,7 @@ contract Ledger {
                 uint256 principle = (data >> 112) % Q112;
 
                 if (assets > principle) {
-                    assets -= (assets - principle).mulDivDown(couriers[id].cut, 10_000);
+                    assets -= ((assets - principle) * couriers[id].cut) / 10_000;
                 }
             }
         }
