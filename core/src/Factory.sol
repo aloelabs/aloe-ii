@@ -37,18 +37,12 @@ contract Factory {
     }
 
     function createMarket(IUniswapV3Pool _pool) external {
-        ERC20 asset0 = ERC20(_pool.token0());
-        ERC20 asset1 = ERC20(_pool.token1());
+        address asset0 = _pool.token0();
+        address asset1 = _pool.token1();
 
-        // TODO this implies that lending pairs are fee-tier specific. does it make sense to combine fee tiers?
-        //      if so, margin account Uniswap liquidity readers will have to change.
         bytes32 salt = keccak256(abi.encode(_pool));
-        Lender lender0 = Lender(
-            lenderImplementation.cloneDeterministic({salt: salt, data: abi.encodePacked(address(asset0))})
-        );
-        Lender lender1 = Lender(
-            lenderImplementation.cloneDeterministic({salt: salt, data: abi.encodePacked(address(asset1))})
-        );
+        Lender lender0 = Lender(lenderImplementation.cloneDeterministic({salt: salt, data: abi.encodePacked(asset0)}));
+        Lender lender1 = Lender(lenderImplementation.cloneDeterministic({salt: salt, data: abi.encodePacked(asset1)}));
 
         lender0.initialize(INTEREST_MODEL, 8);
         lender1.initialize(INTEREST_MODEL, 8);
