@@ -13,9 +13,9 @@ import {Borrower} from "./Borrower.sol";
 contract Factory {
     using ClonesWithImmutableArgs for address;
 
-    event CreateMarket(IUniswapV3Pool indexed pool, Lender indexed lender0, Lender indexed lender1);
+    event CreateMarket(IUniswapV3Pool indexed pool, Lender lender0, Lender lender1);
 
-    event CreateBorrower(IUniswapV3Pool indexed pool, address indexed account, address owner);
+    event CreateBorrower(IUniswapV3Pool indexed pool, address indexed owner, address account);
 
     struct Market {
         Lender lender0;
@@ -63,6 +63,6 @@ contract Factory {
         market.lender0.whitelist(account);
         market.lender1.whitelist(account);
 
-        emit CreateBorrower(_pool, account, _owner);
+        emit CreateBorrower(_pool, _owner, account);
     }
 }
