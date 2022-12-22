@@ -146,9 +146,6 @@ contract LenderERC20Test is Test {
         vm.prank(from);
         lender.approve(address(this), allowance);
 
-        console.log(allowance);
-        console.log(shares);
-
         vm.expectRevert();
         lender.transferFrom(from, to, shares);
     }
@@ -209,7 +206,7 @@ contract LenderERC20Test is Test {
             )
         );
 
-        vm.expectRevert(bytes("PERMIT_DEADLINE_EXPIRED"));
+        vm.expectRevert(bytes("Aloe: permit expired"));
         lender.permit(owner, spender, amount, block.timestamp - 1, v, r, s);
     }
 
@@ -236,7 +233,7 @@ contract LenderERC20Test is Test {
             )
         );
 
-        vm.expectRevert(bytes("INVALID_SIGNER"));
+        vm.expectRevert(bytes("Aloe: permit invalid"));
         lender.permit(owner, spender, amount, block.timestamp, v, r, s);
     }
 }

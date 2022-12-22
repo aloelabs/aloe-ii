@@ -111,7 +111,7 @@ contract LenderTest is Test {
         if (amount == 0) amount++;
 
         deal(address(asset), address(lender), amount - 1);
-        vm.expectRevert(bytes(""));
+        vm.expectRevert(bytes("Aloe: insufficient pre-pay"));
         lender.deposit(amount, to);
     }
 
@@ -144,12 +144,12 @@ contract LenderTest is Test {
 
         deal(address(asset), address(lender), amountA + amountB);
         if (amountA == 0) {
-            vm.expectRevert(bytes("Aloe: 0 shares"));
+            vm.expectRevert(bytes("Aloe: zero impact"));
             lender.deposit(amountA, toA);
         } else lender.deposit(amountA, toA);
 
         if (amountB == 0) {
-            vm.expectRevert(bytes("Aloe: 0 shares"));
+            vm.expectRevert(bytes("Aloe: zero impact"));
             lender.deposit(amountB, toB);
         } else lender.deposit(amountB, toB);
 

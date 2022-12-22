@@ -41,7 +41,7 @@ contract Lender is Ledger {
     constructor(address reserve) Ledger(reserve) {}
 
     function initialize(InterestModel interestModel_, uint8 reserveFactor_) external {
-        require(borrowIndex == 0, "Already initialized"); // TODO use real Error
+        require(borrowIndex == 0);
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
 
@@ -99,11 +99,11 @@ contract Lender is Ledger {
         (Cache memory cache, uint256 inventory) = _load();
 
         shares = _convertToShares(amount, inventory, cache.totalSupply, /* roundUp: */ false);
-        require(shares != 0, "Aloe: 0 shares"); // TODO use real Error
+        require(shares != 0, "Aloe: zero impact");
 
         // Ensure tokens were transferred
         cache.lastBalance += amount;
-        require(cache.lastBalance <= asset().balanceOf(address(this)));
+        require(cache.lastBalance <= asset().balanceOf(address(this)), "Aloe: insufficient pre-pay");
 
         // Mint shares and (if applicable) handle courier accounting
         _unsafeMint(beneficiary, shares, amount);
@@ -120,7 +120,7 @@ contract Lender is Ledger {
         (Cache memory cache, uint256 inventory) = _load();
 
         amount = _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ false);
-        require(amount != 0, "Aloe: amount too low"); // TODO use real Error
+        require(amount != 0, "Aloe: zero impact");
 
         if (msg.sender != owner) {
             uint256 allowed = allowance[owner][msg.sender];
@@ -159,7 +159,7 @@ contract Lender is Ledger {
 
     function borrow(uint256 amount, address recipient) external returns (uint256 units) {
         uint256 b = borrows[msg.sender];
-        require(b != 0);
+        require(b != 0, "Aloe: not a borrower");
 
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, ) = _load();
@@ -180,7 +180,7 @@ contract Lender is Ledger {
 
     function repay(uint256 amount, address beneficiary) external returns (uint256 units) {
         uint256 b = borrows[beneficiary];
-        require(b != 0);
+        require(b != 0, "Aloe: not a borrower");
 
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, ) = _load();
@@ -196,7 +196,7 @@ contract Lender is Ledger {
 
         // Ensure tokens were transferred
         cache.lastBalance += amount;
-        require(cache.lastBalance <= asset().balanceOf(address(this)));
+        require(cache.lastBalance <= asset().balanceOf(address(this)), "Aloe: insufficient pre-pay");
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ true);
@@ -208,7 +208,7 @@ contract Lender is Ledger {
     function flash(uint256 amount, address to, bytes calldata data) external {
         // Guard against reentrancy
         uint32 _lastAccrualTime = lastAccrualTime;
-        require(_lastAccrualTime != 0);
+        require(_lastAccrualTime != 0, "Aloe: locked");
         lastAccrualTime = 0;
 
         ERC20 asset_ = asset();
@@ -216,7 +216,7 @@ contract Lender is Ledger {
         uint256 balance = asset_.balanceOf(address(this));
         asset_.safeTransfer(to, amount);
         IFlashBorrower(to).onFlashLoan(msg.sender, amount, data);
-        require(asset_.balanceOf(address(this)) == balance, "Aloe: failed repay"); // TODO use real Error
+        require(balance <= asset_.balanceOf(address(this)), "Aloe: insufficient pre-pay");
 
         lastAccrualTime = _lastAccrualTime;
     }
@@ -230,7 +230,7 @@ contract Lender is Ledger {
     function _load() private returns (Cache memory cache, uint256 inventory) {
         cache = Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
         // Guard against reentrancy
-        require(cache.lastAccrualTime != 0);
+        require(cache.lastAccrualTime != 0, "Aloe: locked");
         lastAccrualTime = 0;
 
         // Accrue interest (only in memory)
@@ -303,7 +303,7 @@ contract Lender is Ledger {
         bytes32 r,
         bytes32 s
     ) external {
-        require(deadline >= block.timestamp, "PERMIT_DEADLINE_EXPIRED");
+        require(deadline >= block.timestamp, "Aloe: permit expired");
 
         // Unchecked because the only math done is incrementing
         // the owner's nonce which cannot realistically overflow.
@@ -332,7 +332,7 @@ contract Lender is Ledger {
                 s
             );
 
-            require(recoveredAddress != address(0) && recoveredAddress == owner, "INVALID_SIGNER");
+            require(recoveredAddress != address(0) && recoveredAddress == owner, "Aloe: permit invalid");
 
             allowance[recoveredAddress][spender] = value;
         }
