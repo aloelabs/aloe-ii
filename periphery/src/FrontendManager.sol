@@ -2,16 +2,15 @@
 pragma solidity ^0.8.15;
 
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
-import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import "v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
+import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {Uniswap} from "aloe-ii-core/libraries/Uniswap.sol";
 
-import {Lender} from "aloe-ii-core/Lender.sol";
+import {Borrower, IManager} from "aloe-ii-core/Borrower.sol";
 import {Factory} from "aloe-ii-core/Factory.sol";
-import {IManager, Borrower} from "aloe-ii-core/Borrower.sol";
+import {Lender} from "aloe-ii-core/Lender.sol";
 
-contract FrontendManager is IManager, IUniswapV3SwapCallback {
+contract FrontendManager is IManager {
     using SafeTransferLib for ERC20;
 
     Factory public immutable FACTORY;
@@ -58,8 +57,8 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
                 (address lender, uint256 amount) = abi.decode(args[i], (address, uint256));
                 ERC20 asset = Lender(lender).asset();
 
-                asset.safeTransferFrom(address(account), lender, amount);
-                Lender(lender).deposit(amount, address(account));
+                asset.safeTransferFrom(msg.sender, lender, amount);
+                Lender(lender).deposit(amount, msg.sender);
 
                 continue;
             }
@@ -67,14 +66,14 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
             // burn
             if (action == 3) {
                 (address lender, uint256 shares) = abi.decode(args[i], (address, uint256));
-                Lender(lender).redeem(shares, address(account), address(account));
+                Lender(lender).redeem(shares, msg.sender, msg.sender);
                 continue;
             }
 
             // borrow
             if (action == 4) {
                 (uint256 amount0, uint256 amount1) = abi.decode(args[i], (uint256, uint256));
-                account.borrow(amount0, amount1, address(account));
+                account.borrow(amount0, amount1, msg.sender);
                 continue;
             }
 
@@ -100,65 +99,28 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
                 account.uniswapWithdraw(lower, upper, liquidity);
                 continue;
             }
-
-            // swap
-            if (action == 8) {
-                (bool zeroForOne, int256 amountSpecified, uint160 sqrtPriceLimitX96) = abi.decode(
-                    args[i],
-                    (bool, int256, uint160)
-                );
-                pool.swap(msg.sender, zeroForOne, amountSpecified, sqrtPriceLimitX96, abi.encode(address(account)));
-                continue;
-            }
         }
 
         Uniswap.Position[] memory oldPositions = account.getUniswapPositions();
+        uint256 oldPositionsLen = oldPositions.length;
 
-        for (uint256 i = 0; i < oldPositions.length; i++) {
+        for (uint256 i = 0; i < oldPositionsLen; ) {
             Uniswap.Position memory position = oldPositions[i];
             (uint128 liquidity, , , , ) = pool.positions(
                 keccak256(abi.encodePacked(msg.sender, position.lower, position.upper))
             );
 
             if (liquidity != 0) positions.push(position);
+
+            unchecked {
+                i++;
+            }
         }
 
-        bool includeLenderReceipts = account.LENDER0().balanceOf(address(account)) != 0 ||
-            account.LENDER1().balanceOf(address(account)) != 0;
+        bool includeLenderReceipts = account.LENDER0().balanceOf(msg.sender) != 0 ||
+            account.LENDER1().balanceOf(msg.sender) != 0;
         return (positions, includeLenderReceipts);
     }
 
     /* solhint-enable code-complexity */
-
-    /// @notice Called to `msg.sender` after executing a swap via IUniswapV3Pool#swap.
-    /// @dev In the implementation you must pay the pool tokens owed for the swap.
-    /// The caller of this method must be checked to be a UniswapV3Pool deployed by the canonical UniswapV3Factory.
-    /// amount0Delta and amount1Delta can both be 0 if no tokens were swapped.
-    /// @param amount0Delta The amount of token0 that was sent (negative) or must be received (positive) by the pool by
-    /// the end of the swap. If positive, the callback must send that amount of token0 to the pool.
-    /// @param amount1Delta The amount of token1 that was sent (negative) or must be received (positive) by the pool by
-    /// the end of the swap. If positive, the callback must send that amount of token1 to the pool.
-    /// @param data Any data passed through by the caller via the IUniswapV3PoolActions#swap call
-    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external {
-        address borrower = abi.decode(data, (address));
-
-        if (amount0Delta > 0) {
-            ERC20 token0 = ERC20(IUniswapV3Pool(msg.sender).token0());
-            token0.safeTransferFrom(borrower, msg.sender, uint256(amount0Delta));
-        }
-
-        if (amount1Delta > 0) {
-            ERC20 token1 = ERC20(IUniswapV3Pool(msg.sender).token1());
-            token1.safeTransferFrom(borrower, msg.sender, uint256(amount1Delta));
-        }
-    }
-
-    function _approve(address token, address spender, uint256 amount) private {
-        // 200 gas to read uint256
-        if (ERC20(token).allowance(address(this), spender) < amount) {
-            // 20000 gas to write uint256 if changing from zero to non-zero
-            // 5000  gas to write uint256 if changing from non-zero to non-zero
-            ERC20(token).safeApprove(spender, type(uint256).max);
-        }
-    }
 }
