@@ -3,13 +3,13 @@ pragma solidity ^0.8.15;
 
 import "forge-std/Test.sol";
 
-import {InterestModel} from "src/InterestModel.sol";
+import {RateModel} from "src/RateModel.sol";
 
 contract RateModelTest is Test {
-    InterestModel model;
+    RateModel model;
 
     function setUp() public {
-        model = new InterestModel();
+        model = new RateModel();
     }
 
     function test_neverReverts(uint256 elapsedTime, uint256 utilization) public {

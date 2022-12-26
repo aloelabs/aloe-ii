@@ -7,7 +7,7 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {SafeCastLib} from "./libraries/SafeCastLib.sol";
 
-import {InterestModel} from "./InterestModel.sol";
+import {RateModel} from "./RateModel.sol";
 
 import {Ledger} from "./Ledger.sol";
 
@@ -40,7 +40,7 @@ contract Lender is Ledger {
 
     constructor(address reserve) Ledger(reserve) {}
 
-    function initialize(InterestModel interestModel_, uint8 reserveFactor_) external {
+    function initialize(RateModel rateModel_, uint8 reserveFactor_) external {
         require(borrowIndex == 0);
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
@@ -48,7 +48,7 @@ contract Lender is Ledger {
         initialDomainSeparator = _computeDomainSeparator();
         initialChainId = block.chainid;
 
-        interestModel = interestModel_;
+        rateModel = rateModel_;
         require(4 <= reserveFactor_ && reserveFactor_ <= 20);
         reserveFactor = reserveFactor_;
     }

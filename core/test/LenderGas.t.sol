@@ -20,7 +20,7 @@ contract LenderGasTest is Test {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"));
         vm.rollFork(15_348_451);
 
-        lender = deploySingleLender(asset, address(this), new InterestModel());
+        lender = deploySingleLender(asset, address(this), new RateModel());
         bob = makeAddr("bob");
         alice = makeAddr("alice");
     }

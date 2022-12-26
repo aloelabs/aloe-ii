@@ -18,7 +18,7 @@ contract LenderTest is Test {
 
     function setUp() public {
         asset = new MockERC20("Token", "TKN", 18);
-        lender = deploySingleLender(asset, address(2), new InterestModel());
+        lender = deploySingleLender(asset, address(2), new RateModel());
     }
 
     function test_whitelist(address attacker, address borrower, uint256 value) public {
@@ -60,8 +60,8 @@ contract LenderTest is Test {
         // Mock interest model
         accrualFactor = 1e12 + accrualFactor % 0.1e12;
         vm.mockCall(
-            address(lender.interestModel()),
-            abi.encodeWithSelector(InterestModel.getAccrualFactor.selector, 13, 0.5e18),
+            address(lender.rateModel()),
+            abi.encodeWithSelector(RateModel.getAccrualFactor.selector, 13, 0.5e18),
             abi.encode(accrualFactor)
         );
 

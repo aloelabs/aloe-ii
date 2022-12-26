@@ -6,7 +6,7 @@ import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-import {InterestModel} from "./InterestModel.sol";
+import {RateModel} from "./RateModel.sol";
 
 contract Ledger {
     using FixedPointMathLib for uint256;
@@ -80,7 +80,7 @@ contract Ledger {
                          GOVERNABLE PARAMETERS
     //////////////////////////////////////////////////////////////*/
 
-    InterestModel public interestModel;
+    RateModel public rateModel;
 
     uint8 public reserveFactor;
 
@@ -319,7 +319,7 @@ contract Ledger {
             }
 
             uint8 rf = reserveFactor;
-            uint256 accrualFactor = interestModel.getAccrualFactor({
+            uint256 accrualFactor = rateModel.getAccrualFactor({
                 elapsedTime: block.timestamp - cache.lastAccrualTime,
                 utilization: Math.mulDiv(1e18, oldBorrows, oldInventory)
             });

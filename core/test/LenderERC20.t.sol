@@ -25,7 +25,7 @@ contract LenderERC20Test is Test {
 
     function setUp() public {
         asset = new MockERC20("Token", "TKN", 18);
-        lender = deploySingleLender(asset, address(2), new InterestModel());
+        lender = deploySingleLender(asset, address(2), new RateModel());
     }
 
     function test_canTransferUpToBalance(address from, address to, uint112 balance, uint112 shares) public {
