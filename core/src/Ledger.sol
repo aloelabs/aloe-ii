@@ -324,8 +324,7 @@ contract Ledger {
                 utilization: Math.mulDiv(1e18, oldBorrows, oldInventory)
             });
 
-            // TODO sane constraints on accrualFactor WITH TESTS for when accrualFactor is reported to be massive
-            cache.borrowIndex = (cache.borrowIndex * (ONE + accrualFactor)) / ONE;
+            cache.borrowIndex = (cache.borrowIndex * accrualFactor) / ONE;
             cache.lastAccrualTime = 0; // 0 in storage means locked to reentrancy; 0 in `cache` means `borrowIndex` was updated
 
             uint256 newInventory = cache.lastBalance + (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
