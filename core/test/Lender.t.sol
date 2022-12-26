@@ -58,14 +58,14 @@ contract LenderTest is Test {
         lender.borrow(1e18, address(this));
 
         // Mock interest model
-        accrualFactor = accrualFactor % 0.1e12;
+        accrualFactor = 1e12 + accrualFactor % 0.1e12;
         vm.mockCall(
             address(lender.interestModel()),
             abi.encodeWithSelector(InterestModel.getAccrualFactor.selector, 13, 0.5e18),
             abi.encode(accrualFactor)
         );
 
-        uint256 newInventory = 1e18 + FixedPointMathLib.mulDivDown(1e18, accrualFactor + 1e12, 1e12);
+        uint256 newInventory = 1e18 + FixedPointMathLib.mulDivDown(1e18, accrualFactor, 1e12);
         uint256 interest = newInventory - 2e18;
         uint256 reserves = interest / lender.reserveFactor();
 
@@ -89,7 +89,7 @@ contract LenderTest is Test {
             18
         );
         // Make sure `borrowIndex` is just as precise as `accrualFactor`
-        if (accrualFactor > 0) assertGt(lender.borrowIndex(), 1e12);
+        if (accrualFactor > 1e12) assertGt(lender.borrowIndex(), 1e12);
 
         assertEq(lender.lastAccrualTime(), block.timestamp);
         assertLeDecimal(stdMath.delta(lender.underlyingBalance(lender.RESERVE()), reserves), epsilon, 18);
@@ -217,13 +217,13 @@ contract LenderTest is Test {
         assertEq(lender.balanceOf(jim), 0);
         assertEq(lender.borrowBalance(jim), 10e6);
 
-        skip(3600); // seconds
+        skip(1 days); // seconds
         lender.accrueInterest();
 
         assertEq(asset.balanceOf(jim), 10e6);
-        assertEq(lender.borrowBalance(jim), 10000023);
+        assertEq(lender.borrowBalance(jim), 10000058);
 
-        assertEq(lender.underlyingBalance(alice), 100000020);
-        assertEq(lender.underlyingBalanceStored(alice), 100000020);
+        assertEq(lender.underlyingBalance(alice), 100000050);
+        assertEq(lender.underlyingBalanceStored(alice), 100000050);
     }
 }
