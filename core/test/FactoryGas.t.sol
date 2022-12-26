@@ -16,7 +16,7 @@ contract FactoryGasTest is Test {
         vm.createSelectFork(vm.envString("MAINNET_RPC_URL"));
         vm.rollFork(15_348_451);
 
-        factory = new Factory(new InterestModel());
+        factory = new Factory(new RateModel());
     }
 
     function setUp() public {

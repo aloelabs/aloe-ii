@@ -6,7 +6,7 @@ import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmu
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {InterestModel} from "./InterestModel.sol";
+import {RateModel} from "./RateModel.sol";
 import {Lender} from "./Lender.sol";
 import {Borrower} from "./Borrower.sol";
 
@@ -23,7 +23,7 @@ contract Factory {
         Borrower borrowerImplementation;
     }
 
-    InterestModel public immutable INTEREST_MODEL;
+    RateModel public immutable RATE_MODEL;
 
     address public immutable lenderImplementation;
 
@@ -31,8 +31,8 @@ contract Factory {
 
     mapping(address => bool) public isBorrower;
 
-    constructor(InterestModel _interestModel) {
-        INTEREST_MODEL = _interestModel;
+    constructor(RateModel rateModel_) {
+        RATE_MODEL = rateModel_;
         lenderImplementation = address(new Lender(address(this)));
     }
 
@@ -44,8 +44,8 @@ contract Factory {
         Lender lender0 = Lender(lenderImplementation.cloneDeterministic({salt: salt, data: abi.encodePacked(asset0)}));
         Lender lender1 = Lender(lenderImplementation.cloneDeterministic({salt: salt, data: abi.encodePacked(asset1)}));
 
-        lender0.initialize(INTEREST_MODEL, 8);
-        lender1.initialize(INTEREST_MODEL, 8);
+        lender0.initialize(RATE_MODEL, 8);
+        lender1.initialize(RATE_MODEL, 8);
 
         Borrower borrowerImplementation = new Borrower(_pool, lender0, lender1);
 

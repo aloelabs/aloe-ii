@@ -18,7 +18,7 @@ contract LenderReferralsTest is Test {
 
     function setUp() public {
         asset = new MockERC20("Token", "TKN", 18);
-        lender = deploySingleLender(asset, address(2), new InterestModel());
+        lender = deploySingleLender(asset, address(2), new RateModel());
     }
 
     function test_canEnrollCourier(uint32 id, address wallet, uint16 cut) public {
