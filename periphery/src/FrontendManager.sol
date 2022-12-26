@@ -120,6 +120,8 @@ contract FrontendManager is IManager {
         bool includeLenderReceipts = account.LENDER0().balanceOf(msg.sender) != 0 ||
             account.LENDER1().balanceOf(msg.sender) != 0;
         return (positions, includeLenderReceipts);
+
+        // TODO emit an event that includes the owner and the current uniswap tick
     }
 
     /* solhint-enable code-complexity */

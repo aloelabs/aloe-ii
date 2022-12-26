@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 import "aloe-ii-core/Lender.sol";
 import "aloe-ii-core/Borrower.sol";
 import "aloe-ii-core/Factory.sol";
-import "aloe-ii-core/InterestModel.sol";
+import "aloe-ii-core/RateModel.sol";
 import "src/BorrowManager.sol";
 
 contract BorrowManagerTest is Test {
@@ -25,7 +25,7 @@ contract BorrowManagerTest is Test {
 
     constructor() {
         hayden = makeAddr("hayden");
-        factory = new Factory(new InterestModel());
+        factory = new Factory(new RateModel());
     }
 
     function setUp() public {

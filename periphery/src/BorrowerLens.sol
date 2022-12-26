@@ -45,8 +45,8 @@ contract BorrowerLens {
         return (
             account.TOKEN0().balanceOf(address(account)),
             account.TOKEN1().balanceOf(address(account)),
-            Lender(account.LENDER0()).balanceOfUnderlying(address(account)),
-            Lender(account.LENDER1()).balanceOfUnderlying(address(account)),
+            Lender(account.LENDER0()).underlyingBalance(address(account)),
+            Lender(account.LENDER1()).underlyingBalance(address(account)),
             uni0,
             uni1
         );
