@@ -19,7 +19,7 @@ contract BorrowerTest is Test, IManager {
 
     function callback(bytes calldata data)
         external
-        returns (Uniswap.Position[] memory positions, bool includeLenderReceipts)
+        returns (Uniswap.Position[] memory positions)
     {
         Borrower _account = Borrower(msg.sender);
 
@@ -29,17 +29,6 @@ contract BorrowerTest is Test, IManager {
         if (borrow0 != 0 || borrow1 != 0) {
             _account.borrow(borrow0, borrow1, msg.sender);
         }
-
-        // if (repay0 != 0) {
-        //     Lender lender = Lender(_account.LENDER0());
-        //     asset0.transferFrom(msg.sender, address(lender), repay0);
-        //     lender.repay(repay0, msg.sender);
-        // }
-        // if (repay1 != 0) {
-        //     Lender lender = Lender(_account.LENDER1());
-        //     asset1.transferFrom(msg.sender, address(lender), repay1);
-        //     lender.repay(repay1, msg.sender);
-        // }
 
         if (repay0 != 0 || repay1 != 0) {
             _account.repay(repay0, repay1);
@@ -63,7 +52,7 @@ contract BorrowerTest is Test, IManager {
 
     function test_empty() public {
         bytes memory data = abi.encode(0, 0, 0, 0, 0, 0);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
         account.modify(this, data, allowances);
     }
 
@@ -77,7 +66,7 @@ contract BorrowerTest is Test, IManager {
         asset1.transfer(address(account), 1e17);
 
         bytes memory data = abi.encode(0, 0, 0, 0, 0, 0);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
         account.modify(this, data, allowances);
     }
 
@@ -93,7 +82,7 @@ contract BorrowerTest is Test, IManager {
         asset1.transfer(address(account), 1e17);
 
         bytes memory data = abi.encode(100e6, 1e18, 0, 0, 0, 0);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
         account.modify(this, data, allowances);
 
         assertEq(lender0.borrowBalance(address(account)), 100e6);
@@ -106,7 +95,7 @@ contract BorrowerTest is Test, IManager {
         test_borrow();
 
         bytes memory data = abi.encode(0, 0, 40e6, 0.4e18, 0, 0);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
         account.modify(this, data, allowances);
 
         assertEq(lender0.borrowBalance(address(account)), 60e6);
@@ -121,9 +110,9 @@ contract BorrowerTest is Test, IManager {
         skip(86400); // seconds
 
         bytes memory data = abi.encode(0, 0, 0, 0, 10e6, 1e17);
-        bool[4] memory allowances;
-        allowances[2] = true;
-        allowances[3] = true;
+        bool[2] memory allowances;
+        allowances[0] = true;
+        allowances[1] = true;
         account.modify(this, data, allowances);
     }
 
@@ -141,7 +130,7 @@ contract BorrowerTest is Test, IManager {
         uint256 assets1 = asset1.balanceOf(address(account));
 
         bytes memory data = abi.encode(0, 0, 0, 0, assets0 - liabilities0, assets1 - liabilities1);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
         allowances[0] = true;
         allowances[1] = true;
         account.modify(this, data, allowances);
@@ -168,7 +157,7 @@ contract BorrowerTest is Test, IManager {
             assets0 - ((liabilities0 * 1.005e8) / 1e8),
             assets1 - ((liabilities1 * 1.005e8) / 1e8)
         );
-        bool[4] memory allowances;
+        bool[2] memory allowances;
         allowances[0] = true;
         allowances[1] = true;
         account.modify(this, data, allowances);

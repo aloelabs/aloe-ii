@@ -16,9 +16,7 @@ import {Uniswap} from "./libraries/Uniswap.sol";
 import {Lender} from "./Lender.sol";
 
 interface IManager {
-    function callback(
-        bytes calldata data
-    ) external returns (Uniswap.Position[] memory positions, bool includeLenderReceipts);
+    function callback(bytes calldata data) external returns (Uniswap.Position[] memory positions);
 }
 
 contract Borrower is IUniswapV3MintCallback {
@@ -50,7 +48,6 @@ contract Borrower is IUniswapV3MintCallback {
     address public owner;
 
     struct PackedSlot {
-        bool includeLenderReceipts;
         bool isInCallback;
         bool isLocked;
     }
@@ -59,7 +56,6 @@ contract Borrower is IUniswapV3MintCallback {
         uint160 a;
         uint160 b;
         uint160 c;
-        bool includeLenderReceipts;
     }
 
     PackedSlot public packedSlot;
@@ -85,9 +81,7 @@ contract Borrower is IUniswapV3MintCallback {
 
     // TODO liquidations
     function liquidate() external {
-        bool includeLenderReceipts = packedSlot.includeLenderReceipts;
-
-        SolvencyCache memory c = _getSolvencyCache(includeLenderReceipts);
+        SolvencyCache memory c = _getSolvencyCache();
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         bool isSolvent = _isSolvent(
@@ -103,26 +97,22 @@ contract Borrower is IUniswapV3MintCallback {
         if (!isSolvent) owner = msg.sender;
     }
 
-    function modify(IManager callee, bytes calldata data, bool[4] calldata allowances) external {
+    function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external {
         require(msg.sender == owner, "Aloe: only owner");
         require(!packedSlot.isLocked);
         packedSlot.isLocked = true;
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
-        if (allowances[2]) LENDER0.approve(address(callee), type(uint256).max);
-        if (allowances[3]) LENDER1.approve(address(callee), type(uint256).max);
 
         packedSlot.isInCallback = true;
-        (Uniswap.Position[] memory _uniswapPositions, bool includeLenderReceipts) = callee.callback(data);
+        Uniswap.Position[] memory _uniswapPositions = callee.callback(data);
         packedSlot.isInCallback = false;
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 0);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 0);
-        if (allowances[2]) LENDER0.approve(address(callee), 0);
-        if (allowances[3]) LENDER1.approve(address(callee), 0);
 
-        SolvencyCache memory c = _getSolvencyCache(includeLenderReceipts);
+        SolvencyCache memory c = _getSolvencyCache();
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         require(
@@ -144,7 +134,7 @@ contract Borrower is IUniswapV3MintCallback {
             else uniswapPositions.push(_uniswapPositions[i]);
         }
 
-        packedSlot = PackedSlot(includeLenderReceipts, false, false);
+        packedSlot = PackedSlot(false, false);
     }
 
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
@@ -202,7 +192,7 @@ contract Borrower is IUniswapV3MintCallback {
 
     /// @dev Callback for Uniswap V3 pool.
     function uniswapV3MintCallback(uint256 _amount0, uint256 _amount1, bytes calldata) external {
-        require(msg.sender == address(UNISWAP_POOL));
+        require(msg.sender == address(UNISWAP_POOL)); // TODO
         if (_amount0 != 0) TOKEN0.safeTransfer(msg.sender, _amount0);
         if (_amount1 != 0) TOKEN1.safeTransfer(msg.sender, _amount1);
     }
@@ -213,17 +203,14 @@ contract Borrower is IUniswapV3MintCallback {
         return uniswapPositions; // TODO maybe make it easier to get uint128 liquidity for each of these?
     }
 
-    function _getSolvencyCache(bool _includeLenderReceipts) private view returns (SolvencyCache memory c) {
+    function _getSolvencyCache() private view returns (SolvencyCache memory c) {
         (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
         uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
 
         // compute prices at which solvency will be checked
         uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
-        (uint160 a, uint160 b) = _computeProbePrices(
-            sqrtMeanPriceX96,
-            _includeLenderReceipts ? (sigma * 489898) / 1e5 : sigma // conditionally scale to 24 hours
-        );
-        c = SolvencyCache(a, b, sqrtMeanPriceX96, _includeLenderReceipts);
+        (uint160 a, uint160 b) = _computeProbePrices(sqrtMeanPriceX96, sigma);
+        c = SolvencyCache(a, b, sqrtMeanPriceX96);
     }
 
     function _isSolvent(
@@ -290,10 +277,6 @@ contract Borrower is IUniswapV3MintCallback {
     ) private view returns (Assets memory assets) {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
-        if (c2.includeLenderReceipts) {
-            assets.fixed0 += LENDER0.underlyingBalanceStored(address(this));
-            assets.fixed1 += LENDER1.underlyingBalanceStored(address(this));
-        }
 
         for (uint256 i; i < _uniswapPositions.length; i++) {
             Uniswap.PositionInfo memory info = _uniswapPositions[i].info(UNISWAP_POOL);

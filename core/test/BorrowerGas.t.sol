@@ -44,11 +44,14 @@ contract BorrowerGasTest is Test, IManager {
         deal(address(asset0), address(account), 333e18); // DAI
         deal(address(asset1), address(account), 2e18); // WETH
         test_borrow();
+
+        // Uniswap deposit (so we're able to test Uniswap withdrawal)
+        pool.mint(address(account), 0, 60, 1000000, "");
     }
 
     function test_modify() public {
         bytes memory data = abi.encode(Action.NONE, 0, 0);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
         account.modify(this, data, allowances);
     }
 
@@ -58,21 +61,33 @@ contract BorrowerGasTest is Test, IManager {
 
     function test_borrow() public {
         bytes memory data = abi.encode(Action.BORROW, 0, 20e18); // 0 DAI, 20 WETH
-        bool[4] memory allowances;
+        bool[2] memory allowances;
         account.modify(this, data, allowances);
     }
 
     function test_repay() public {
         bytes memory data = abi.encode(Action.REPAY, 0, 20e18); // 0 DAI, 20 WETH
-        bool[4] memory allowances;
+        bool[2] memory allowances;
         account.modify(this, data, allowances);
     }
 
     function test_withdraw() public {
         bytes memory data = abi.encode(Action.WITHDRAW, 0, 1e18); // 0 DAI, 1 WETH
-        bool[4] memory allowances;
+        bool[2] memory allowances;
         allowances[0] = true;
         allowances[1] = true;
+        account.modify(this, data, allowances);
+    }
+
+    function test_uniswapDeposit() public {
+        bytes memory data = abi.encode(Action.UNI_DEPOSIT, 0, 0);
+        bool[2] memory allowances;
+        account.modify(this, data, allowances);
+    }
+
+    function test_uniswapWithdraw() public {
+        bytes memory data = abi.encode(Action.UNI_WITHDRAW, 0, 0);
+        bool[2] memory allowances;
         account.modify(this, data, allowances);
     }
 
@@ -80,12 +95,14 @@ contract BorrowerGasTest is Test, IManager {
         NONE,
         BORROW,
         REPAY,
-        WITHDRAW
+        WITHDRAW,
+        UNI_DEPOSIT,
+        UNI_WITHDRAW
     }
 
     function callback(
         bytes calldata data
-    ) external returns (Uniswap.Position[] memory positions, bool includeLenderReceipts) {
+    ) external returns (Uniswap.Position[] memory positions) {
         require(msg.sender == address(account));
 
         (Action action, uint256 amount0, uint256 amount1) = abi.decode(data, (Action, uint256, uint256));
@@ -97,6 +114,17 @@ contract BorrowerGasTest is Test, IManager {
         } else if (action == Action.WITHDRAW) {
             if (amount0 != 0) asset0.transferFrom(msg.sender, address(this), amount0);
             if (amount0 != 0) asset1.transferFrom(msg.sender, address(this), amount0);
+        } else if (action == Action.UNI_DEPOSIT) {
+            account.uniswapDeposit(-75600, -75540, 10000000000);
+            positions = new Uniswap.Position[](1);
+            positions[0] = Uniswap.Position(-75600, -75540);
+        } else if (action == Action.UNI_WITHDRAW) {
+            account.uniswapWithdraw(0, 60, 1000000);
         }
+    }
+
+    function uniswapV3MintCallback(uint256 _amount0, uint256 _amount1, bytes calldata) external {
+        if (_amount0 != 0) asset0.transfer(msg.sender, _amount0);
+        if (_amount1 != 0) asset1.transfer(msg.sender, _amount1);
     }
 }
