@@ -101,13 +101,13 @@ contract Borrower is IUniswapV3MintCallback {
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external {
         require(msg.sender == owner, "Aloe: only owner");
         require(!packedSlot.isLocked);
-        packedSlot.isLocked = true;
+        packedSlot.isLocked = true; // TODO remove?
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
 
         packedSlot.isInCallback = true;
-        Uniswap.Position[] memory _uniswapPositions = callee.callback(data);
+        Uniswap.Position[] memory _uniswapPositions = callee.callback(data); // TODO prevent duplicate uniswap positions
         packedSlot.isInCallback = false;
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 0);
@@ -241,8 +241,10 @@ contract Borrower is IUniswapV3MintCallback {
         // 100 * baseRateGasPrice * expectedGasNecessaryForLiquidation, but governance could
         // say "Oh you only put 10 * baseRate, you can still use the product but you have a cap
         // on total leverage and/or total borrows"
-        liabilities0 = Math.mulDiv(liabilities0, 1.005e18, 1e18);
-        liabilities1 = Math.mulDiv(liabilities1, 1.005e18, 1e18) + liquidationIncentive;
+        unchecked {
+            liabilities0 = (liabilities0 * 1.005e18) / 1e18;
+            liabilities1 = (liabilities1 * 1.005e18) / 1e18 + liquidationIncentive;
+        } // TODO is unchecked safe here?
 
         // combine
         uint224 priceX96;
@@ -300,8 +302,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
-        amount0 = LENDER0.borrowBalance(address(this));
-        amount1 = LENDER1.borrowBalance(address(this));
+        amount0 = LENDER0.borrowBalanceStored(address(this));
+        amount1 = LENDER1.borrowBalanceStored(address(this));
     }
 
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
@@ -316,8 +318,10 @@ contract Borrower is IUniswapV3MintCallback {
         if (_sigma < MIN_SIGMA) _sigma = MIN_SIGMA;
         else if (_sigma > MAX_SIGMA) _sigma = MAX_SIGMA;
 
-        a = uint160(Math.mulDiv(_sqrtMeanPriceX96, FixedPointMathLib.sqrt(1e18 - _sigma), 1e9)); // TODO don't need Math here. more gas efficient to use standard * and / ?
-        b = uint160(Math.mulDiv(_sqrtMeanPriceX96, FixedPointMathLib.sqrt(1e18 + _sigma), 1e9));
+        unchecked {
+            a = uint160((_sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 - _sigma)) / 1e9);
+            b = uint160((_sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 + _sigma)) / 1e9);
+        }
     }
 
     function _computeLiquidationIncentive(
