@@ -79,7 +79,11 @@ contract BorrowerGasTest is Test, IManager {
         account.modify(this, data, allowances);
     }
 
-    function test_uniswapDeposit() public {
+    function test_uniswapDepositStandard() public {
+        pool.mint(address(account), -75600, -75540, 10000000, "");
+    }
+
+    function test_uniswapDepositInBorrower() public {
         bytes memory data = abi.encode(Action.UNI_DEPOSIT, 0, 0);
         bool[2] memory allowances;
         account.modify(this, data, allowances);
