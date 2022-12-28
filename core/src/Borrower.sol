@@ -313,12 +313,12 @@ contract Borrower is IUniswapV3MintCallback {
         uint160 _sqrtMeanPriceX96,
         uint256 _sigma
     ) private pure returns (uint160 a, uint160 b) {
-        _sigma *= B;
-
-        if (_sigma < MIN_SIGMA) _sigma = MIN_SIGMA;
-        else if (_sigma > MAX_SIGMA) _sigma = MAX_SIGMA;
-
         unchecked {
+            _sigma *= B;
+
+            if (_sigma < MIN_SIGMA) _sigma = MIN_SIGMA;
+            else if (_sigma > MAX_SIGMA) _sigma = MAX_SIGMA;
+
             a = uint160((_sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 - _sigma)) / 1e9);
             b = uint160((_sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 + _sigma)) / 1e9);
         }
@@ -331,9 +331,9 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 _liabilities1,
         uint160 _sqrtMeanPriceX96
     ) private pure returns (uint256 reward1) {
-        uint256 meanPriceX96 = Math.mulDiv(_sqrtMeanPriceX96, _sqrtMeanPriceX96, FixedPoint96.Q96);
-
         unchecked {
+            uint256 meanPriceX96 = Math.mulDiv(_sqrtMeanPriceX96, _sqrtMeanPriceX96, FixedPoint96.Q96);
+
             if (_liabilities0 > _assets0) {
                 // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
                 uint256 shortfall = _liabilities0 - _assets0;
