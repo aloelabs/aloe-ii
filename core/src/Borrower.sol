@@ -21,13 +21,11 @@ interface IManager {
     ) external returns (Uniswap.Position[] memory positions, bool includeLenderReceipts);
 }
 
-// TODO should there be minium margin requirements? (to ensure that incentives make sense surrounding cost of gas)
-// TODO related, would it help to keep margin locked anytime there are outstanding liabilities?
 contract Borrower is IUniswapV3MintCallback {
     using SafeTransferLib for ERC20;
     using Uniswap for Uniswap.Position;
 
-    uint8 public constant B = 2;
+    uint8 public constant B = 3;
 
     uint256 public constant MIN_SIGMA = 2e16;
 
@@ -42,9 +40,6 @@ contract Borrower is IUniswapV3MintCallback {
     /// @notice The second token of the Uniswap pair
     ERC20 public immutable TOKEN1;
 
-    /// @dev The Uniswap pool's tick spacing
-    int24 internal immutable TICK_SPACING;
-
     /// @notice TODO
     Lender public immutable LENDER0;
 
@@ -55,7 +50,6 @@ contract Borrower is IUniswapV3MintCallback {
     address public owner;
 
     struct PackedSlot {
-        int24 tickAtLastModify; // TODO maybe move this elsewhere or in an event emission. not used for logic, just frontend (probably belongs in FrontendManager)
         bool includeLenderReceipts;
         bool isInCallback;
         bool isLocked;
@@ -73,16 +67,15 @@ contract Borrower is IUniswapV3MintCallback {
     Uniswap.Position[] public uniswapPositions; // TODO constrain the number of uniswap positions (otherwise gas danger)
 
     constructor(IUniswapV3Pool _pool, Lender _lender0, Lender _lender1) {
-        require(_pool.token0() == address(_lender0.asset()));
-        require(_pool.token1() == address(_lender1.asset()));
-
         UNISWAP_POOL = _pool;
-        TOKEN0 = ERC20(_pool.token0());
-        TOKEN1 = ERC20(_pool.token1());
-        TICK_SPACING = _pool.tickSpacing();
-
         LENDER0 = _lender0;
         LENDER1 = _lender1;
+
+        TOKEN0 = _lender0.asset();
+        TOKEN1 = _lender1.asset();
+
+        require(_pool.token0() == address(TOKEN0));
+        require(_pool.token1() == address(TOKEN1));
     }
 
     function initialize(address _owner) external {
@@ -151,7 +144,7 @@ contract Borrower is IUniswapV3MintCallback {
             else uniswapPositions.push(_uniswapPositions[i]);
         }
 
-        packedSlot = PackedSlot(currentTick, includeLenderReceipts, false, false);
+        packedSlot = PackedSlot(includeLenderReceipts, false, false);
     }
 
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
@@ -205,6 +198,13 @@ contract Borrower is IUniswapV3MintCallback {
             type(uint128).max,
             type(uint128).max
         );
+    }
+
+    /// @dev Callback for Uniswap V3 pool.
+    function uniswapV3MintCallback(uint256 _amount0, uint256 _amount1, bytes calldata) external {
+        require(msg.sender == address(UNISWAP_POOL));
+        if (_amount0 != 0) TOKEN0.safeTransfer(msg.sender, _amount0);
+        if (_amount1 != 0) TOKEN1.safeTransfer(msg.sender, _amount1);
     }
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
@@ -315,13 +315,6 @@ contract Borrower is IUniswapV3MintCallback {
     function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
         amount0 = LENDER0.borrowBalance(address(this));
         amount1 = LENDER1.borrowBalance(address(this));
-    }
-
-    /// @dev Callback for Uniswap V3 pool.
-    function uniswapV3MintCallback(uint256 _amount0, uint256 _amount1, bytes calldata) external {
-        require(msg.sender == address(UNISWAP_POOL));
-        if (_amount0 != 0) TOKEN0.safeTransfer(msg.sender, _amount0);
-        if (_amount1 != 0) TOKEN1.safeTransfer(msg.sender, _amount1);
     }
 
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
