@@ -137,15 +137,13 @@ library Uniswap {
         uint160 sqrtPriceX96,
         uint128 liquidity
     ) internal pure returns (uint256) {
-        (uint256 value0, uint256 value1) = LiquidityAmounts.getValueOfLiquidity(
-            sqrtPriceX96,
-            TickMath.getSqrtRatioAtTick(position.lower),
-            TickMath.getSqrtRatioAtTick(position.upper),
-            liquidity
-        );
-        unchecked {
-            return value0 + value1;
-        }
+        return
+            LiquidityAmounts.getValueOfLiquidity(
+                sqrtPriceX96,
+                TickMath.getSqrtRatioAtTick(position.lower),
+                TickMath.getSqrtRatioAtTick(position.upper),
+                liquidity
+            );
     }
 
     function _fees(

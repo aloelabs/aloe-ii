@@ -9,6 +9,7 @@ import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUni
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {FixedPoint96} from "./libraries/FixedPoint96.sol";
+import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {Oracle} from "./libraries/Oracle.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 import {Uniswap} from "./libraries/Uniswap.sol";
@@ -278,18 +279,21 @@ contract Borrower is IUniswapV3MintCallback {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
 
-        for (uint256 i; i < _uniswapPositions.length; i++) {
+        uint256 count = _uniswapPositions.length;
+        for (uint256 i; i < count; i++) {
             Uniswap.PositionInfo memory info = _uniswapPositions[i].info(UNISWAP_POOL);
 
             (uint256 temp0, uint256 temp1) = _uniswapPositions[i].fees(UNISWAP_POOL, info, c1);
             assets.fixed0 += temp0;
             assets.fixed1 += temp1;
 
-            // TODO there are duplicate calls to getTickAtSqrtRatio within valueOfLiquidity
-            assets.fluid1A += _uniswapPositions[i].valueOfLiquidity(c2.a, info.liquidity);
-            assets.fluid1B += _uniswapPositions[i].valueOfLiquidity(c2.b, info.liquidity);
-            // TODO there are duplicate calls to getTickAtSqrtRatio within amountsForLiquidity
-            (temp0, temp1) = _uniswapPositions[i].amountsForLiquidity(c2.c, info.liquidity);
+            uint160 lower = TickMath.getSqrtRatioAtTick(_uniswapPositions[i].lower);
+            uint160 upper = TickMath.getSqrtRatioAtTick(_uniswapPositions[i].upper);
+
+            assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(c2.a, lower, upper, info.liquidity);
+            assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(c2.b, lower, upper, info.liquidity);
+
+            (temp0, temp1) = LiquidityAmounts.getAmountsForLiquidity(c2.c, lower, upper, info.liquidity);
             assets.fluid0C += temp0;
             assets.fluid1C += temp1;
         }

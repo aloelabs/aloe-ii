@@ -129,7 +129,7 @@ library LiquidityAmounts {
         }
     }
 
-    /// @notice Computes the value of the liquidity in terms of token1
+    /// @notice Computes the value of each portion of the liquidity in terms of token1
     /// @dev Each return value can fit in a uint192 if necessary
     /// @param sqrtRatioX96 A sqrt price representing the current pool prices
     /// @param sqrtRatioAX96 A sqrt price representing the lower tick boundary
@@ -137,7 +137,7 @@ library LiquidityAmounts {
     /// @param liquidity The liquidity being valued
     /// @return value0 The value of amount0 underlying `liquidity`, in terms of token1
     /// @return value1 The amount of token1
-    function getValueOfLiquidity(
+    function getValuesOfLiquidity(
         uint160 sqrtRatioX96,
         uint160 sqrtRatioAX96,
         uint160 sqrtRatioBX96,
@@ -166,6 +166,25 @@ library LiquidityAmounts {
             } else {
                 value1 = Math.mulDiv(liquidity, sqrtRatioBX96 - sqrtRatioAX96, FixedPoint96.Q96);
             }
+        }
+    }
+
+    /// @notice Computes the value of the liquidity in terms of token1
+    /// @dev The return value can fit in a uint192 if necessary
+    /// @param sqrtRatioX96 A sqrt price representing the current pool prices
+    /// @param sqrtRatioAX96 A sqrt price representing the lower tick boundary
+    /// @param sqrtRatioBX96 A sqrt price representing the upper tick boundary
+    /// @param liquidity The liquidity being valued
+    /// @return The value of the underlying `liquidity`, in terms of token1
+    function getValueOfLiquidity(
+        uint160 sqrtRatioX96,
+        uint160 sqrtRatioAX96,
+        uint160 sqrtRatioBX96,
+        uint128 liquidity
+    ) internal pure returns (uint256) {
+        (uint256 value0, uint256 value1) = getValuesOfLiquidity(sqrtRatioX96, sqrtRatioAX96, sqrtRatioBX96, liquidity);
+        unchecked {
+            return value0 + value1;
         }
     }
 }
