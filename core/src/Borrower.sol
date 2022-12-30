@@ -45,12 +45,12 @@ contract Borrower is IUniswapV3MintCallback {
     /// @notice TODO
     Lender public immutable LENDER1;
 
-    /// @notice TODO
-    address public owner;
-
     struct PackedSlot {
+        address owner;
         bool isInCallback;
-        bool isLocked;
+        Uniswap.Position positionX;
+        Uniswap.Position positionY;
+        Uniswap.Position positionZ;
     }
 
     struct SolvencyCache {
@@ -60,8 +60,6 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     PackedSlot public packedSlot;
-
-    Uniswap.Position[] public uniswapPositions; // TODO constrain the number of uniswap positions (otherwise gas danger)
 
     constructor(IUniswapV3Pool _pool, Lender _lender0, Lender _lender1) {
         UNISWAP_POOL = _pool;
@@ -76,17 +74,25 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function initialize(address _owner) external {
-        require(owner == address(0));
-        owner = _owner;
+        require(packedSlot.owner == address(0));
+        packedSlot.owner = _owner;
     }
 
     // TODO liquidations
     function liquidate() external {
+        PackedSlot memory packedSlot_ = packedSlot;
+        require(!packedSlot_.isInCallback);
+
         SolvencyCache memory c = _getSolvencyCache();
+
+        Uniswap.Position[] memory uniswapPositions_ = new Uniswap.Position[](3);
+        uniswapPositions_[0] = packedSlot_.positionX;
+        uniswapPositions_[1] = packedSlot_.positionY;
+        uniswapPositions_[2] = packedSlot_.positionZ;
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         bool isSolvent = _isSolvent(
-            uniswapPositions,
+            uniswapPositions_,
             Uniswap.FeeComputationCache(
                 currentTick,
                 UNISWAP_POOL.feeGrowthGlobal0X128(),
@@ -95,30 +101,29 @@ contract Borrower is IUniswapV3MintCallback {
             c
         );
 
-        if (!isSolvent) owner = msg.sender;
+        if (!isSolvent) packedSlot.owner = msg.sender;
     }
 
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external {
-        require(msg.sender == owner, "Aloe: only owner");
-        require(!packedSlot.isLocked);
-        packedSlot.isLocked = true; // TODO remove?
+        require(msg.sender == packedSlot.owner, "Aloe: only owner");
+        require(!packedSlot.isInCallback);
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
 
         packedSlot.isInCallback = true;
-        Uniswap.Position[] memory _uniswapPositions = callee.callback(data); // TODO prevent duplicate uniswap positions
+        Uniswap.Position[] memory uniswapPositions_ = callee.callback(data);
         packedSlot.isInCallback = false;
 
-        if (allowances[0]) TOKEN0.safeApprove(address(callee), 0);
-        if (allowances[1]) TOKEN1.safeApprove(address(callee), 0);
+        if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
+        if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
         SolvencyCache memory c = _getSolvencyCache();
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         require(
             _isSolvent(
-                _uniswapPositions,
+                uniswapPositions_,
                 Uniswap.FeeComputationCache(
                     currentTick,
                     UNISWAP_POOL.feeGrowthGlobal0X128(),
@@ -129,13 +134,27 @@ contract Borrower is IUniswapV3MintCallback {
             "Aloe: need more margin"
         );
 
-        uint256 len = uniswapPositions.length;
-        for (uint256 i; i < _uniswapPositions.length; i++) {
-            if (i < len) uniswapPositions[i] = _uniswapPositions[i];
-            else uniswapPositions.push(_uniswapPositions[i]);
+        uint256 count = uniswapPositions_.length;
+        Uniswap.Position memory positionX;
+        Uniswap.Position memory positionY;
+        Uniswap.Position memory positionZ;
+
+        if (count >= 1) {
+            positionX = uniswapPositions_[0];
+        }
+        if (count >= 2) {
+            positionY = uniswapPositions_[1];
+            require(positionY.lower != positionX.lower || positionY.upper != positionX.upper);
+        }
+        if (count >= 3) {
+            positionZ = uniswapPositions_[2];
+            require(positionZ.lower != positionX.lower || positionZ.upper != positionX.upper);
+            require(positionZ.lower != positionY.lower || positionZ.upper != positionY.upper);
         }
 
-        packedSlot = PackedSlot(false, false);
+        packedSlot.positionX = positionX;
+        packedSlot.positionY = positionY;
+        packedSlot.positionZ = positionZ;
     }
 
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
@@ -193,15 +212,17 @@ contract Borrower is IUniswapV3MintCallback {
 
     /// @dev Callback for Uniswap V3 pool.
     function uniswapV3MintCallback(uint256 _amount0, uint256 _amount1, bytes calldata) external {
-        require(msg.sender == address(UNISWAP_POOL)); // TODO
+        require(msg.sender == address(UNISWAP_POOL));
         if (_amount0 != 0) TOKEN0.safeTransfer(msg.sender, _amount0);
         if (_amount1 != 0) TOKEN1.safeTransfer(msg.sender, _amount1);
     }
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
-    function getUniswapPositions() external view returns (Uniswap.Position[] memory) {
-        return uniswapPositions; // TODO maybe make it easier to get uint128 liquidity for each of these?
+    function getUniswapPositions() external view returns (Uniswap.Position[3] memory positions) {
+        positions[0] = packedSlot.positionX;
+        positions[1] = packedSlot.positionY;
+        positions[2] = packedSlot.positionZ;
     }
 
     function _getSolvencyCache() private view returns (SolvencyCache memory c) {
