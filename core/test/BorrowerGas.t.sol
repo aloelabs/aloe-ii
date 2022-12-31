@@ -107,7 +107,7 @@ contract BorrowerGasTest is Test, IManager {
 
     function callback(
         bytes calldata data
-    ) external returns (Uniswap.Position[] memory positions) {
+    ) external returns (int24[] memory positions) {
         require(msg.sender == address(account));
 
         (Action action, uint256 amount0, uint256 amount1) = abi.decode(data, (Action, uint256, uint256));
@@ -121,8 +121,9 @@ contract BorrowerGasTest is Test, IManager {
             if (amount0 != 0) asset1.transferFrom(msg.sender, address(this), amount0);
         } else if (action == Action.UNI_DEPOSIT) {
             account.uniswapDeposit(-75600, -75540, 10000000000);
-            positions = new Uniswap.Position[](1);
-            positions[0] = Uniswap.Position(-75600, -75540);
+            positions = new int24[](2);
+            positions[0] = -75600;
+            positions[1] = -75540;
         } else if (action == Action.UNI_WITHDRAW) {
             account.uniswapWithdraw(0, 60, 1000000);
         }

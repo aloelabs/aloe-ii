@@ -17,7 +17,7 @@ import {Uniswap} from "./libraries/Uniswap.sol";
 import {Lender} from "./Lender.sol";
 
 interface IManager {
-    function callback(bytes calldata data) external returns (Uniswap.Position[] memory positions);
+    function callback(bytes calldata data) external returns (int24[] memory positions);
 }
 
 contract Borrower is IUniswapV3MintCallback {
@@ -48,9 +48,6 @@ contract Borrower is IUniswapV3MintCallback {
     struct PackedSlot {
         address owner;
         bool isInCallback;
-        Uniswap.Position positionX;
-        Uniswap.Position positionY;
-        Uniswap.Position positionZ;
     }
 
     struct SolvencyCache {
@@ -60,6 +57,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     PackedSlot public packedSlot;
+
+    int24[6] public positions;
 
     constructor(IUniswapV3Pool _pool, Lender _lender0, Lender _lender1) {
         UNISWAP_POOL = _pool;
@@ -80,25 +79,34 @@ contract Borrower is IUniswapV3MintCallback {
 
     // TODO liquidations
     function liquidate() external {
-        PackedSlot memory packedSlot_ = packedSlot;
-        require(!packedSlot_.isInCallback);
+        require(!packedSlot.isInCallback);
 
-        SolvencyCache memory c = _getSolvencyCache();
+        int24[] memory positions_;
 
-        Uniswap.Position[] memory uniswapPositions_ = new Uniswap.Position[](3);
-        uniswapPositions_[0] = packedSlot_.positionX;
-        uniswapPositions_[1] = packedSlot_.positionY;
-        uniswapPositions_[2] = packedSlot_.positionZ;
+        uint256 count = positions.length;
+        if (count > 0) {
+            positions_ = new int24[](count);
+            positions_[0] = positions[0];
+            positions_[1] = positions[1];
+        }
+        if (count > 2) {
+            positions_[2] = positions[2];
+            positions_[3] = positions[3];
+        }
+        if (count > 4) {
+            positions_[4] = positions[4];
+            positions_[5] = positions[5];
+        }
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         bool isSolvent = _isSolvent(
-            uniswapPositions_,
+            positions_,
             Uniswap.FeeComputationCache(
                 currentTick,
                 UNISWAP_POOL.feeGrowthGlobal0X128(),
                 UNISWAP_POOL.feeGrowthGlobal1X128()
             ),
-            c
+            _getSolvencyCache()
         );
 
         if (!isSolvent) packedSlot.owner = msg.sender;
@@ -112,49 +120,46 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
 
         packedSlot.isInCallback = true;
-        Uniswap.Position[] memory uniswapPositions_ = callee.callback(data);
+        int24[] memory positions_ = callee.callback(data);
         packedSlot.isInCallback = false;
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
-        SolvencyCache memory c = _getSolvencyCache();
+        // Validate formatting of Uniswap positions
+        uint256 count = positions_.length;
+        require(count <= 6, "Aloe: too many positions");
+
+        // Ensure uniqueness of Uniswap positions before storing them
+        if (count > 0) {
+            positions[0] = positions_[0];
+            positions[1] = positions_[1];
+        }
+        if (count > 2) {
+            require(positions_[2] != positions_[0] || positions_[3] != positions_[1]);
+            positions[2] = positions_[2];
+            positions[3] = positions_[3];
+        }
+        if (count > 4) {
+            require(positions_[4] != positions_[0] || positions_[5] != positions_[1]);
+            require(positions_[4] != positions_[2] || positions_[5] != positions_[3]);
+            positions[4] = positions_[4];
+            positions[5] = positions_[5];
+        }
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         require(
             _isSolvent(
-                uniswapPositions_,
+                positions_,
                 Uniswap.FeeComputationCache(
                     currentTick,
                     UNISWAP_POOL.feeGrowthGlobal0X128(),
                     UNISWAP_POOL.feeGrowthGlobal1X128()
                 ),
-                c
+                _getSolvencyCache()
             ),
             "Aloe: need more margin"
         );
-
-        uint256 count = uniswapPositions_.length;
-        Uniswap.Position memory positionX;
-        Uniswap.Position memory positionY;
-        Uniswap.Position memory positionZ;
-
-        if (count >= 1) {
-            positionX = uniswapPositions_[0];
-        }
-        if (count >= 2) {
-            positionY = uniswapPositions_[1];
-            require(positionY.lower != positionX.lower || positionY.upper != positionX.upper);
-        }
-        if (count >= 3) {
-            positionZ = uniswapPositions_[2];
-            require(positionZ.lower != positionX.lower || positionZ.upper != positionX.upper);
-            require(positionZ.lower != positionY.lower || positionZ.upper != positionY.upper);
-        }
-
-        packedSlot.positionX = positionX;
-        packedSlot.positionY = positionY;
-        packedSlot.positionZ = positionZ;
     }
 
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
@@ -219,12 +224,6 @@ contract Borrower is IUniswapV3MintCallback {
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
-    function getUniswapPositions() external view returns (Uniswap.Position[3] memory positions) {
-        positions[0] = packedSlot.positionX;
-        positions[1] = packedSlot.positionY;
-        positions[2] = packedSlot.positionZ;
-    }
-
     function _getSolvencyCache() private view returns (SolvencyCache memory c) {
         (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
         uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
@@ -236,11 +235,11 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function _isSolvent(
-        Uniswap.Position[] memory _uniswapPositions,
+        int24[] memory positions_,
         Uniswap.FeeComputationCache memory c1,
         SolvencyCache memory c2
     ) private view returns (bool) {
-        Assets memory mem = _getAssets(_uniswapPositions, c1, c2);
+        Assets memory mem = _getAssets(positions_, c1, c2);
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
         // liquidation incentive. counted as liability because account will owe it to someone.
@@ -295,23 +294,25 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function _getAssets(
-        Uniswap.Position[] memory _uniswapPositions,
+        int24[] memory positions_,
         Uniswap.FeeComputationCache memory c1,
         SolvencyCache memory c2
     ) private view returns (Assets memory assets) {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
 
-        uint256 count = _uniswapPositions.length;
-        for (uint256 i; i < count; i++) {
-            Uniswap.PositionInfo memory info = _uniswapPositions[i].info(UNISWAP_POOL);
+        uint256 count = positions_.length;
+        for (uint256 i; i < count; ) {
+            Uniswap.Position memory position = Uniswap.Position(positions_[i], positions_[i + 1]);
 
-            (uint256 temp0, uint256 temp1) = _uniswapPositions[i].fees(UNISWAP_POOL, info, c1);
+            Uniswap.PositionInfo memory info = position.info(UNISWAP_POOL);
+
+            (uint256 temp0, uint256 temp1) = position.fees(UNISWAP_POOL, info, c1);
             assets.fixed0 += temp0;
             assets.fixed1 += temp1;
 
-            uint160 lower = TickMath.getSqrtRatioAtTick(_uniswapPositions[i].lower);
-            uint160 upper = TickMath.getSqrtRatioAtTick(_uniswapPositions[i].upper);
+            uint160 lower = TickMath.getSqrtRatioAtTick(position.lower);
+            uint160 upper = TickMath.getSqrtRatioAtTick(position.upper);
 
             assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(c2.a, lower, upper, info.liquidity);
             assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(c2.b, lower, upper, info.liquidity);
@@ -319,6 +320,10 @@ contract Borrower is IUniswapV3MintCallback {
             (temp0, temp1) = LiquidityAmounts.getAmountsForLiquidity(c2.c, lower, upper, info.liquidity);
             assets.fluid0C += temp0;
             assets.fluid1C += temp1;
+
+            unchecked {
+                i += 2;
+            }
         }
     }
 

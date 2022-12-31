@@ -19,7 +19,7 @@ contract BorrowerTest is Test, IManager {
 
     function callback(bytes calldata data)
         external
-        returns (Uniswap.Position[] memory positions)
+        returns (int24[] memory positions)
     {
         Borrower _account = Borrower(msg.sender);
 
