@@ -12,9 +12,10 @@
     "solhint-plugin-prettier": "^0.0.5"
   },
   "pre-commit": {
-    "run": ["lint"]
+    "run": ["lint", "inspect"]
   },
   "scripts": {
+    "inspect": "cd core && ./snapshot.sh && ./layout.sh",
     "lint": "yarn prettier && yarn solhint",
     "lint:check": "yarn prettier:check && yarn solhint:check",
     "prettier": "yarn prettier:check --write",

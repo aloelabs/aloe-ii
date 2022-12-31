@@ -7,9 +7,8 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {SafeCastLib} from "./libraries/SafeCastLib.sol";
 
-import {RateModel} from "./RateModel.sol";
-
 import {Ledger} from "./Ledger.sol";
+import {RateModel} from "./RateModel.sol";
 
 interface IFlashBorrower {
     function onFlashLoan(address initiator, uint256 amount, bytes calldata data) external;

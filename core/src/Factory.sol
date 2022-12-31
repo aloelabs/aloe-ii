@@ -6,9 +6,9 @@ import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmu
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {RateModel} from "./RateModel.sol";
-import {Lender} from "./Lender.sol";
 import {Borrower} from "./Borrower.sol";
+import {Lender} from "./Lender.sol";
+import {RateModel} from "./RateModel.sol";
 
 contract Factory {
     using ClonesWithImmutableArgs for address;
