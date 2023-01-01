@@ -11,6 +11,7 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {FixedPoint96} from "./libraries/FixedPoint96.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {Oracle} from "./libraries/Oracle.sol";
+import {Positions} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 import {Uniswap} from "./libraries/Uniswap.sol";
 
@@ -22,6 +23,7 @@ interface IManager {
 
 contract Borrower is IUniswapV3MintCallback {
     using SafeTransferLib for ERC20;
+    using Positions for int24[6];
     using Uniswap for Uniswap.Position;
 
     uint8 public constant B = 3;
@@ -81,22 +83,7 @@ contract Borrower is IUniswapV3MintCallback {
     function liquidate() external {
         require(!packedSlot.isInCallback);
 
-        int24[] memory positions_;
-
-        uint256 count = positions.length;
-        if (count > 0) {
-            positions_ = new int24[](count);
-            positions_[0] = positions[0];
-            positions_[1] = positions[1];
-        }
-        if (count > 2) {
-            positions_[2] = positions[2];
-            positions_[3] = positions[3];
-        }
-        if (count > 4) {
-            positions_[4] = positions[4];
-            positions_[5] = positions[5];
-        }
+        int24[] memory positions_ = positions.read();
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         bool isSolvent = _isSolvent(
@@ -126,26 +113,8 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
-        // Validate formatting of Uniswap positions
-        uint256 count = positions_.length;
-        require(count <= 6, "Aloe: too many positions");
-
-        // Ensure uniqueness of Uniswap positions before storing them
-        if (count > 0) {
-            positions[0] = positions_[0];
-            positions[1] = positions_[1];
-        }
-        if (count > 2) {
-            require(positions_[2] != positions_[0] || positions_[3] != positions_[1]);
-            positions[2] = positions_[2];
-            positions[3] = positions_[3];
-        }
-        if (count > 4) {
-            require(positions_[4] != positions_[0] || positions_[5] != positions_[1]);
-            require(positions_[4] != positions_[2] || positions_[5] != positions_[3]);
-            positions[4] = positions_[4];
-            positions[5] = positions_[5];
-        }
+        // Write new Uniswap positions to storage iff they're properly formatted and unique
+        positions.write(positions_);
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         require(
