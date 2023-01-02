@@ -7,7 +7,6 @@ library Positions {
     function write(int24[6] storage stor, int24[] memory mem) internal {
         // Validate formatting of Uniswap positions
         uint256 count = mem.length;
-        if (count == 0) return;
 
         // Ensure uniqueness of Uniswap positions and store them
         if (count == 2) {
@@ -25,10 +24,12 @@ library Positions {
             stor[3] = mem[3];
             stor[4] = 0;
             stor[5] = 0;
-        } else {
-            require(mem[0] != mem[2] || mem[1] != mem[3]);
-            require(mem[2] != mem[4] || mem[3] != mem[5]);
-            require(mem[4] != mem[0] || mem[5] != mem[1]);
+        } else if (count == 6) {
+            require(
+                (mem[0] != mem[2] || mem[1] != mem[3]) &&
+                (mem[2] != mem[4] || mem[3] != mem[5]) &&
+                (mem[4] != mem[0] || mem[5] != mem[1])
+            );
             stor[0] = mem[0];
             stor[1] = mem[1];
             stor[2] = mem[2];

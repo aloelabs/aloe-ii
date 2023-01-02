@@ -275,7 +275,7 @@ contract Borrower is IUniswapV3MintCallback {
         assets.fixed1 = TOKEN1.balanceOf(address(this));
 
         uint256 count = positions_.length;
-        for (uint256 i; i < count; ) {
+        for (uint256 i; i < count; i += 2) {
             Uniswap.Position memory position = Uniswap.Position(positions_[i], positions_[i + 1]);
             if (position.lower == position.upper) continue;
 
@@ -294,10 +294,6 @@ contract Borrower is IUniswapV3MintCallback {
             (temp0, temp1) = LiquidityAmounts.getAmountsForLiquidity(c2.c, lower, upper, info.liquidity);
             assets.fluid0C += temp0;
             assets.fluid1C += temp1;
-
-            unchecked {
-                i += 2;
-            }
         }
     }
 
