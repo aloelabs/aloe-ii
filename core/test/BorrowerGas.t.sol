@@ -96,6 +96,14 @@ contract BorrowerGasTest is Test, IManager {
         account.modify(this, data, allowances);
     }
 
+    function test_getUniswapPositions() public {
+        vm.pauseGasMetering();
+        test_uniswapDepositInBorrower();
+        vm.resumeGasMetering();
+
+        account.getUniswapPositions();
+    }
+
     enum Action {
         NONE,
         BORROW,
