@@ -193,6 +193,10 @@ contract Borrower is IUniswapV3MintCallback {
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
+    function getUniswapPositions() public view returns (int24[] memory) {
+        return positions.read();
+    }
+
     function _getSolvencyCache() private view returns (SolvencyCache memory c) {
         (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
         uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
@@ -273,6 +277,7 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 count = positions_.length;
         for (uint256 i; i < count; ) {
             Uniswap.Position memory position = Uniswap.Position(positions_[i], positions_[i + 1]);
+            if (position.lower == position.upper) continue;
 
             Uniswap.PositionInfo memory info = position.info(UNISWAP_POOL);
 

@@ -3,8 +3,6 @@ pragma solidity ^0.8.15;
 
 library Positions {
     uint256 private constant Q24 = 0x1000000;
-    uint256 private constant Q48 = 0x1000000000000;
-    uint256 private constant Q96 = 0x1000000000000000000000000;
 
     function write(int24[6] storage stor, int24[] memory mem) internal {
         // Validate formatting of Uniswap positions
@@ -29,78 +27,49 @@ library Positions {
         }
     }
 
-    function read(int24[6] storage stor) internal view returns (int24[] memory mem) {
-        assembly {
-            // stor = [xl, xu, yl, yu, zl, zu]
+    function read(int24[6] storage positions) internal view returns (int24[] memory ptr) {
+        assembly ("memory-safe") {
+            // positions = [xl, xu, yl, yu, zl, zu]
             // cpy:
             // -->  xl + (xu << 24) + (yl << 48) + (yu << 72) + (zl << 96) + (zu << 120)
             // -->  |-------|-----|----|----|----|----|----|
             //      | shift | 120 | 96 | 72 | 48 | 24 |  0 |
             //      | value |  zu | zl | yu | yl | xu | xl |
             //      |-------|-----|----|----|----|----|----|
-            let cpy := sload(stor.slot)
-            let count := 0
+            let cpy := sload(positions.slot)
 
-            // If zu == zl...
-            if eq(shr(cpy, 120), mod(shr(cpy, 96), Q24)) {
-                cpy := mod(cpy, Q96)
-                count := sub(count, 1)
+            ptr := mload(0x40)
+            let offset := 3
+
+            // if xl != xu
+            let l := mod(cpy, Q24)
+            let u := mod(shr(24, cpy), Q24)
+            if iszero(eq(l, u)) {
+                mstore(add(ptr, 32), l)
+                mstore(add(ptr, 64), u)
+                offset := 96
             }
 
-            // |----------|-----|----|----|----|----|----|-------|
-            // | shift    | 120 | 96 | 72 | 48 | 24 |  0 | count |
-            // | zl != zu |  zu | zl | yu | yl | xu | xl |     3 |
-            // | zl == zu |     |    | yu | yl | xu | xl |     2 |
-            // |----------|-----|----|----|----|----|----|-------|
-
-            // If yu == yl...
-            if eq(mod(shr(cpy, 72), Q24), mod(shr(cpy, 48), Q24)) {
-                cpy := add(shl(shr(cpy, 96), 48), mod(cpy, Q48))
-                count := sub(count, 1)
+            // if yl != yu
+            l := mod(shr(48, cpy), Q24)
+            u := mod(shr(72, cpy), Q24)
+            if iszero(eq(l, u)) {
+                mstore(add(ptr, offset), l)
+                mstore(add(ptr, add(offset, 32)), u)
+                offset := add(offset, 64)
             }
 
-            // |----------------------|-----|----|----|----|----|----|-------|
-            // | shift                | 120 | 96 | 72 | 48 | 24 |  0 | count |
-            // | zl != zu && yl != yu |  zu | zl | yu | yl | xu | xl |     3 |
-            // | zl == zu && yl != yu |     |    | yu | yl | xu | xl |     2 |
-            // | zl != zu && yl == yu |     |    | zu | zl | xu | xl |     2 |
-            // | zl == zu && yl == yu |     |    |    |    | xu | xl |     1 |
-            // |----------------------|-----|----|----|----|----|----|-------|
-
-            // If xu == xl...
-            if eq(mod(shr(cpy, 24), Q24), mod(cpy, Q24)) {
-                cpy := shr(cpy, 48)
-                count := sub(count, 1)
+            // if zl != zu
+            l := mod(shr(96, cpy), Q24)
+            u := shr(120, cpy)
+            if iszero(eq(l, u)) {
+                mstore(add(ptr, offset), l)
+                mstore(add(ptr, add(offset, 32)), u)
+                offset := add(offset, 64)
             }
+
+            mstore(ptr, div(sub(offset, 32), 32))
+            mstore(0x40, add(ptr, offset))
         }
-
-        // int24[6] memory cpy = stor;
-        // bool x = cpy[0] != cpy[1];
-        // bool y = cpy[2] != cpy[3];
-        // bool z = cpy[4] != cpy[5];
-
-        // uint256 count;
-        // assembly ("memory-safe") {
-        //     count := mul(add(x, add(y, z)), 2)
-        // }
-        // mem = new int24[](count);
-
-        // unchecked {
-        //     count = 0;
-        //     if (x) {
-        //         mem[0] = cpy[0];
-        //         mem[1] = cpy[1];
-        //         count += 2;
-        //     }
-        //     if (y) {
-        //         mem[count] = cpy[2];
-        //         mem[count + 1] = cpy[3];
-        //         count += 2;
-        //     }
-        //     if (z) {
-        //         mem[count] = cpy[4];
-        //         mem[count + 1] = cpy[5];
-        //     }
-        // }
     }
 }
