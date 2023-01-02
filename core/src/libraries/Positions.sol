@@ -7,21 +7,32 @@ library Positions {
     function write(int24[6] storage stor, int24[] memory mem) internal {
         // Validate formatting of Uniswap positions
         uint256 count = mem.length;
-        require(count <= 6, "Aloe: too many positions");
+        if (count == 0) return;
 
         // Ensure uniqueness of Uniswap positions and store them
-        if (count > 0) {
+        if (count == 2) {
             stor[0] = mem[0];
             stor[1] = mem[1];
-        }
-        if (count > 2) {
-            require(mem[2] != mem[0] || mem[3] != mem[1]);
+            stor[2] = 0;
+            stor[3] = 0;
+            stor[4] = 0;
+            stor[5] = 0;
+        } else if (count == 4) {
+            require(mem[0] != mem[2] || mem[1] != mem[3]);
+            stor[0] = mem[0];
+            stor[1] = mem[1];
             stor[2] = mem[2];
             stor[3] = mem[3];
-        }
-        if (count > 4) {
+            stor[4] = 0;
+            stor[5] = 0;
+        } else {
+            require(mem[0] != mem[2] || mem[1] != mem[3]);
+            require(mem[2] != mem[4] || mem[3] != mem[5]);
             require(mem[4] != mem[0] || mem[5] != mem[1]);
-            require(mem[4] != mem[2] || mem[5] != mem[3]);
+            stor[0] = mem[0];
+            stor[1] = mem[1];
+            stor[2] = mem[2];
+            stor[3] = mem[3];
             stor[4] = mem[4];
             stor[5] = mem[5];
         }
@@ -39,7 +50,7 @@ library Positions {
             let cpy := sload(positions.slot)
 
             ptr := mload(0x40)
-            let offset := 3
+            let offset := 32
 
             // if xl != xu
             let l := mod(cpy, Q24)
@@ -68,7 +79,7 @@ library Positions {
                 offset := add(offset, 64)
             }
 
-            mstore(ptr, div(sub(offset, 32), 32))
+            mstore(ptr, shr(5, sub(offset, 32)))
             mstore(0x40, add(ptr, offset))
         }
     }
