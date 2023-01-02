@@ -12,6 +12,18 @@ contract PositionsTest is Test {
 
     function setUp() public {}
 
+    function test_emptyWrite() public {
+        int24[] memory positions_ = new int24[](0);
+        positions.write(positions_);
+
+        assertEq(positions[0], 0);
+        assertEq(positions[1], 0);
+        assertEq(positions[2], 0);
+        assertEq(positions[3], 0);
+        assertEq(positions[4], 0);
+        assertEq(positions[5], 0);
+    }
+
     function test_singleWrite(int24 xl, int24 xu) public {
         int24[] memory positions_ = new int24[](2);
         positions_[0] = xl;
@@ -42,6 +54,26 @@ contract PositionsTest is Test {
         assertEq(positions[3], yu);
         assertEq(positions[4], 0);
         assertEq(positions[5], 0);
+    }
+
+    function test_doubleWriteSpaceBetween(int24 xl, int24 xu, int24 yl, int24 yu) public {
+        vm.assume(xl != yl || xu != yu);
+        vm.assume(xl != 0 || xu != 0);
+        vm.assume(yl != 0 || yu != 0);
+
+        int24[] memory positions_ = new int24[](6);
+        positions_[0] = xl;
+        positions_[1] = xu;
+        positions_[4] = yl;
+        positions_[5] = yu;
+        positions.write(positions_);
+
+        assertEq(positions[0], xl);
+        assertEq(positions[1], xu);
+        assertEq(positions[2], 0);
+        assertEq(positions[3], 0);
+        assertEq(positions[4], yl);
+        assertEq(positions[5], yu);
     }
 
     function test_tripleWrite(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu) public {
@@ -101,6 +133,24 @@ contract PositionsTest is Test {
 
         vm.expectRevert(bytes(""));
         positions.write(positions_);
+    }
+
+    function test_cannotWriteIdenticalXYZ(int24 xl, int24 xu) public {
+        int24[] memory positions_ = new int24[](6);
+        positions_[0] = xl;
+        positions_[1] = xu;
+        positions_[2] = xl;
+        positions_[3] = xu;
+        positions_[4] = xl;
+        positions_[5] = xu;
+
+        vm.expectRevert(bytes(""));
+        positions.write(positions_);
+    }
+
+    function test_emptyRead() public {
+        int24[] memory positions_ = positions.read();
+        assertEq(positions_.length, 0);
     }
 
     function test_singleRead(int24 xl, int24 xu) public {
