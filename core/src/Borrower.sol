@@ -58,7 +58,7 @@ contract Borrower is IUniswapV3MintCallback {
         bool isInCallback;
     }
 
-    struct SolvencyCache {
+    struct Prices {
         uint160 a;
         uint160 b;
         uint160 c;
@@ -85,38 +85,15 @@ contract Borrower is IUniswapV3MintCallback {
         packedSlot.owner = owner;
     }
 
-    // TODO liquidations
     function liquidate(ILiquidator callee, bytes calldata data) external {
         require(!packedSlot.isInCallback);
 
-        SolvencyCache memory c = _getSolvencyCache();
+        Prices memory prices = _getPrices();
 
-        Assets memory mem = _getAssetsWithdrawingPositions(c);
+        Assets memory mem = _getAssetsWithdrawingPositions(prices);
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
-        uint256 liquidationIncentive = _computeLiquidationIncentive(
-            mem.fixed0 + mem.fluid0C,
-            mem.fixed1 + mem.fluid1C,
-            liabilities0,
-            liabilities1,
-            c.c
-        );
-
-        uint256 priceX96;
-        uint256 liabilities;
-        uint256 assets;
-
-        priceX96 = Math.mulDiv(c.a, c.a, FixedPoint96.Q96);
-        liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96) + liquidationIncentive;
-        assets = mem.fluid1A + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
-
-        if (liabilities <= assets) {
-            priceX96 = Math.mulDiv(c.b, c.b, FixedPoint96.Q96);
-            liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96) + liquidationIncentive;
-            assets = mem.fluid1B + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
-
-            if (liabilities <= assets) revert();
-        }
+        require(!_isSolvent(liabilities0, liabilities1, mem, prices));
 
         uint256 assets0 = TOKEN0.balanceOf(address(this));
         if (assets0 > liabilities0) {
@@ -151,12 +128,15 @@ contract Borrower is IUniswapV3MintCallback {
         // If both are zero or neither is zero, there's nothing more to do
         if (liabilities0 + liabilities1 == 0 || liabilities0 * liabilities1 > 0) {
             // TODO send pure ETH reward
-        } else if (liabilities0 == 0) {
+            return;
+        }
+
+        uint256 priceX96 = Math.mulDiv(prices.c, prices.c, FixedPoint96.Q96);
+        
+        if (liabilities0 == 0) {
             TOKEN1.safeApprove(address(callee), type(uint256).max);
             callee.callback0(data, assets1, liabilities0);
             TOKEN1.safeApprove(address(callee), 0);
-
-            priceX96 = Math.mulDiv(c.c, c.c, FixedPoint96.Q96);
 
             uint256 repay0 = liabilities0 - LENDER0.borrowBalanceStored(address(this));
             uint256 maxLoss1 = Math.mulDiv(repay0 * 1.05e9, priceX96, 1e9 * FixedPoint96.Q96);
@@ -196,18 +176,18 @@ contract Borrower is IUniswapV3MintCallback {
         positions.write(positions_);
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
-        require(
-            _isSolvent(
-                positions_,
-                Uniswap.FeeComputationCache(
-                    currentTick,
-                    UNISWAP_POOL.feeGrowthGlobal0X128(),
-                    UNISWAP_POOL.feeGrowthGlobal1X128()
-                ),
-                _getSolvencyCache()
+        Prices memory c = _getPrices();
+        Assets memory assets = _getAssets(
+            positions_,
+            Uniswap.FeeComputationCache(
+                currentTick,
+                UNISWAP_POOL.feeGrowthGlobal0X128(),
+                UNISWAP_POOL.feeGrowthGlobal1X128()
             ),
-            "Aloe: need more margin"
+            c
         );
+        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+        require(_isSolvent(liabilities0, liabilities1, assets, c), "Aloe: need more margin");
     }
 
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
@@ -270,7 +250,7 @@ contract Borrower is IUniswapV3MintCallback {
         if (amount1 != 0) TOKEN1.safeTransfer(msg.sender, amount1);
     }
 
-    function _getAssetsWithdrawingPositions(SolvencyCache memory c2) private returns (Assets memory assets) {
+    function _getAssetsWithdrawingPositions(Prices memory c2) private returns (Assets memory assets) {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
 
@@ -328,24 +308,22 @@ contract Borrower is IUniswapV3MintCallback {
         return positions.read();
     }
 
-    function _getSolvencyCache() private view returns (SolvencyCache memory c) {
+    function _getPrices() private view returns (Prices memory prices) {
         (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
         uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
 
         // compute prices at which solvency will be checked
         uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
         (uint160 a, uint160 b) = _computeProbePrices(sqrtMeanPriceX96, sigma);
-        c = SolvencyCache(a, b, sqrtMeanPriceX96);
+        prices = Prices(a, b, sqrtMeanPriceX96);
     }
 
     function _isSolvent(
-        int24[] memory positions_,
-        Uniswap.FeeComputationCache memory c1,
-        SolvencyCache memory c2
-    ) private view returns (bool) {
-        Assets memory mem = _getAssets(positions_, c1, c2);
-        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-
+        uint256 liabilities0,
+        uint256 liabilities1,
+        Assets memory mem,
+        Prices memory prices
+    ) private pure returns (bool) {
         // liquidation incentive. counted as liability because account will owe it to someone.
         // compensates liquidators for inventory risk.
         uint256 liquidationIncentive = _computeLiquidationIncentive(
@@ -353,7 +331,7 @@ contract Borrower is IUniswapV3MintCallback {
             mem.fixed1 + mem.fluid1C,
             liabilities0,
             liabilities1,
-            c2.c
+            prices.c
         );
         // some useless configurations (e.g. just borrow and hold) create no inventory risk for
         // liquidators, but may still need to be liquidated due to interest accrual. to service gas
@@ -372,12 +350,12 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 liabilities;
         uint256 assets;
 
-        priceX96 = uint224(Math.mulDiv(c2.a, c2.a, FixedPoint96.Q96));
+        priceX96 = uint224(Math.mulDiv(prices.a, prices.a, FixedPoint96.Q96));
         liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
         assets = mem.fluid1A + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
         if (liabilities > assets) return false;
 
-        priceX96 = uint224(Math.mulDiv(c2.b, c2.b, FixedPoint96.Q96));
+        priceX96 = uint224(Math.mulDiv(prices.b, prices.b, FixedPoint96.Q96));
         liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
         assets = mem.fluid1B + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
         if (liabilities > assets) return false;
@@ -397,7 +375,7 @@ contract Borrower is IUniswapV3MintCallback {
     function _getAssets(
         int24[] memory positions_,
         Uniswap.FeeComputationCache memory c1,
-        SolvencyCache memory c2
+        Prices memory prices
     ) private view returns (Assets memory assets) {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
@@ -416,10 +394,10 @@ contract Borrower is IUniswapV3MintCallback {
             uint160 lower = TickMath.getSqrtRatioAtTick(position.lower);
             uint160 upper = TickMath.getSqrtRatioAtTick(position.upper);
 
-            assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(c2.a, lower, upper, info.liquidity);
-            assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(c2.b, lower, upper, info.liquidity);
+            assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(prices.a, lower, upper, info.liquidity);
+            assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(prices.b, lower, upper, info.liquidity);
 
-            (temp0, temp1) = LiquidityAmounts.getAmountsForLiquidity(c2.c, lower, upper, info.liquidity);
+            (temp0, temp1) = LiquidityAmounts.getAmountsForLiquidity(prices.c, lower, upper, info.liquidity);
             assets.fluid0C += temp0;
             assets.fluid1C += temp1;
         }
