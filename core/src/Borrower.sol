@@ -17,6 +17,12 @@ import {Uniswap} from "./libraries/Uniswap.sol";
 
 import {Lender} from "./Lender.sol";
 
+interface ILiquidator {
+    function callback0(bytes calldata data, uint256 assets1, uint256 liabilities0) external;
+
+    function callback1(bytes calldata data, uint256 assets0, uint256 liabilities1) external;
+}
+
 interface IManager {
     function callback(bytes calldata data) external returns (int24[] memory positions);
 }
@@ -80,23 +86,94 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     // TODO liquidations
-    function liquidate() external {
+    function liquidate(ILiquidator callee, bytes calldata data) external {
         require(!packedSlot.isInCallback);
 
-        int24[] memory positions_ = positions.read();
+        SolvencyCache memory c = _getSolvencyCache();
 
-        (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
-        bool isSolvent = _isSolvent(
-            positions_,
-            Uniswap.FeeComputationCache(
-                currentTick,
-                UNISWAP_POOL.feeGrowthGlobal0X128(),
-                UNISWAP_POOL.feeGrowthGlobal1X128()
-            ),
-            _getSolvencyCache()
+        Assets memory mem = _getAssetsWithdrawingPositions(c);
+        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+
+        uint256 liquidationIncentive = _computeLiquidationIncentive(
+            mem.fixed0 + mem.fluid0C,
+            mem.fixed1 + mem.fluid1C,
+            liabilities0,
+            liabilities1,
+            c.c
         );
 
-        if (!isSolvent) packedSlot.owner = msg.sender;
+        uint256 priceX96;
+        uint256 liabilities;
+        uint256 assets;
+
+        priceX96 = Math.mulDiv(c.a, c.a, FixedPoint96.Q96);
+        liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96) + liquidationIncentive;
+        assets = mem.fluid1A + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
+
+        if (liabilities <= assets) {
+            priceX96 = Math.mulDiv(c.b, c.b, FixedPoint96.Q96);
+            liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96) + liquidationIncentive;
+            assets = mem.fluid1B + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
+
+            if (liabilities <= assets) revert();
+        }
+
+        uint256 assets0 = TOKEN0.balanceOf(address(this));
+        if (assets0 > liabilities0) {
+            TOKEN0.safeTransfer(address(LENDER0), liabilities0);
+            LENDER0.repay(0, address(this));
+
+            assets0 -= liabilities0;
+            liabilities0 = 0;
+        } else {
+            TOKEN0.safeTransfer(address(LENDER0), assets0);
+            LENDER0.repay(assets0, address(this));
+
+            liabilities0 -= assets0;
+            assets0 = 0;
+        }
+
+        uint256 assets1 = TOKEN1.balanceOf(address(this));
+        if (assets1 > liabilities1) {
+            TOKEN1.safeTransfer(address(LENDER1), liabilities1);
+            LENDER1.repay(0, address(this));
+
+            assets1 -= liabilities1;
+            liabilities1 = 0;
+        } else {
+            TOKEN1.safeTransfer(address(LENDER1), assets1);
+            LENDER1.repay(assets1, address(this));
+
+            liabilities1 -= assets1;
+            assets1 = 0;
+        }
+
+        // If both are zero or neither is zero, there's nothing more to do
+        if (liabilities0 + liabilities1 == 0 || liabilities0 * liabilities1 > 0) {
+            // TODO send pure ETH reward
+        } else if (liabilities0 == 0) {
+            TOKEN1.safeApprove(address(callee), type(uint256).max);
+            callee.callback0(data, assets1, liabilities0);
+            TOKEN1.safeApprove(address(callee), 0);
+
+            priceX96 = Math.mulDiv(c.c, c.c, FixedPoint96.Q96);
+
+            uint256 repay0 = liabilities0 - LENDER0.borrowBalanceStored(address(this));
+            uint256 maxLoss1 = Math.mulDiv(repay0 * 1.05e9, priceX96, 1e9 * FixedPoint96.Q96);
+            require(assets1 - TOKEN1.balanceOf(address(this)) <= maxLoss1);
+
+            // TODO: conditionally send pure ETH reward
+        } else {
+            TOKEN0.safeApprove(address(callee), type(uint256).max);
+            callee.callback1(data, assets0, liabilities1);
+            TOKEN1.safeApprove(address(callee), 0);
+
+            uint256 repay1 = liabilities1 - LENDER1.borrowBalanceStored(address(this));
+            uint256 maxLoss0 = Math.mulDiv(repay1 * 1.05e9, FixedPoint96.Q96, 1e9 * priceX96);
+            require(assets0 - TOKEN0.balanceOf(address(this)) <= maxLoss0);
+
+            // TODO: conditionally send pure ETH reward
+        }
     }
 
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external {
@@ -113,7 +190,9 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
-        // Write new Uniswap positions to storage iff they're properly formatted and unique
+        // Write new Uniswap positions to storage iff they're properly formatted and unique.
+        // We rely on `_isSolvent` to ensure `_positions.length % 2 == 0` and that each
+        // position obeys Uniswap's expectations for ticks, e.g. tickLower < tickUpper
         positions.write(positions_);
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
@@ -191,6 +270,58 @@ contract Borrower is IUniswapV3MintCallback {
         if (amount1 != 0) TOKEN1.safeTransfer(msg.sender, amount1);
     }
 
+    function _getAssetsWithdrawingPositions(SolvencyCache memory c2) private returns (Assets memory assets) {
+        assets.fixed0 = TOKEN0.balanceOf(address(this));
+        assets.fixed1 = TOKEN1.balanceOf(address(this));
+
+        int24[] memory positions_ = positions.read();
+        uint256 count = positions_.length;
+        delete positions;
+
+        unchecked {
+            for (uint256 i; i < count; i += 2) {
+                uint160 L;
+                uint160 U;
+                uint128 liquidity;
+
+                {
+                    // Load lower and upper ticks from the `positions_` array
+                    int24 l = positions_[i];
+                    int24 u = positions_[i + 1];
+                    // Fetch amount of `liquidity` in the position
+                    (liquidity, , , , ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(address(this), l, u)));
+
+                    // Withdraw all `liquidity` from the position, adding earned fees as fixed assets
+                    (uint256 burned0, uint256 burned1) = UNISWAP_POOL.burn(l, u, liquidity);
+                    (uint256 collected0, uint256 collected1) = UNISWAP_POOL.collect(
+                        address(this),
+                        l,
+                        u,
+                        type(uint128).max,
+                        type(uint128).max
+                    );
+                    assets.fixed0 += collected0 - burned0;
+                    assets.fixed1 += collected1 - burned1;
+
+                    // Compute lower and upper sqrt ratios
+                    L = TickMath.getSqrtRatioAtTick(l);
+                    U = TickMath.getSqrtRatioAtTick(u);
+                }
+
+                // Compute the value of `liquidity` (in terms of token1) at both probe prices
+                assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(c2.a, L, U, liquidity);
+                assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(c2.b, L, U, liquidity);
+
+                // Compute what amounts underlie `liquidity` at the current TWAP
+                {
+                    (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(c2.c, L, U, liquidity);
+                    assets.fluid0C += amount0;
+                    assets.fluid1C += amount1;
+                }
+            }
+        }
+    }
+
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
     function getUniswapPositions() public view returns (int24[] memory) {
@@ -234,10 +365,7 @@ contract Borrower is IUniswapV3MintCallback {
         // 100 * baseRateGasPrice * expectedGasNecessaryForLiquidation, but governance could
         // say "Oh you only put 10 * baseRate, you can still use the product but you have a cap
         // on total leverage and/or total borrows"
-        unchecked {
-            liabilities0 = (liabilities0 * 1.005e18) / 1e18;
-            liabilities1 = (liabilities1 * 1.005e18) / 1e18 + liquidationIncentive;
-        } // TODO is unchecked safe here?
+        liabilities1 += liquidationIncentive;
 
         // combine
         uint224 priceX96;
