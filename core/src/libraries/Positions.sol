@@ -27,8 +27,8 @@ library Positions {
         } else if (count == 6) {
             require(
                 (mem[0] != mem[2] || mem[1] != mem[3]) &&
-                (mem[2] != mem[4] || mem[3] != mem[5]) &&
-                (mem[4] != mem[0] || mem[5] != mem[1])
+                    (mem[2] != mem[4] || mem[3] != mem[5]) &&
+                    (mem[4] != mem[0] || mem[5] != mem[1])
             );
             stor[0] = mem[0];
             stor[1] = mem[1];

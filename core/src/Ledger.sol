@@ -175,6 +175,8 @@ contract Ledger {
         }
     }
 
+    // TODO helpful to have previewBorrow previewRepay, maxBorrow, maxRepay, etc.?
+
     /*//////////////////////////////////////////////////////////////
                            ERC4626 ACCOUNTING
     //////////////////////////////////////////////////////////////*/

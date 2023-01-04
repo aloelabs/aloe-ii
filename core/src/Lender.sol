@@ -100,6 +100,8 @@ contract Lender is Ledger {
         shares = _convertToShares(amount, inventory, cache.totalSupply, /* roundUp: */ false);
         require(shares != 0, "Aloe: zero impact");
 
+        // TODO: apparently ERC4626 requires us to support the approve/transferFrom flow as well
+
         // Ensure tokens were transferred
         cache.lastBalance += amount;
         require(cache.lastBalance <= asset().balanceOf(address(this)), "Aloe: insufficient pre-pay");
