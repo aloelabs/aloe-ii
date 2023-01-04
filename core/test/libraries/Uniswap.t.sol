@@ -60,7 +60,7 @@ contract UniswapTest is Test {
         assert(fees1 == positionInfoB.tokensOwed1);
     }
 
-    function test_gas_getAmountsWithView() public {
+    function test_gas_getAmountsWithView() public view {
         Uniswap.PositionInfo memory positionInfo;
         (
             positionInfo.liquidity,
