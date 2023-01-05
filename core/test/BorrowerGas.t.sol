@@ -44,6 +44,7 @@ contract BorrowerGasTest is Test, IManager {
         // deal to borrower and borrow (so we're able to test repay)
         deal(address(asset0), address(account), 333e18); // DAI
         deal(address(asset1), address(account), 2e18); // WETH
+        test_modify();
         test_borrow();
 
         // Uniswap deposit (so we're able to test Uniswap withdrawal)
@@ -53,7 +54,7 @@ contract BorrowerGasTest is Test, IManager {
     function test_modify() public {
         bytes memory data = abi.encode(Action.NONE, 0, 0);
         bool[2] memory allowances;
-        account.modify(this, data, allowances);
+        account.modify{value: 0.001 ether + 1 wei}(this, data, allowances);
     }
 
     function test_addMargin() public {

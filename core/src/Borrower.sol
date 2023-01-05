@@ -38,6 +38,8 @@ contract Borrower is IUniswapV3MintCallback {
 
     uint256 public constant MAX_SIGMA = 15e16;
 
+    uint256 public constant ANTE = 0.001 ether;
+
     /// @notice The Uniswap pair in which the vault will manage positions
     IUniswapV3Pool public immutable UNISWAP_POOL;
 
@@ -85,6 +87,9 @@ contract Borrower is IUniswapV3MintCallback {
         packedSlot.owner = owner;
     }
 
+    // TODO: add feature -- ability to withdraw ante if liabilities==0
+    // TODO: add feature -- ability to set new owner
+
     function liquidate(ILiquidator callee, bytes calldata data) external {
         require(!packedSlot.isInCallback);
 
@@ -127,13 +132,13 @@ contract Borrower is IUniswapV3MintCallback {
 
         // If both are zero or neither is zero, there's nothing more to do
         if (liabilities0 + liabilities1 == 0 || liabilities0 * liabilities1 > 0) {
-            // TODO send pure ETH reward
+            payable(msg.sender).transfer(ANTE);
             return;
         }
 
         uint256 priceX96 = Math.mulDiv(prices.c, prices.c, FixedPoint96.Q96);
-        
-        if (liabilities0 == 0) {
+
+        if (liabilities0 > 0) {
             TOKEN1.safeApprove(address(callee), type(uint256).max);
             callee.callback0(data, assets1, liabilities0);
             TOKEN1.safeApprove(address(callee), 0);
@@ -142,7 +147,8 @@ contract Borrower is IUniswapV3MintCallback {
             uint256 maxLoss1 = Math.mulDiv(repay0 * 1.05e9, priceX96, 1e9 * FixedPoint96.Q96);
             require(assets1 - TOKEN1.balanceOf(address(this)) <= maxLoss1);
 
-            // TODO: conditionally send pure ETH reward
+            // TODO is scaling the best incentive, or would it be better to use thresholding?
+            payable(msg.sender).transfer((ANTE * repay0) / liabilities0);
         } else {
             TOKEN0.safeApprove(address(callee), type(uint256).max);
             callee.callback1(data, assets0, liabilities1);
@@ -152,11 +158,12 @@ contract Borrower is IUniswapV3MintCallback {
             uint256 maxLoss0 = Math.mulDiv(repay1 * 1.05e9, FixedPoint96.Q96, 1e9 * priceX96);
             require(assets0 - TOKEN0.balanceOf(address(this)) <= maxLoss0);
 
-            // TODO: conditionally send pure ETH reward
+            // TODO is scaling the best incentive, or would it be better to use thresholding?
+            payable(msg.sender).transfer((ANTE * repay1) / liabilities1);
         }
     }
 
-    function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external {
+    function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external payable {
         require(msg.sender == packedSlot.owner, "Aloe: only owner");
         require(!packedSlot.isInCallback);
 
@@ -188,6 +195,8 @@ contract Borrower is IUniswapV3MintCallback {
         );
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         require(_isSolvent(liabilities0, liabilities1, assets, c), "Aloe: need more margin");
+
+        if (liabilities0 + liabilities1 > 0) require(address(this).balance > ANTE, "Aloe: missing ante");
     }
 
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
@@ -293,11 +302,9 @@ contract Borrower is IUniswapV3MintCallback {
                 assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(c2.b, L, U, liquidity);
 
                 // Compute what amounts underlie `liquidity` at the current TWAP
-                {
-                    (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(c2.c, L, U, liquidity);
-                    assets.fluid0C += amount0;
-                    assets.fluid1C += amount1;
-                }
+                (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(c2.c, L, U, liquidity);
+                assets.fluid0C += amount0;
+                assets.fluid1C += amount1;
             }
         }
     }
@@ -387,6 +394,7 @@ contract Borrower is IUniswapV3MintCallback {
 
             Uniswap.PositionInfo memory info = position.info(UNISWAP_POOL);
 
+            // TODO could ignore fees here, but still use them as cushion for liquidations
             (uint256 temp0, uint256 temp1) = position.fees(UNISWAP_POOL, info, c1);
             assets.fixed0 += temp0;
             assets.fixed1 += temp1;
