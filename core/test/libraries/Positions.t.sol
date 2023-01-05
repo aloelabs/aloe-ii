@@ -113,6 +113,10 @@ contract PositionsTest is Test {
     function test_singleRead(int24 xl, int24 xu) public {
         positions[0] = xl;
         positions[1] = xu;
+        positions[2] = 0;
+        positions[3] = 0;
+        positions[4] = 0;
+        positions[5] = 0;
 
         int24[] memory positions_ = positions.read();
 
@@ -130,6 +134,8 @@ contract PositionsTest is Test {
         positions[1] = xu;
         positions[2] = yl;
         positions[3] = yu;
+        positions[4] = 0;
+        positions[5] = 0;
 
         int24[] memory positions_ = positions.read();
 
