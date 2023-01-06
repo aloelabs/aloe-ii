@@ -62,21 +62,21 @@ contract Borrower is IUniswapV3MintCallback {
 
     int24[6] public positions;
 
-    constructor(IUniswapV3Pool _pool, Lender _lender0, Lender _lender1) {
-        UNISWAP_POOL = _pool;
-        LENDER0 = _lender0;
-        LENDER1 = _lender1;
+    constructor(IUniswapV3Pool pool, Lender lender0, Lender lender1) {
+        UNISWAP_POOL = pool;
+        LENDER0 = lender0;
+        LENDER1 = lender1;
 
-        TOKEN0 = _lender0.asset();
-        TOKEN1 = _lender1.asset();
+        TOKEN0 = lender0.asset();
+        TOKEN1 = lender1.asset();
 
-        require(_pool.token0() == address(TOKEN0));
-        require(_pool.token1() == address(TOKEN1));
+        require(pool.token0() == address(TOKEN0));
+        require(pool.token1() == address(TOKEN1));
     }
 
-    function initialize(address _owner) external {
+    function initialize(address owner) external {
         require(packedSlot.owner == address(0));
-        packedSlot.owner = _owner;
+        packedSlot.owner = owner;
     }
 
     // TODO liquidations
@@ -185,10 +185,10 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /// @dev Callback for Uniswap V3 pool.
-    function uniswapV3MintCallback(uint256 _amount0, uint256 _amount1, bytes calldata) external {
+    function uniswapV3MintCallback(uint256 amount0, uint256 amount1, bytes calldata) external {
         require(msg.sender == address(UNISWAP_POOL));
-        if (_amount0 != 0) TOKEN0.safeTransfer(msg.sender, _amount0);
-        if (_amount1 != 0) TOKEN1.safeTransfer(msg.sender, _amount1);
+        if (amount0 != 0) TOKEN0.safeTransfer(msg.sender, amount0);
+        if (amount1 != 0) TOKEN1.safeTransfer(msg.sender, amount1);
     }
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
@@ -275,7 +275,7 @@ contract Borrower is IUniswapV3MintCallback {
         assets.fixed1 = TOKEN1.balanceOf(address(this));
 
         uint256 count = positions_.length;
-        for (uint256 i; i < count; ) {
+        for (uint256 i; i < count; i += 2) {
             Uniswap.Position memory position = Uniswap.Position(positions_[i], positions_[i + 1]);
             if (position.lower == position.upper) continue;
 
@@ -294,10 +294,6 @@ contract Borrower is IUniswapV3MintCallback {
             (temp0, temp1) = LiquidityAmounts.getAmountsForLiquidity(c2.c, lower, upper, info.liquidity);
             assets.fluid0C += temp0;
             assets.fluid1C += temp1;
-
-            unchecked {
-                i += 2;
-            }
         }
     }
 
@@ -309,42 +305,39 @@ contract Borrower is IUniswapV3MintCallback {
     // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
     // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
-    function _computeProbePrices(
-        uint160 _sqrtMeanPriceX96,
-        uint256 _sigma
-    ) private pure returns (uint160 a, uint160 b) {
+    function _computeProbePrices(uint160 sqrtMeanPriceX96, uint256 sigma) private pure returns (uint160 a, uint160 b) {
         unchecked {
-            _sigma *= B;
+            sigma *= B;
 
-            if (_sigma < MIN_SIGMA) _sigma = MIN_SIGMA;
-            else if (_sigma > MAX_SIGMA) _sigma = MAX_SIGMA;
+            if (sigma < MIN_SIGMA) sigma = MIN_SIGMA;
+            else if (sigma > MAX_SIGMA) sigma = MAX_SIGMA;
 
-            a = uint160((_sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 - _sigma)) / 1e9);
-            b = uint160((_sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 + _sigma)) / 1e9);
+            a = uint160((sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 - sigma)) / 1e9);
+            b = uint160((sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 + sigma)) / 1e9);
         }
     }
 
     function _computeLiquidationIncentive(
-        uint256 _assets0,
-        uint256 _assets1,
-        uint256 _liabilities0,
-        uint256 _liabilities1,
-        uint160 _sqrtMeanPriceX96
+        uint256 assets0,
+        uint256 assets1,
+        uint256 liabilities0,
+        uint256 liabilities1,
+        uint160 sqrtMeanPriceX96
     ) private pure returns (uint256 reward1) {
         unchecked {
-            uint256 meanPriceX96 = Math.mulDiv(_sqrtMeanPriceX96, _sqrtMeanPriceX96, FixedPoint96.Q96);
+            uint256 meanPriceX96 = Math.mulDiv(sqrtMeanPriceX96, sqrtMeanPriceX96, FixedPoint96.Q96);
 
-            if (_liabilities0 > _assets0) {
+            if (liabilities0 > assets0) {
                 // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
-                uint256 shortfall = _liabilities0 - _assets0;
+                uint256 shortfall = liabilities0 - assets0;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
                 reward1 += Math.mulDiv(shortfall, 0.05e9 * meanPriceX96, 1e9 * FixedPoint96.Q96);
             }
 
-            if (_liabilities1 > _assets1) {
+            if (liabilities1 > assets1) {
                 // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
-                uint256 shortfall = _liabilities1 - _assets1;
+                uint256 shortfall = liabilities1 - assets1;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
                 reward1 += Math.mulDiv(shortfall, 0.05e9, 1e9);

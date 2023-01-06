@@ -10,7 +10,14 @@ contract PositionsTest is Test {
 
     int24[6] public positions;
 
-    function setUp() public {}
+    function setUp() public {
+        positions[0] = 123;
+        positions[1] = 456;
+        positions[2] = 789;
+        positions[3] = 12;
+        positions[4] = 345;
+        positions[5] = 678;
+    }
 
     function test_emptyWrite() public {
         int24[] memory positions_ = new int24[](0);

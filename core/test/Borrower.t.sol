@@ -19,7 +19,7 @@ contract BorrowerTest is Test, IManager {
 
     function callback(bytes calldata data)
         external
-        returns (int24[] memory positions)
+        returns (int24[] memory)
     {
         Borrower _account = Borrower(msg.sender);
 
@@ -36,6 +36,8 @@ contract BorrowerTest is Test, IManager {
 
         if (withdraw0 != 0) asset0.transferFrom(msg.sender, address(this), withdraw0);
         if (withdraw1 != 0) asset1.transferFrom(msg.sender, address(this), withdraw1);
+
+        return new int24[](0);
     }
 
     function setUp() public {
