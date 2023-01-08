@@ -13,14 +13,21 @@ import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {Oracle} from "./libraries/Oracle.sol";
 import {Positions} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
-import {Uniswap} from "./libraries/Uniswap.sol";
 
 import {Lender} from "./Lender.sol";
 
 interface ILiquidator {
-    function callback0(bytes calldata data, uint256 assets1, uint256 liabilities0) external;
+    function callback0(
+        bytes calldata data,
+        uint256 assets1,
+        uint256 liabilities0
+    ) external returns (uint256 converted0);
 
-    function callback1(bytes calldata data, uint256 assets0, uint256 liabilities1) external;
+    function callback1(
+        bytes calldata data,
+        uint256 assets0,
+        uint256 liabilities1
+    ) external returns (uint256 converted1);
 }
 
 interface IManager {
@@ -30,15 +37,14 @@ interface IManager {
 contract Borrower is IUniswapV3MintCallback {
     using SafeTransferLib for ERC20;
     using Positions for int24[6];
-    using Uniswap for Uniswap.Position;
 
-    uint8 public constant B = 3;
+    uint8 public constant B = 3; // TODO: To make this governable, move it into packedSlot
 
-    uint256 public constant MIN_SIGMA = 2e16;
+    uint256 public constant MIN_SIGMA = 1e16;
 
     uint256 public constant MAX_SIGMA = 15e16;
 
-    uint256 public constant ANTE = 0.001 ether;
+    uint256 public constant ANTE = 0.001 ether; // TODO: To make this governable, move it into packedSlot
 
     /// @notice The Uniswap pair in which the vault will manage positions
     IUniswapV3Pool public immutable UNISWAP_POOL;
@@ -49,10 +55,10 @@ contract Borrower is IUniswapV3MintCallback {
     /// @notice The second token of the Uniswap pair
     ERC20 public immutable TOKEN1;
 
-    /// @notice TODO
+    /// @notice The lender for `TOKEN0`
     Lender public immutable LENDER0;
 
-    /// @notice TODO
+    /// @notice The lender for `TOKEN1`
     Lender public immutable LENDER1;
 
     struct PackedSlot {
@@ -94,73 +100,59 @@ contract Borrower is IUniswapV3MintCallback {
         require(!packedSlot.isInCallback);
 
         Prices memory prices = _getPrices();
+        (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
 
-        Assets memory mem = _getAssetsWithdrawingPositions(prices);
-        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-
-        require(!_isSolvent(liabilities0, liabilities1, mem, prices));
+        require(!_isSolvent(liabilities0, liabilities1, _getAssetsWithdrawingPositions(prices), prices));
 
         uint256 assets0 = TOKEN0.balanceOf(address(this));
-        if (assets0 > liabilities0) {
-            TOKEN0.safeTransfer(address(LENDER0), liabilities0);
-            LENDER0.repay(0, address(this));
-
-            assets0 -= liabilities0;
-            liabilities0 = 0;
-        } else {
-            TOKEN0.safeTransfer(address(LENDER0), assets0);
-            LENDER0.repay(assets0, address(this));
-
-            liabilities0 -= assets0;
-            assets0 = 0;
-        }
+        uint256 repayable0 = Math.min(assets0, liabilities0);
+        assets0 -= repayable0;
+        liabilities0 -= repayable0;
 
         uint256 assets1 = TOKEN1.balanceOf(address(this));
-        if (assets1 > liabilities1) {
-            TOKEN1.safeTransfer(address(LENDER1), liabilities1);
-            LENDER1.repay(0, address(this));
+        uint256 repayable1 = Math.min(assets1, liabilities1);
+        assets1 -= repayable1;
+        liabilities1 -= repayable1;
 
-            assets1 -= liabilities1;
-            liabilities1 = 0;
-        } else {
-            TOKEN1.safeTransfer(address(LENDER1), assets1);
-            LENDER1.repay(assets1, address(this));
-
-            liabilities1 -= assets1;
-            assets1 = 0;
-        }
+        // TODO: this is already computed inside of computeLiquidationIncentive, so use that instead of
+        // re-computing it (or at least compare gas between the 2 options)
+        uint256 priceX96 = Math.mulDiv(prices.c, prices.c, FixedPoint96.Q96);
 
         // If both are zero or neither is zero, there's nothing more to do
         if (liabilities0 + liabilities1 == 0 || liabilities0 * liabilities1 > 0) {
             payable(msg.sender).transfer(ANTE);
             return;
-        }
+        } else if (liabilities0 > 0) {
+            uint256 before = TOKEN1.balanceOf(address(this));
 
-        uint256 priceX96 = Math.mulDiv(prices.c, prices.c, FixedPoint96.Q96);
-
-        if (liabilities0 > 0) {
             TOKEN1.safeApprove(address(callee), type(uint256).max);
-            callee.callback0(data, assets1, liabilities0);
+            uint256 converted0 = callee.callback0(data, assets1, liabilities0);
             TOKEN1.safeApprove(address(callee), 0);
 
-            uint256 repay0 = liabilities0 - LENDER0.borrowBalanceStored(address(this));
-            uint256 maxLoss1 = Math.mulDiv(repay0 * 1.05e9, priceX96, 1e9 * FixedPoint96.Q96);
-            require(assets1 - TOKEN1.balanceOf(address(this)) <= maxLoss1);
+            uint256 maxLoss1 = Math.mulDiv(converted0 * 105, priceX96, 100 * FixedPoint96.Q96);
+            require(before - TOKEN1.balanceOf(address(this)) <= maxLoss1);
 
             // TODO is scaling the best incentive, or would it be better to use thresholding?
-            payable(msg.sender).transfer((ANTE * repay0) / liabilities0);
+            payable(msg.sender).transfer((ANTE * converted0) / liabilities0);
+
+            repayable0 += converted0;
         } else {
+            uint256 before = TOKEN0.balanceOf(address(this));
+
             TOKEN0.safeApprove(address(callee), type(uint256).max);
-            callee.callback1(data, assets0, liabilities1);
+            uint256 converted1 = callee.callback1(data, assets0, liabilities1);
             TOKEN1.safeApprove(address(callee), 0);
 
-            uint256 repay1 = liabilities1 - LENDER1.borrowBalanceStored(address(this));
-            uint256 maxLoss0 = Math.mulDiv(repay1 * 1.05e9, FixedPoint96.Q96, 1e9 * priceX96);
-            require(assets0 - TOKEN0.balanceOf(address(this)) <= maxLoss0);
+            uint256 maxLoss0 = Math.mulDiv(converted1 * 105, FixedPoint96.Q96, 100 * priceX96);
+            require(before - TOKEN0.balanceOf(address(this)) <= maxLoss0);
 
             // TODO is scaling the best incentive, or would it be better to use thresholding?
-            payable(msg.sender).transfer((ANTE * repay1) / liabilities1);
+            payable(msg.sender).transfer((ANTE * converted1) / liabilities1);
+
+            repayable1 += converted1;
         }
+
+        _repay(repayable0, repayable1);
     }
 
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external payable {
@@ -182,19 +174,13 @@ contract Borrower is IUniswapV3MintCallback {
         // position obeys Uniswap's expectations for ticks, e.g. tickLower < tickUpper
         positions.write(positions_);
 
-        (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
-        Prices memory c = _getPrices();
-        Assets memory assets = _getAssets(
-            positions_,
-            Uniswap.FeeComputationCache(
-                currentTick,
-                UNISWAP_POOL.feeGrowthGlobal0X128(),
-                UNISWAP_POOL.feeGrowthGlobal1X128()
-            ),
-            c
+        Prices memory prices = _getPrices();
+        (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
+
+        require(
+            _isSolvent(liabilities0, liabilities1, _getAssets(positions_, prices), prices),
+            "Aloe: need more margin"
         );
-        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-        require(_isSolvent(liabilities0, liabilities1, assets, c), "Aloe: need more margin");
 
         if (liabilities0 + liabilities1 > 0) require(address(this).balance > ANTE, "Aloe: missing ante");
     }
@@ -202,8 +188,8 @@ contract Borrower is IUniswapV3MintCallback {
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
         require(packedSlot.isInCallback);
 
-        if (amount0 != 0) LENDER0.borrow(amount0, recipient);
-        if (amount1 != 0) LENDER1.borrow(amount1, recipient);
+        if (amount0 > 0) LENDER0.borrow(amount0, recipient);
+        if (amount1 > 0) LENDER1.borrow(amount1, recipient);
     }
 
     // Technically uneccessary. but:
@@ -212,12 +198,15 @@ contract Borrower is IUniswapV3MintCallback {
     // --> Keep because it allows integrators to repay debts without configuring the `allowances` bool array
     function repay(uint256 amount0, uint256 amount1) external {
         require(packedSlot.isInCallback);
+        _repay(amount0, amount1);
+    }
 
-        if (amount0 != 0) {
+    function _repay(uint256 amount0, uint256 amount1) private {
+        if (amount0 > 0) {
             TOKEN0.safeTransfer(address(LENDER0), amount0);
             LENDER0.repay(amount0, address(this));
         }
-        if (amount1 != 0) {
+        if (amount1 > 0) {
             TOKEN1.safeTransfer(address(LENDER1), amount1);
             LENDER1.repay(amount1, address(this));
         }
@@ -255,11 +244,11 @@ contract Borrower is IUniswapV3MintCallback {
     /// @dev Callback for Uniswap V3 pool.
     function uniswapV3MintCallback(uint256 amount0, uint256 amount1, bytes calldata) external {
         require(msg.sender == address(UNISWAP_POOL));
-        if (amount0 != 0) TOKEN0.safeTransfer(msg.sender, amount0);
-        if (amount1 != 0) TOKEN1.safeTransfer(msg.sender, amount1);
+        if (amount0 > 0) TOKEN0.safeTransfer(msg.sender, amount0);
+        if (amount1 > 0) TOKEN1.safeTransfer(msg.sender, amount1);
     }
 
-    function _getAssetsWithdrawingPositions(Prices memory c2) private returns (Assets memory assets) {
+    function _getAssetsWithdrawingPositions(Prices memory prices) private returns (Assets memory assets) {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
 
@@ -298,11 +287,11 @@ contract Borrower is IUniswapV3MintCallback {
                 }
 
                 // Compute the value of `liquidity` (in terms of token1) at both probe prices
-                assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(c2.a, L, U, liquidity);
-                assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(c2.b, L, U, liquidity);
+                assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(prices.a, L, U, liquidity);
+                assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(prices.b, L, U, liquidity);
 
                 // Compute what amounts underlie `liquidity` at the current TWAP
-                (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(c2.c, L, U, liquidity);
+                (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.c, L, U, liquidity);
                 assets.fluid0C += amount0;
                 assets.fluid1C += amount1;
             }
@@ -340,16 +329,6 @@ contract Borrower is IUniswapV3MintCallback {
             liabilities1,
             prices.c
         );
-        // some useless configurations (e.g. just borrow and hold) create no inventory risk for
-        // liquidators, but may still need to be liquidated due to interest accrual. to service gas
-        // costs and prevent overall griefing, we give liabilities an extra bump.
-        // note: requiring some minimum amount of margin would accomplish something similar,
-        //       but it's unclear what that amount would be for a given arbitrary asset
-        // TODO simply require a minimum deposit of ETH when creating the margin account
-        // could offer different, governance-controlled tiers. so unlimited tier may require
-        // 100 * baseRateGasPrice * expectedGasNecessaryForLiquidation, but governance could
-        // say "Oh you only put 10 * baseRate, you can still use the product but you have a cap
-        // on total leverage and/or total borrows"
         liabilities1 += liquidationIncentive;
 
         // combine
@@ -361,6 +340,8 @@ contract Borrower is IUniswapV3MintCallback {
         liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
         assets = mem.fluid1A + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
         if (liabilities > assets) return false;
+
+        // TODO: technically, if liabilities0 < mem.fixed0, we can return true here
 
         priceX96 = uint224(Math.mulDiv(prices.b, prices.b, FixedPoint96.Q96));
         liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
@@ -379,39 +360,43 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 fluid1C;
     }
 
-    function _getAssets(
-        int24[] memory positions_,
-        Uniswap.FeeComputationCache memory c1,
-        Prices memory prices
-    ) private view returns (Assets memory assets) {
+    function _getAssets(int24[] memory positions_, Prices memory prices) private view returns (Assets memory assets) {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
 
         uint256 count = positions_.length;
-        for (uint256 i; i < count; i += 2) {
-            Uniswap.Position memory position = Uniswap.Position(positions_[i], positions_[i + 1]);
-            if (position.lower == position.upper) continue;
+        unchecked {
+            for (uint256 i; i < count; i += 2) {
+                uint160 L;
+                uint160 U;
+                uint128 liquidity;
 
-            Uniswap.PositionInfo memory info = position.info(UNISWAP_POOL);
+                {
+                    // Load lower and upper ticks from the `positions_` array
+                    int24 l = positions_[i];
+                    int24 u = positions_[i + 1];
+                    if (l == u) continue;
+                    // Fetch amount of `liquidity` in the position
+                    (liquidity, , , , ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(address(this), l, u)));
 
-            // TODO could ignore fees here, but still use them as cushion for liquidations
-            (uint256 temp0, uint256 temp1) = position.fees(UNISWAP_POOL, info, c1);
-            assets.fixed0 += temp0;
-            assets.fixed1 += temp1;
+                    // Compute lower and upper sqrt ratios
+                    L = TickMath.getSqrtRatioAtTick(l);
+                    U = TickMath.getSqrtRatioAtTick(u);
+                }
 
-            uint160 lower = TickMath.getSqrtRatioAtTick(position.lower);
-            uint160 upper = TickMath.getSqrtRatioAtTick(position.upper);
+                // Compute the value of `liquidity` (in terms of token1) at both probe prices
+                assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(prices.a, L, U, liquidity);
+                assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(prices.b, L, U, liquidity);
 
-            assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(prices.a, lower, upper, info.liquidity);
-            assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(prices.b, lower, upper, info.liquidity);
-
-            (temp0, temp1) = LiquidityAmounts.getAmountsForLiquidity(prices.c, lower, upper, info.liquidity);
-            assets.fluid0C += temp0;
-            assets.fluid1C += temp1;
+                // Compute what amounts underlie `liquidity` at the current TWAP
+                (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.c, L, U, liquidity);
+                assets.fluid0C += amount0;
+                assets.fluid1C += amount1;
+            }
         }
     }
 
-    function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
+    function getLiabilities() public view returns (uint256 amount0, uint256 amount1) {
         amount0 = LENDER0.borrowBalanceStored(address(this));
         amount1 = LENDER1.borrowBalanceStored(address(this));
     }
