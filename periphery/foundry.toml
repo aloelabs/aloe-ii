@@ -7,6 +7,7 @@ libs = ['lib']
 out = '../build/periphery'
 cache_path = '../cache/periphery'
 
+via_ir = true
 optimizer = true
 optimizer_runs = 800
 gas_reports = []

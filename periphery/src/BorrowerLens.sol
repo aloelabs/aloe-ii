@@ -9,11 +9,14 @@ contract BorrowerLens {
     using Uniswap for Uniswap.Position;
 
     function getLiabilities(Borrower account) external view returns (uint256 amount0, uint256 amount1) {
-        amount0 = Lender(account.LENDER0()).borrowBalance(address(account));
-        amount1 = Lender(account.LENDER1()).borrowBalance(address(account));
+        amount0 = account.LENDER0().borrowBalance(address(account));
+        amount1 = account.LENDER1().borrowBalance(address(account));
     }
 
-    function getAssets(Borrower account) external view returns (uint256, uint256, uint256, uint256, uint256, uint256) {
+    function getAssets(
+        Borrower account,
+        bool includeUniswapFees
+    ) external view returns (uint256, uint256, uint256, uint256) {
         uint256 uni0;
         uint256 uni1;
 
@@ -26,69 +29,62 @@ contract BorrowerLens {
                 pool.feeGrowthGlobal1X128()
             );
 
-            Uniswap.Position[] memory positions = account.getUniswapPositions();
+            int24[] memory positions = account.getUniswapPositions();
+            uint256 count = positions.length;
 
-            for (uint256 i = 0; i < positions.length; i++) {
-                bytes32 key = keccak256(abi.encodePacked(address(account), positions[i].lower, positions[i].upper));
-                Uniswap.PositionInfo memory info = _getInfo(pool, key);
+            unchecked {
+                for (uint256 i; i < count; i += 2) {
+                    // Load lower and upper ticks from the `positions` array
+                    int24 l = positions[i];
+                    int24 u = positions[i + 1];
 
-                (uint256 temp0, uint256 temp1) = positions[i].fees(pool, info, c);
-                uni0 += temp0;
-                uni1 += temp1;
+                    Uniswap.Position memory position = Uniswap.Position(l, u);
+                    Uniswap.PositionInfo memory info = position.info(pool, address(account));
 
-                (temp0, temp1) = positions[i].amountsForLiquidity(sqrtPriceX96, info.liquidity);
-                uni0 += temp0;
-                uni1 += temp1;
+                    uint256 temp0;
+                    uint256 temp1;
+
+                    if (includeUniswapFees) {
+                        (temp0, temp1) = position.fees(pool, info, c);
+                        uni0 += temp0;
+                        uni1 += temp1;
+                    }
+
+                    (temp0, temp1) = position.amountsForLiquidity(sqrtPriceX96, info.liquidity);
+                    uni0 += temp0;
+                    uni1 += temp1;
+                }
             }
         }
 
-        return (
-            account.TOKEN0().balanceOf(address(account)),
-            account.TOKEN1().balanceOf(address(account)),
-            Lender(account.LENDER0()).underlyingBalance(address(account)),
-            Lender(account.LENDER1()).underlyingBalance(address(account)),
-            uni0,
-            uni1
-        );
+        return (account.TOKEN0().balanceOf(address(account)), account.TOKEN1().balanceOf(address(account)), uni0, uni1);
     }
 
     function getUniswapPositions(
         Borrower account
     ) external view returns (bytes32[] memory keys, uint256[] memory fees) {
         IUniswapV3Pool pool = account.UNISWAP_POOL();
-        (, int24 tick, , , , , ) = pool.slot0();
-        Uniswap.FeeComputationCache memory c = Uniswap.FeeComputationCache(
-            tick,
-            pool.feeGrowthGlobal0X128(),
-            pool.feeGrowthGlobal1X128()
-        );
-
-        Uniswap.Position[] memory positions = account.getUniswapPositions();
-        keys = new bytes32[](positions.length);
-        fees = new uint256[](positions.length * 2);
-
-        for (uint256 i = 0; i < positions.length; i++) {
-            bytes32 key = keccak256(abi.encodePacked(address(account), positions[i].lower, positions[i].upper));
-            Uniswap.PositionInfo memory info = _getInfo(pool, key);
-
-            (uint256 temp0, uint256 temp1) = positions[i].fees(pool, info, c);
-
-            keys[i] = key;
-            fees[i] = temp0;
-            fees[i + 1] = temp1;
+        Uniswap.FeeComputationCache memory c;
+        {
+            (, int24 tick, , , , , ) = pool.slot0();
+            c = Uniswap.FeeComputationCache(tick, pool.feeGrowthGlobal0X128(), pool.feeGrowthGlobal1X128());
         }
-    }
 
-    function _getInfo(
-        IUniswapV3Pool pool,
-        bytes32 key
-    ) private view returns (Uniswap.PositionInfo memory positionInfo) {
-        (
-            positionInfo.liquidity,
-            positionInfo.feeGrowthInside0LastX128,
-            positionInfo.feeGrowthInside1LastX128,
-            positionInfo.tokensOwed0,
-            positionInfo.tokensOwed1
-        ) = pool.positions(key);
+        int24[] memory positions = account.getUniswapPositions();
+        keys = new bytes32[](positions.length >> 1);
+        fees = new uint256[](positions.length);
+
+        unchecked {
+            for (uint256 i = 0; i < positions.length; i += 2) {
+                Uniswap.Position memory position = Uniswap.Position(positions[i], positions[i + 1]);
+                Uniswap.PositionInfo memory info = position.info(pool, address(account));
+
+                (uint256 temp0, uint256 temp1) = position.fees(pool, info, c);
+
+                keys[i >> 1] = keccak256(abi.encodePacked(address(account), position.lower, position.upper));
+                fees[i] = temp0;
+                fees[i + 1] = temp1;
+            }
+        }
     }
 }

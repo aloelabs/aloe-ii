@@ -35,7 +35,7 @@ library Uniswap {
         uint256 feeGrowthGlobal1X128;
     }
 
-    /// @dev Wrapper around `IUniswapV3Pool.positions()`.
+    /// @dev Wrapper around `IUniswapV3Pool.positions()` that assume position is owned by this contract
     function info(
         Position memory position,
         IUniswapV3Pool pool
@@ -47,6 +47,21 @@ library Uniswap {
             positionInfo.tokensOwed0,
             positionInfo.tokensOwed1
         ) = pool.positions(keccak256(abi.encodePacked(address(this), position.lower, position.upper)));
+    }
+
+    /// @dev Wrapper around `IUniswapV3Pool.positions()`.
+    function info(
+        Position memory position,
+        IUniswapV3Pool pool,
+        address owner
+    ) internal view returns (PositionInfo memory positionInfo) {
+        (
+            positionInfo.liquidity,
+            positionInfo.feeGrowthInside0LastX128,
+            positionInfo.feeGrowthInside1LastX128,
+            positionInfo.tokensOwed0,
+            positionInfo.tokensOwed1
+        ) = pool.positions(keccak256(abi.encodePacked(owner, position.lower, position.upper)));
     }
 
     function fees(
