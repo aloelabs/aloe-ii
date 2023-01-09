@@ -18,7 +18,7 @@ contract BorrowerGasTest is Test, IManager {
     Borrower immutable account;
 
     constructor() {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"));
+        vm.createSelectFork(vm.rpcUrl("mainnet"));
         vm.rollFork(15_348_451);
 
         lender0 = deploySingleLender(asset0, address(this), new RateModel());

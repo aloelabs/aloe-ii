@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-import "aloe-ii-core/libraries/Uniswap.sol";
+import {Uniswap} from "aloe-ii-core/libraries/Uniswap.sol";
 
-import "aloe-ii-core/Borrower.sol";
+import {Borrower, IUniswapV3Pool} from "aloe-ii-core/Borrower.sol";
 
 contract BorrowerLens {
     using Uniswap for Uniswap.Position;

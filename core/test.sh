@@ -27,8 +27,7 @@ if [ "${modifies_state}" != "0" ]; then
 fi
 
 # Run forge tests
-source ../.env
-MAINNET_RPC_URL=$FOUNDRY_ETH_RPC_URL forge test -vv --gas-report --no-match-contract ".*Gas"
+forge test -vv --gas-report --no-match-contract ".*Gas"
 
 # Get coverage
-MAINNET_RPC_URL=$FOUNDRY_ETH_RPC_URL forge coverage --report lcov --report summary --no-match-contract ".*Gas"
+forge coverage --report lcov --report summary --no-match-contract ".*Gas"
