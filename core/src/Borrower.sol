@@ -106,12 +106,10 @@ contract Borrower is IUniswapV3MintCallback {
 
         uint256 assets0 = TOKEN0.balanceOf(address(this));
         uint256 repayable0 = Math.min(assets0, liabilities0);
-        assets0 -= repayable0;
         liabilities0 -= repayable0;
 
         uint256 assets1 = TOKEN1.balanceOf(address(this));
         uint256 repayable1 = Math.min(assets1, liabilities1);
-        assets1 -= repayable1;
         liabilities1 -= repayable1;
 
         // TODO: this is already computed inside of computeLiquidationIncentive, so use that instead of
@@ -123,28 +121,24 @@ contract Borrower is IUniswapV3MintCallback {
             payable(msg.sender).transfer(ANTE);
             return;
         } else if (liabilities0 > 0) {
-            uint256 before = TOKEN1.balanceOf(address(this));
-
             TOKEN1.safeApprove(address(callee), type(uint256).max);
-            uint256 converted0 = callee.callback0(data, assets1, liabilities0);
+            uint256 converted0 = callee.callback0(data, assets1 - repayable1, liabilities0);
             TOKEN1.safeApprove(address(callee), 0);
 
             uint256 maxLoss1 = Math.mulDiv(converted0 * 105, priceX96, 100 * FixedPoint96.Q96);
-            require(before - TOKEN1.balanceOf(address(this)) <= maxLoss1);
+            require(assets1 - TOKEN1.balanceOf(address(this)) <= maxLoss1);
 
             // TODO is scaling the best incentive, or would it be better to use thresholding?
             payable(msg.sender).transfer((ANTE * converted0) / liabilities0);
 
             repayable0 += converted0;
         } else {
-            uint256 before = TOKEN0.balanceOf(address(this));
-
             TOKEN0.safeApprove(address(callee), type(uint256).max);
-            uint256 converted1 = callee.callback1(data, assets0, liabilities1);
+            uint256 converted1 = callee.callback1(data, assets0 - repayable0, liabilities1);
             TOKEN1.safeApprove(address(callee), 0);
 
             uint256 maxLoss0 = Math.mulDiv(converted1 * 105, FixedPoint96.Q96, 100 * priceX96);
-            require(before - TOKEN0.balanceOf(address(this)) <= maxLoss0);
+            require(assets0 - TOKEN0.balanceOf(address(this)) <= maxLoss0);
 
             // TODO is scaling the best incentive, or would it be better to use thresholding?
             payable(msg.sender).transfer((ANTE * converted1) / liabilities1);
