@@ -23,14 +23,14 @@ contract FrontendManager is IManager {
 
     // TODO this is an external function that does lots of different stuff. be extra sure that it's not a security risk,
     // especially given that frontend users will be approving it to spend their tokens.
-    function callback(bytes calldata data) external returns (int24[] memory positions) {
+    function callback(bytes calldata data) external returns (uint144 positions) {
         require(FACTORY.isBorrower(msg.sender), "Aloe: bad account");
 
         Borrower account = Borrower(msg.sender);
 
         uint8[] memory actions;
         bytes[] memory args;
-        (actions, args, positions) = abi.decode(data, (uint8[], bytes[], int24[]));
+        (actions, args, positions) = abi.decode(data, (uint8[], bytes[], uint144));
 
         for (uint256 i; i < actions.length; i++) {
             uint8 action = actions[i];
