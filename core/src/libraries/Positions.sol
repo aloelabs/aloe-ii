@@ -2,9 +2,12 @@
 pragma solidity ^0.8.15;
 
 uint256 constant Q24 = 0x1000000;
-uint256 constant Q144 = 0x1000000000000000000000000000000000000;
 
-/// @dev unclean inputs could be a problem here, TODO make a better note about this
+/**
+ * @notice Compresses `positions` into `zipped`. Useful for creating the return value of `IManager.callback`
+ * @param positions A flattened array of ticks, each consecutive pair of indices representing one Uniswap position
+ * @param zipped Encoded Uniswap positions
+ */
 function zip(int24[6] memory positions) pure returns (uint144 zipped) {
     assembly ("memory-safe") {
         zipped := mod(mload(positions), Q24)
@@ -16,6 +19,17 @@ function zip(int24[6] memory positions) pure returns (uint144 zipped) {
     }
 }
 
+/**
+ * @notice Extracts up to three Uniswap positions from `zipped`. Each position consists of an `int24 lower` and
+ * `int24 upper`, and will be included in the output array iff `lower != upper`. The output array is flattened
+ * such that lower and upper ticks are next to each other, e.g. one position may be at indices 0 & 1, and another
+ * at indices 2 & 3.
+ * @dev The output array's length will be one of {0, 2, 4, 6}. We do *not* validate that `lower < upper`, nor do
+ * we check whether positions actually hold liquidity. Also note that this function will happily return duplicate
+ * positions like [-100, 100, -100, 100].
+ * @param zipped Encoded Uniswap positions. Equivalent to the layout of `int24[6] storage yourPositions`
+ * @return positionsOfNonZeroWidth Flattened array of Uniswap positions that may or may not hold liquidity
+ */
 function extract(uint256 zipped) pure returns (int24[] memory positionsOfNonZeroWidth) {
     assembly ("memory-safe") {
         // zipped:
@@ -61,21 +75,22 @@ function extract(uint256 zipped) pure returns (int24[] memory positionsOfNonZero
 }
 
 library Positions {
-    function write(int24[6] storage positions, uint144 update) internal returns (int24[] memory) {
-        if (update == 0) {
-            return read(positions);
-        }
+    function write(int24[6] storage positions, uint256 update) internal returns (int24[] memory) {
+        // `update == 0` implies that the caller *does not* want to modify their positions, so we
+        // read the existing ones and return early.
+        if (update == 0) return read(positions);
 
+        // Optimistically copy the `update`d positions to storage.
+        // Need assembly to bypass Solidity's type-checking.
         assembly ("memory-safe") {
             sstore(positions.slot, update)
         }
 
-        // `extract` only returns positions of non-zero width, i.e. potentially active ones
+        // Extract the updated positions from `update`. This is the array that will be used for
+        // solvency checks (at least until the next `write`), so we need to verify that all
+        // positions are unique (no duplicates / double-counting).
         int24[] memory positions_ = extract(update);
 
-        // We don't need to check that each lowerTick < upperTick, since Uniswap will handle
-        // that for us. But we do need to make sure the user isn't trying to double-count
-        // any liquidity.
         uint256 count = positions_.length;
         if (count == 4) {
             require(positions_[0] != positions_[2] || positions_[1] != positions_[3]);
@@ -88,11 +103,13 @@ library Positions {
             );
         }
 
+        // Note: we still haven't checked that each `lower < upper`, or that the ticks align
+        // with tickSpacing. Uniswap will do that for us.
         return positions_;
     }
 
     function read(int24[6] storage positions) internal view returns (int24[] memory positions_) {
-        uint256 zipped;
+        uint144 zipped;
         assembly ("memory-safe") {
             zipped := sload(positions.slot)
         }
