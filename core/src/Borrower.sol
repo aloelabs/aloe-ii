@@ -18,7 +18,7 @@ import {Uniswap} from "./libraries/Uniswap.sol";
 import {Lender} from "./Lender.sol";
 
 interface IManager {
-    function callback(bytes calldata data) external returns (int24[] memory positions);
+    function callback(bytes calldata data) external returns (uint144 positions);
 }
 
 contract Borrower is IUniswapV3MintCallback {
@@ -107,14 +107,11 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
 
         packedSlot.isInCallback = true;
-        int24[] memory positions_ = callee.callback(data);
+        int24[] memory positions_ = positions.write(callee.callback(data));
         packedSlot.isInCallback = false;
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
-
-        // Write new Uniswap positions to storage iff they're properly formatted and unique
-        positions_ = positions.write(positions_);
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         require(
