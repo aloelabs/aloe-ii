@@ -4,7 +4,7 @@ pragma solidity ^0.8.15;
 library Positions {
     uint256 private constant Q24 = 0x1000000;
 
-    function write(int24[6] storage stor, int24[] memory mem) internal {
+    function write(int24[6] storage stor, int24[] memory mem) internal returns (int24[] memory) {
         // Validate formatting of Uniswap positions
         uint256 count = mem.length;
 
@@ -16,6 +16,7 @@ library Positions {
             stor[3] = 0;
             stor[4] = 0;
             stor[5] = 0;
+            return mem;
         } else if (count == 4) {
             require(mem[0] != mem[2] || mem[1] != mem[3]);
             stor[0] = mem[0];
@@ -24,6 +25,7 @@ library Positions {
             stor[3] = mem[3];
             stor[4] = 0;
             stor[5] = 0;
+            return mem;
         } else if (count == 6) {
             require(
                 (mem[0] != mem[2] || mem[1] != mem[3]) &&
@@ -36,6 +38,9 @@ library Positions {
             stor[3] = mem[3];
             stor[4] = mem[4];
             stor[5] = mem[5];
+            return mem;
+        } else {
+            return read(stor);
         }
     }
 
