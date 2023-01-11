@@ -175,6 +175,7 @@ contract Ledger {
         }
     }
 
+    // TODO add totalBorrows()
     // TODO helpful to have previewBorrow previewRepay, maxBorrow, maxRepay, etc.?
 
     /*//////////////////////////////////////////////////////////////
