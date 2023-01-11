@@ -13,7 +13,7 @@ contract RateModelTest is Test {
     }
 
     function test_neverReverts(uint256 elapsedTime, uint256 utilization) public {
-        model.computeYieldPerSecond(utilization % (1e18 - 1));
+        model.computeYieldPerSecond(utilization);
         uint256 result = model.getAccrualFactor(elapsedTime, utilization);
 
         assertGe(result, 1e12);
