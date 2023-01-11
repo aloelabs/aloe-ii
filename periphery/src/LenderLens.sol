@@ -22,10 +22,11 @@ contract LenderLens {
         )
     {
         asset = lender.asset();
-
         (totalSupply, inventory, totalBorrows) = lender.stats();
 
-        if (inventory != 0) utilization = Math.mulDiv(1e18, totalBorrows, inventory);
-        interestRate = utilization > 0.5e18 ? 1.24e9 : 6.27e8;
+        if (inventory != 0) {
+            utilization = Math.mulDiv(1e18, totalBorrows, inventory);
+            interestRate = lender.rateModel().computeYieldPerSecond(utilization);
+        }
     }
 }
