@@ -114,7 +114,7 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
         // Write new Uniswap positions to storage iff they're properly formatted and unique
-        positions.write(positions_);
+        positions_ = positions.write(positions_);
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         require(
