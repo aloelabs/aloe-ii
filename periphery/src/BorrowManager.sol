@@ -25,7 +25,7 @@ contract BorrowManager is IManager {
      * @dev actions: 0 = borrow, 1 = repay, 2 = withdraw
      * @return positions
      */
-    function callback(bytes calldata data) public returns (int24[] memory positions) {
+    function callback(bytes calldata data) public returns (uint144) {
         require(FACTORY.isBorrower(msg.sender), "Aloe: bad account");
 
         Borrower account = Borrower(msg.sender);
@@ -78,6 +78,8 @@ contract BorrowManager is IManager {
                 }
             }
         }
+
+        return 0;
     }
 
     /* solhint-enable code-complexity */

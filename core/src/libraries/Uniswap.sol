@@ -2,7 +2,7 @@
 pragma solidity ^0.8.15;
 
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
-import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {FixedPoint128} from "./FixedPoint128.sol";
 import {LiquidityAmounts} from "./LiquidityAmounts.sol";
