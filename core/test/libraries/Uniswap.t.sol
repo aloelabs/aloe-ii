@@ -56,8 +56,8 @@ contract UniswapTest is Test {
             positionInfoB.tokensOwed1
         ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(POSITION_OWNER, position.lower, position.upper)));
 
-        assert(fees0 == positionInfoB.tokensOwed0);
-        assert(fees1 == positionInfoB.tokensOwed1);
+        assertEq(fees0, positionInfoB.tokensOwed0);
+        assertEq(fees1, positionInfoB.tokensOwed1);
     }
 
     function test_gas_getAmountsWithView() public view {
