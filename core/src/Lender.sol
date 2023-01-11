@@ -187,10 +187,9 @@ contract Lender is Ledger {
         (Cache memory cache, ) = _load();
 
         unchecked {
-            if (amount == 0 || (units = (amount * BORROWS_SCALER) / cache.borrowIndex) >= b) {
-                units = b - 1;
-                amount = units.mulDivUp(cache.borrowIndex, BORROWS_SCALER);
-            }
+            units = (amount * BORROWS_SCALER) / cache.borrowIndex;
+            require(units < b, "Aloe: repay too much");
+
             borrows[beneficiary] = b - units;
             cache.borrowBase -= units;
         }
