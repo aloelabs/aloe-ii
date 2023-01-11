@@ -50,7 +50,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 5e18;
         amounts1[0] = 0;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
 
         hoax(hayden);
         borrower.modify(borrowManager, data, allowances);
@@ -76,7 +76,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 0;
         amounts1[0] = 1e15;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
 
         hoax(hayden);
         borrower.modify(borrowManager, data, allowances);
@@ -102,7 +102,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 5e18;
         amounts1[0] = 1e15;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
 
         hoax(hayden);
         borrower.modify(borrowManager, data, allowances);
@@ -132,7 +132,7 @@ contract BorrowManagerTest is Test {
         amounts1[0] = 0;
         amounts1[1] = 1e15;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
 
         hoax(hayden);
         borrower.modify(borrowManager, data, allowances);
@@ -158,7 +158,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 10e19;
         amounts1[0] = 0;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
 
         hoax(hayden);
         vm.expectRevert();
@@ -185,7 +185,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 0;
         amounts1[0] = 10e18;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
 
         hoax(hayden);
         vm.expectRevert();
@@ -211,7 +211,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 5e18;
         amounts1[0] = 0;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
 
         hoax(hayden);
         asset0.approve(address(borrowManager), 5e18);
@@ -238,7 +238,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 0;
         amounts1[0] = 1e18;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
 
         hoax(hayden);
         asset1.approve(address(borrowManager), 1e18);
@@ -265,7 +265,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 5e18;
         amounts1[0] = 1e18;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
 
         hoax(hayden);
         asset0.approve(address(borrowManager), 5e18);
@@ -294,7 +294,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 3e18;
         amounts1[0] = 1e18;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
 
         hoax(hayden);
         asset0.approve(address(borrowManager), 3e18);
@@ -323,7 +323,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 5e18;
         amounts1[0] = 0;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances;
+        bool[2] memory allowances;
 
         hoax(hayden);
         asset0.approve(address(borrowManager), 5e18);
@@ -350,7 +350,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 10e18;
         amounts1[0] = 0;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances = [true, false, false, false];
+        bool[2] memory allowances = [true, false];
 
         hoax(hayden);
         borrower.modify(borrowManager, data, allowances);
@@ -374,7 +374,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 0;
         amounts1[0] = 1e18;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances = [false, true, false, false];
+        bool[2] memory allowances = [false, true];
 
         hoax(hayden);
         borrower.modify(borrowManager, data, allowances);
@@ -398,7 +398,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 5e18;
         amounts1[0] = 0;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances = [true, false, false, false];
+        bool[2] memory allowances = [true, false];
 
         hoax(hayden);
         borrower.modify(borrowManager, data, allowances);
@@ -422,7 +422,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 0;
         amounts1[0] = 1e18;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances = [false, true, false, false];
+        bool[2] memory allowances = [false, true];
 
         hoax(hayden);
         borrower.modify(borrowManager, data, allowances);
@@ -446,7 +446,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 10e18;
         amounts1[0] = 1e18;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances = [true, true, false, false];
+        bool[2] memory allowances = [true, true];
 
         hoax(hayden);
         borrower.modify(borrowManager, data, allowances);
@@ -470,7 +470,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 5e18;
         amounts1[0] = 1e18;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances = [true, true, false, false];
+        bool[2] memory allowances = [true, true];
 
         hoax(hayden);
         borrower.modify(borrowManager, data, allowances);
@@ -494,7 +494,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 11e18;
         amounts1[0] = 0;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances = [true, false, false, false];
+        bool[2] memory allowances = [true, false];
 
         hoax(hayden);
         vm.expectRevert(abi.encodePacked("TRANSFER_FROM_FAILED"));
@@ -519,7 +519,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 0;
         amounts1[0] = 2e18;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances = [false, true, false, false];
+        bool[2] memory allowances = [false, true];
 
         hoax(hayden);
         vm.expectRevert(abi.encodePacked("TRANSFER_FROM_FAILED"));
@@ -544,7 +544,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 10e18;
         amounts1[0] = 2e18;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances = [true, true, false, false];
+        bool[2] memory allowances = [true, true];
 
         hoax(hayden);
         vm.expectRevert(abi.encodePacked("TRANSFER_FROM_FAILED"));
@@ -569,7 +569,7 @@ contract BorrowManagerTest is Test {
         amounts0[0] = 20e18;
         amounts1[0] = 1e18;
         bytes memory data = abi.encode(actions, amounts0, amounts1);
-        bool[4] memory allowances = [true, true, false, false];
+        bool[2] memory allowances = [true, true];
 
         hoax(hayden);
         vm.expectRevert(abi.encodePacked("TRANSFER_FROM_FAILED"));

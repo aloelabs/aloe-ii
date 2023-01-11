@@ -24,11 +24,8 @@ contract BorrowManager is IManager {
      * @param data Obtained from `abi.encode(actions, amounts0, amounts1)`. User should pass this in when calling `borrower.modify`
      * @dev actions: 0 = borrow, 1 = repay, 2 = withdraw
      * @return positions
-     * @return includeLenderReceipts
      */
-    function callback(
-        bytes calldata data
-    ) public returns (Uniswap.Position[] memory positions, bool includeLenderReceipts) {
+    function callback(bytes calldata data) public returns (int24[] memory positions) {
         require(FACTORY.isBorrower(msg.sender), "Aloe: bad account");
 
         Borrower account = Borrower(msg.sender);
@@ -38,7 +35,7 @@ contract BorrowManager is IManager {
             (uint8[], uint256[], uint256[])
         );
 
-        address owner = account.owner();
+        (address owner, ) = account.packedSlot();
 
         ERC20 token0;
         ERC20 token1;
