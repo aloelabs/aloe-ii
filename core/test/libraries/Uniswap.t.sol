@@ -16,7 +16,7 @@ contract UniswapTest is Test {
     Uniswap.Position position;
 
     function setUp() public {
-        vm.createSelectFork(vm.envString("MAINNET_RPC_URL"));
+        vm.createSelectFork(vm.rpcUrl("mainnet"));
         vm.rollFork(15_348_451);
 
         position = Uniswap.Position(187540, 215270);
