@@ -2,7 +2,7 @@
 pragma solidity ^0.8.15;
 
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
-import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {FixedPoint128} from "./FixedPoint128.sol";
 import {LiquidityAmounts} from "./LiquidityAmounts.sol";
@@ -35,7 +35,7 @@ library Uniswap {
         uint256 feeGrowthGlobal1X128;
     }
 
-    /// @dev Wrapper around `IUniswapV3Pool.positions()` that assume position is owned by this contract
+    /// @dev Wrapper around `IUniswapV3Pool.positions()` that assumes `positions` is owned by `this`
     function info(
         Position memory position,
         IUniswapV3Pool pool
