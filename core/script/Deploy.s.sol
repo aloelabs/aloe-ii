@@ -3,9 +3,7 @@ pragma solidity ^0.8.15;
 
 import "forge-std/Script.sol";
 
-import {Borrower} from "../src/Borrower.sol";
 import {Factory, IUniswapV3Pool} from "../src/Factory.sol";
-import {Lender} from "../src/Lender.sol";
 import {RateModel} from "../src/RateModel.sol";
 
 contract DeployScript is Script {
