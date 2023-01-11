@@ -59,7 +59,7 @@ contract PositionsTest is Test {
             assertEq(a[2], b[2]);
             assertEq(a[3], b[3]);
         }
-        if (a.length > 6) {
+        if (a.length > 4) {
             assertEq(a[4], b[4]);
             assertEq(a[5], b[5]);
         }
