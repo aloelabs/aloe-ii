@@ -79,6 +79,17 @@ contract PositionsTest is Test {
         assertEq(filtered[5], zu);
     }
 
+    function test_emptyWrite() public {
+        positions.write(0);
+
+        assertEq(positions[0], 0);
+        assertEq(positions[1], 0);
+        assertEq(positions[2], 0);
+        assertEq(positions[3], 0);
+        assertEq(positions[4], 0);
+        assertEq(positions[5], 0);
+    }
+
     function test_singleWrite(int24 xl, int24 xu) public {
         int24[] memory filtered = positions.write(zip([xl, xu, 0, 0, 0, 0]));
 
@@ -123,6 +134,26 @@ contract PositionsTest is Test {
             assertEq(filtered[2], yl);
             assertEq(filtered[3], yu);
         }
+    }
+
+    function test_doubleWriteSpaceBetween(int24 xl, int24 xu, int24 yl, int24 yu) public {
+        vm.assume(xl != yl || xu != yu);
+        vm.assume(xl != 0 || xu != 0);
+        vm.assume(yl != 0 || yu != 0);
+
+        int24[] memory positions_ = new int24[](6);
+        positions_[0] = xl;
+        positions_[1] = xu;
+        positions_[4] = yl;
+        positions_[5] = yu;
+        positions.write(0);
+
+        assertEq(positions[0], xl);
+        assertEq(positions[1], xu);
+        assertEq(positions[2], 0);
+        assertEq(positions[3], 0);
+        assertEq(positions[4], yl);
+        assertEq(positions[5], yu);
     }
 
     function test_tripleWrite(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu) public {
@@ -170,6 +201,11 @@ contract PositionsTest is Test {
             int24[] memory filtered = positions.write(zip([xl, xu, xl, xu, xl, xu]));
             assertEq(filtered.length, 0);
         }        
+    }
+
+    function test_emptyRead() public {
+        int24[] memory positions_ = positions.read();
+        assertEq(positions_.length, 0);
     }
 
     function test_singleRead(int24 xl, int24 xu) public {
