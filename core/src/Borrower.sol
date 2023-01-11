@@ -8,6 +8,7 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
+import {LiquidationEngine, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {FixedPoint96} from "./libraries/FixedPoint96.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {Oracle} from "./libraries/Oracle.sol";
@@ -31,7 +32,7 @@ interface ILiquidator {
 }
 
 interface IManager {
-    function callback(bytes calldata data) external returns (int24[] memory positions);
+    function callback(bytes calldata data) external returns (uint144 positions);
 }
 
 contract Borrower is IUniswapV3MintCallback {
@@ -39,10 +40,6 @@ contract Borrower is IUniswapV3MintCallback {
     using Positions for int24[6];
 
     uint8 public constant B = 3; // TODO: To make this governable, move it into packedSlot
-
-    uint256 public constant MIN_SIGMA = 1e16;
-
-    uint256 public constant MAX_SIGMA = 15e16;
 
     uint256 public constant ANTE = 0.001 ether; // TODO: To make this governable, move it into packedSlot
 
@@ -64,12 +61,6 @@ contract Borrower is IUniswapV3MintCallback {
     struct PackedSlot {
         address owner;
         bool isInCallback;
-    }
-
-    struct Prices {
-        uint160 a;
-        uint160 b;
-        uint160 c;
     }
 
     PackedSlot public packedSlot;
@@ -102,7 +93,9 @@ contract Borrower is IUniswapV3MintCallback {
         Prices memory prices = _getPrices();
         (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
 
-        require(!_isSolvent(liabilities0, liabilities1, _getAssetsWithdrawingPositions(prices), prices));
+        require(
+            !LiquidationEngine.isSolvent(liabilities0, liabilities1, _getAssets(positions.read(), prices, true), prices)
+        );
 
         uint256 assets0 = TOKEN0.balanceOf(address(this));
         uint256 repayable0 = Math.min(assets0, liabilities0);
@@ -157,22 +150,20 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
 
         packedSlot.isInCallback = true;
-        int24[] memory positions_ = callee.callback(data);
+        // Write new Uniswap positions to storage iff they're properly formatted and unique.
+        // We rely on `_isSolvent` to ensure `_positions.length % 2 == 0` and that each
+        // position obeys Uniswap's expectations for ticks, e.g. tickLower < tickUpper
+        int24[] memory positions_ = positions.write(callee.callback(data));
         packedSlot.isInCallback = false;
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
-        // Write new Uniswap positions to storage iff they're properly formatted and unique.
-        // We rely on `_isSolvent` to ensure `_positions.length % 2 == 0` and that each
-        // position obeys Uniswap's expectations for ticks, e.g. tickLower < tickUpper
-        positions.write(positions_);
-
         Prices memory prices = _getPrices();
         (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
 
         require(
-            _isSolvent(liabilities0, liabilities1, _getAssets(positions_, prices), prices),
+            LiquidationEngine.isSolvent(liabilities0, liabilities1, _getAssets(positions_, prices, false), prices),
             "Aloe: need more margin"
         );
 
@@ -242,14 +233,15 @@ contract Borrower is IUniswapV3MintCallback {
         if (amount1 > 0) TOKEN1.safeTransfer(msg.sender, amount1);
     }
 
-    function _getAssetsWithdrawingPositions(Prices memory prices) private returns (Assets memory assets) {
+    function _getAssets(
+        int24[] memory positions_,
+        Prices memory prices,
+        bool withdraw
+    ) private returns (Assets memory assets) {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
 
-        int24[] memory positions_ = positions.read();
         uint256 count = positions_.length;
-        delete positions;
-
         unchecked {
             for (uint256 i; i < count; i += 2) {
                 uint160 L;
@@ -263,21 +255,24 @@ contract Borrower is IUniswapV3MintCallback {
                     // Fetch amount of `liquidity` in the position
                     (liquidity, , , , ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(address(this), l, u)));
 
-                    // Withdraw all `liquidity` from the position, adding earned fees as fixed assets
-                    (uint256 burned0, uint256 burned1) = UNISWAP_POOL.burn(l, u, liquidity);
-                    (uint256 collected0, uint256 collected1) = UNISWAP_POOL.collect(
-                        address(this),
-                        l,
-                        u,
-                        type(uint128).max,
-                        type(uint128).max
-                    );
-                    assets.fixed0 += collected0 - burned0;
-                    assets.fixed1 += collected1 - burned1;
-
                     // Compute lower and upper sqrt ratios
                     L = TickMath.getSqrtRatioAtTick(l);
                     U = TickMath.getSqrtRatioAtTick(u);
+
+                    // TODO what happens if we attempt to withdraw a position that doesn't exist?
+                    if (withdraw) {
+                        // Withdraw all `liquidity` from the position, adding earned fees as fixed assets
+                        (uint256 burned0, uint256 burned1) = UNISWAP_POOL.burn(l, u, liquidity);
+                        (uint256 collected0, uint256 collected1) = UNISWAP_POOL.collect(
+                            address(this),
+                            l,
+                            u,
+                            type(uint128).max,
+                            type(uint128).max
+                        );
+                        assets.fixed0 += collected0 - burned0;
+                        assets.fixed1 += collected1 - burned1;
+                    }
                 }
 
                 // Compute the value of `liquidity` (in terms of token1) at both probe prices
@@ -304,137 +299,12 @@ contract Borrower is IUniswapV3MintCallback {
 
         // compute prices at which solvency will be checked
         uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
-        (uint160 a, uint160 b) = _computeProbePrices(sqrtMeanPriceX96, sigma);
+        (uint160 a, uint160 b) = LiquidationEngine.computeProbePrices(sqrtMeanPriceX96, sigma, B);
         prices = Prices(a, b, sqrtMeanPriceX96);
-    }
-
-    function _isSolvent(
-        uint256 liabilities0,
-        uint256 liabilities1,
-        Assets memory mem,
-        Prices memory prices
-    ) private pure returns (bool) {
-        // liquidation incentive. counted as liability because account will owe it to someone.
-        // compensates liquidators for inventory risk.
-        uint256 liquidationIncentive = _computeLiquidationIncentive(
-            mem.fixed0 + mem.fluid0C,
-            mem.fixed1 + mem.fluid1C,
-            liabilities0,
-            liabilities1,
-            prices.c
-        );
-        liabilities1 += liquidationIncentive;
-
-        // combine
-        uint224 priceX96;
-        uint256 liabilities;
-        uint256 assets;
-
-        priceX96 = uint224(Math.mulDiv(prices.a, prices.a, FixedPoint96.Q96));
-        liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
-        assets = mem.fluid1A + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
-        if (liabilities > assets) return false;
-
-        // TODO: technically, if liabilities0 < mem.fixed0, we can return true here
-
-        priceX96 = uint224(Math.mulDiv(prices.b, prices.b, FixedPoint96.Q96));
-        liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
-        assets = mem.fluid1B + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
-        if (liabilities > assets) return false;
-
-        return true;
-    }
-
-    struct Assets {
-        uint256 fixed0;
-        uint256 fixed1;
-        uint256 fluid1A;
-        uint256 fluid1B;
-        uint256 fluid0C;
-        uint256 fluid1C;
-    }
-
-    function _getAssets(int24[] memory positions_, Prices memory prices) private view returns (Assets memory assets) {
-        assets.fixed0 = TOKEN0.balanceOf(address(this));
-        assets.fixed1 = TOKEN1.balanceOf(address(this));
-
-        uint256 count = positions_.length;
-        unchecked {
-            for (uint256 i; i < count; i += 2) {
-                uint160 L;
-                uint160 U;
-                uint128 liquidity;
-
-                {
-                    // Load lower and upper ticks from the `positions_` array
-                    int24 l = positions_[i];
-                    int24 u = positions_[i + 1];
-                    if (l == u) continue;
-                    // Fetch amount of `liquidity` in the position
-                    (liquidity, , , , ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(address(this), l, u)));
-
-                    // Compute lower and upper sqrt ratios
-                    L = TickMath.getSqrtRatioAtTick(l);
-                    U = TickMath.getSqrtRatioAtTick(u);
-                }
-
-                // Compute the value of `liquidity` (in terms of token1) at both probe prices
-                assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(prices.a, L, U, liquidity);
-                assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(prices.b, L, U, liquidity);
-
-                // Compute what amounts underlie `liquidity` at the current TWAP
-                (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.c, L, U, liquidity);
-                assets.fluid0C += amount0;
-                assets.fluid1C += amount1;
-            }
-        }
     }
 
     function getLiabilities() public view returns (uint256 amount0, uint256 amount1) {
         amount0 = LENDER0.borrowBalanceStored(address(this));
         amount1 = LENDER1.borrowBalanceStored(address(this));
-    }
-
-    // ⬆️⬆️⬆️⬆️ VIEW FUNCTIONS ⬆️⬆️⬆️⬆️  ------------------------------------------------------------------------------
-    // ⬇️⬇️⬇️⬇️ PURE FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
-
-    function _computeProbePrices(uint160 sqrtMeanPriceX96, uint256 sigma) private pure returns (uint160 a, uint160 b) {
-        unchecked {
-            sigma *= B;
-
-            if (sigma < MIN_SIGMA) sigma = MIN_SIGMA;
-            else if (sigma > MAX_SIGMA) sigma = MAX_SIGMA;
-
-            a = uint160((sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 - sigma)) / 1e9);
-            b = uint160((sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 + sigma)) / 1e9);
-        }
-    }
-
-    function _computeLiquidationIncentive(
-        uint256 assets0,
-        uint256 assets1,
-        uint256 liabilities0,
-        uint256 liabilities1,
-        uint160 sqrtMeanPriceX96
-    ) private pure returns (uint256 reward1) {
-        unchecked {
-            uint256 meanPriceX96 = Math.mulDiv(sqrtMeanPriceX96, sqrtMeanPriceX96, FixedPoint96.Q96);
-
-            if (liabilities0 > assets0) {
-                // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
-                uint256 shortfall = liabilities0 - assets0;
-                // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
-                // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                reward1 += Math.mulDiv(shortfall, 0.05e9 * meanPriceX96, 1e9 * FixedPoint96.Q96);
-            }
-
-            if (liabilities1 > assets1) {
-                // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
-                uint256 shortfall = liabilities1 - assets1;
-                // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
-                // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                reward1 += Math.mulDiv(shortfall, 0.05e9, 1e9);
-            }
-        }
     }
 }

@@ -3,6 +3,8 @@ pragma solidity ^0.8.15;
 
 import "forge-std/Test.sol";
 
+import {zip} from "src/libraries/Positions.sol";
+
 import "src/Borrower.sol";
 import "src/Lender.sol";
 
@@ -116,7 +118,7 @@ contract BorrowerGasTest is Test, IManager {
 
     function callback(
         bytes calldata data
-    ) external returns (int24[] memory positions) {
+    ) external returns (uint144 positions) {
         require(msg.sender == address(account));
 
         (Action action, uint256 amount0, uint256 amount1) = abi.decode(data, (Action, uint256, uint256));
@@ -130,9 +132,7 @@ contract BorrowerGasTest is Test, IManager {
             if (amount0 != 0) asset1.transferFrom(msg.sender, address(this), amount0);
         } else if (action == Action.UNI_DEPOSIT) {
             account.uniswapDeposit(-75600, -75540, 10000000000);
-            positions = new int24[](2);
-            positions[0] = -75600;
-            positions[1] = -75540;
+            positions = zip([-75600, -75540, 0, 0, 0, 0]);
         } else if (action == Action.UNI_WITHDRAW) {
             account.uniswapWithdraw(0, 60, 1000000);
         }

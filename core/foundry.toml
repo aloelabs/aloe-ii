@@ -15,7 +15,7 @@ gas_reports = []
 auto_detect_remappings = true
 
 [fuzz]
-runs = 2048
+runs = 4096
 
 [rpc_endpoints]
 mainnet = "${RPC_URL_MAINNET}"
