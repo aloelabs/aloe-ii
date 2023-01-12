@@ -53,6 +53,14 @@ contract BorrowerTest is Test, IManager {
         lender1.whitelist(address(account));
     }
 
+    function test_liquidateLogicBothAreZero(uint184 liabilities0, uint184 liabilities1) public {
+        unchecked {
+            bool a = liabilities0 == 0 && liabilities1 == 0;
+            bool b = uint256(liabilities0) + uint256(liabilities1) == 0;
+            assertEq(a, b);
+        }
+    }
+
     function test_empty() public {
         bytes memory data = abi.encode(0, 0, 0, 0, 0, 0);
         bool[2] memory allowances;

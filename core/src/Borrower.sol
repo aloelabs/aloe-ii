@@ -18,6 +18,20 @@ import {Uniswap} from "./libraries/Uniswap.sol";
 
 import {Lender} from "./Lender.sol";
 
+interface ILiquidator {
+    function callback0(
+        bytes calldata data,
+        uint256 assets1,
+        uint256 liabilities0
+    ) external returns (uint256 converted0);
+
+    function callback1(
+        bytes calldata data,
+        uint256 assets0,
+        uint256 liabilities1
+    ) external returns (uint256 converted1);
+}
+
 interface IManager {
     function callback(bytes calldata data) external returns (uint144 positions);
 }
@@ -70,26 +84,56 @@ contract Borrower is IUniswapV3MintCallback {
         packedSlot.owner = owner;
     }
 
-    // TODO liquidations
-    function liquidate() external {
+    function liquidate(ILiquidator callee, bytes calldata data) external {
         require(!packedSlot.isInCallback);
 
-        int24[] memory positions_ = positions.read();
-
-        (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         Prices memory prices = _getPrices();
-        Assets memory assets = _getAssets(
-            positions_,
-            Uniswap.FeeComputationCache(
-                currentTick,
-                UNISWAP_POOL.feeGrowthGlobal0X128(),
-                UNISWAP_POOL.feeGrowthGlobal1X128()
-            ),
-            prices
-        );
+        Assets memory assets = _getAssetsAndWithdrawPositions(positions.read(), prices);
 
-        if (!BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices)) packedSlot.owner = msg.sender;
+        require(!BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices));
+
+        uint256 assets0 = TOKEN0.balanceOf(address(this));
+        uint256 repayable0 = Math.min(assets0, liabilities0);
+        liabilities0 -= repayable0;
+
+        uint256 assets1 = TOKEN1.balanceOf(address(this));
+        uint256 repayable1 = Math.min(assets1, liabilities1);
+        liabilities1 -= repayable1;
+
+        // TODO: this is already computed inside of computeLiquidationIncentive, so use that instead of
+        // re-computing it (or at least compare gas between the 2 options)
+        uint256 priceX96 = Math.mulDiv(prices.c, prices.c, FixedPoint96.Q96);
+
+        if (liabilities0 + liabilities1 == 0 || (liabilities0 > 0 && liabilities1 > 0)) {
+            // If both are zero or neither is zero, there's nothing more to do
+            // TODO: compensate liquidators for txn costs using ANTE
+            return;
+        } else if (liabilities0 > 0) {
+            TOKEN1.safeApprove(address(callee), type(uint256).max);
+            uint256 converted0 = callee.callback0(data, assets1 - repayable1, liabilities0);
+            TOKEN1.safeApprove(address(callee), 0);
+
+            uint256 maxLoss1 = Math.mulDiv(converted0 * 105, priceX96, 100 * FixedPoint96.Q96);
+            require(assets1 - TOKEN1.balanceOf(address(this)) <= maxLoss1);
+
+            // TODO: compensate liquidators for txn costs using ANTE
+
+            repayable0 += converted0;
+        } else {
+            TOKEN0.safeApprove(address(callee), type(uint256).max);
+            uint256 converted1 = callee.callback1(data, assets0 - repayable0, liabilities1);
+            TOKEN1.safeApprove(address(callee), 0);
+
+            uint256 maxLoss0 = Math.mulDiv(converted1 * 105, FixedPoint96.Q96, 100 * priceX96);
+            require(assets0 - TOKEN0.balanceOf(address(this)) <= maxLoss0);
+
+            // TODO: compensate liquidators for txn costs using ANTE
+
+            repayable1 += converted1;
+        }
+
+        _repay(repayable0, repayable1);
     }
 
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external {
@@ -183,6 +227,57 @@ contract Borrower is IUniswapV3MintCallback {
         require(msg.sender == address(UNISWAP_POOL));
         if (amount0 > 0) TOKEN0.safeTransfer(msg.sender, amount0);
         if (amount1 > 0) TOKEN1.safeTransfer(msg.sender, amount1);
+    }
+
+    function _getAssetsAndWithdrawPositions(
+        int24[] memory positions_,
+        Prices memory prices
+    ) private returns (Assets memory assets) {
+        assets.fixed0 = TOKEN0.balanceOf(address(this));
+        assets.fixed1 = TOKEN1.balanceOf(address(this));
+
+        uint256 count = positions_.length;
+        unchecked {
+            for (uint256 i; i < count; i += 2) {
+                uint160 L;
+                uint160 U;
+                uint128 liquidity;
+
+                {
+                    // Load lower and upper ticks from the `positions_` array
+                    int24 l = positions_[i];
+                    int24 u = positions_[i + 1];
+                    // Fetch amount of `liquidity` in the position
+                    (liquidity, , , , ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(address(this), l, u)));
+
+                    // Compute lower and upper sqrt ratios
+                    L = TickMath.getSqrtRatioAtTick(l);
+                    U = TickMath.getSqrtRatioAtTick(u);
+
+                    // TODO what happens if we attempt to withdraw a position that doesn't exist?
+                    // Withdraw all `liquidity` from the position, adding earned fees as fixed assets
+                    (uint256 burned0, uint256 burned1) = UNISWAP_POOL.burn(l, u, liquidity);
+                    (uint256 collected0, uint256 collected1) = UNISWAP_POOL.collect(
+                        address(this),
+                        l,
+                        u,
+                        type(uint128).max,
+                        type(uint128).max
+                    );
+                    assets.fixed0 += collected0 - burned0;
+                    assets.fixed1 += collected1 - burned1;
+                }
+
+                // Compute the value of `liquidity` (in terms of token1) at both probe prices
+                assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(prices.a, L, U, liquidity);
+                assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(prices.b, L, U, liquidity);
+
+                // Compute what amounts underlie `liquidity` at the current TWAP
+                (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.c, L, U, liquidity);
+                assets.fluid0C += amount0;
+                assets.fluid1C += amount1;
+            }
+        }
     }
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
