@@ -91,7 +91,7 @@ contract Borrower is IUniswapV3MintCallback {
         require(!packedSlot.isInCallback);
 
         Prices memory prices = _getPrices();
-        (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
+        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
         require(
             !BalanceSheet.isHealthy(liabilities0, liabilities1, _getAssets(positions.read(), prices, true), prices)
@@ -160,7 +160,7 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
         Prices memory prices = _getPrices();
-        (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
+        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
         require(
             BalanceSheet.isHealthy(liabilities0, liabilities1, _getAssets(positions_, prices, false), prices),
@@ -303,7 +303,7 @@ contract Borrower is IUniswapV3MintCallback {
         prices = Prices(a, b, sqrtMeanPriceX96);
     }
 
-    function getLiabilities() public view returns (uint256 amount0, uint256 amount1) {
+    function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
         amount0 = LENDER0.borrowBalanceStored(address(this));
         amount1 = LENDER1.borrowBalanceStored(address(this));
     }
