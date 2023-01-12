@@ -86,17 +86,19 @@ contract Borrower is IUniswapV3MintCallback {
         int24[] memory positions_ = positions.read();
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
-        bool isSolvent = _isSolvent(
+        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+        Prices memory prices = _getPrices();
+        Assets memory assets = _getAssets(
             positions_,
             Uniswap.FeeComputationCache(
                 currentTick,
                 UNISWAP_POOL.feeGrowthGlobal0X128(),
                 UNISWAP_POOL.feeGrowthGlobal1X128()
             ),
-            _getPrices()
+            prices
         );
 
-        if (!isSolvent) packedSlot.owner = msg.sender;
+        if (!_isSolvent(liabilities0, liabilities1, assets, prices)) packedSlot.owner = msg.sender;
     }
 
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external {
@@ -114,18 +116,19 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
-        require(
-            _isSolvent(
-                positions_,
-                Uniswap.FeeComputationCache(
-                    currentTick,
-                    UNISWAP_POOL.feeGrowthGlobal0X128(),
-                    UNISWAP_POOL.feeGrowthGlobal1X128()
-                ),
-                _getPrices()
+        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+        Prices memory prices = _getPrices();
+        Assets memory assets = _getAssets(
+            positions_,
+            Uniswap.FeeComputationCache(
+                currentTick,
+                UNISWAP_POOL.feeGrowthGlobal0X128(),
+                UNISWAP_POOL.feeGrowthGlobal1X128()
             ),
-            "Aloe: need more margin"
+            prices
         );
+
+        require(_isSolvent(liabilities0, liabilities1, assets, prices), "Aloe: need more margin");
     }
 
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
@@ -208,13 +211,11 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function _isSolvent(
-        int24[] memory positions_,
-        Uniswap.FeeComputationCache memory c1,
+        uint256 liabilities0,
+        uint256 liabilities1,
+        Assets memory mem,
         Prices memory prices
-    ) private view returns (bool) {
-        Assets memory mem = _getAssets(positions_, c1, prices);
-        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-
+    ) private pure returns (bool) {
         // liquidation incentive. counted as liability because account will owe it to someone.
         // compensates liquidators for inventory risk.
         uint256 liquidationIncentive = _computeLiquidationIncentive(
@@ -224,16 +225,7 @@ contract Borrower is IUniswapV3MintCallback {
             liabilities1,
             prices.c
         );
-        // some useless configurations (e.g. just borrow and hold) create no inventory risk for
-        // liquidators, but may still need to be liquidated due to interest accrual. to service gas
-        // costs and prevent overall griefing, we give liabilities an extra bump.
-        // note: requiring some minimum amount of margin would accomplish something similar,
-        //       but it's unclear what that amount would be for a given arbitrary asset
-        // TODO simply require a minimum deposit of ETH when creating the margin account
-        // could offer different, governance-controlled tiers. so unlimited tier may require
-        // 100 * baseRateGasPrice * expectedGasNecessaryForLiquidation, but governance could
-        // say "Oh you only put 10 * baseRate, you can still use the product but you have a cap
-        // on total leverage and/or total borrows"
+
         unchecked {
             liabilities0 = (liabilities0 * 1.005e18) / 1e18;
             liabilities1 = (liabilities1 * 1.005e18) / 1e18 + liquidationIncentive;
@@ -277,7 +269,6 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 count = positions_.length;
         for (uint256 i; i < count; i += 2) {
             Uniswap.Position memory position = Uniswap.Position(positions_[i], positions_[i + 1]);
-            if (position.lower == position.upper) continue;
 
             Uniswap.PositionInfo memory info = position.info(UNISWAP_POOL);
 
