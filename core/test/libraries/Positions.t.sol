@@ -19,6 +19,19 @@ contract PositionsTest is Test {
         positions[5] = 678;
     }
 
+    function test_zip(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu) public {
+        uint256 zipped = zip([xl, xu, yl, yu, zl, zu]);
+
+        unchecked {
+            assertEq(int24(int256(zipped % (1 << 24))), xl);
+            assertEq(int24(int256((zipped >> 24) % (1 << 24))), xu);
+            assertEq(int24(int256((zipped >> 48) % (1 << 24))), yl);
+            assertEq(int24(int256((zipped >> 72) % (1 << 24))), yu);
+            assertEq(int24(int256((zipped >> 96) % (1 << 24))), zl);
+            assertEq(int24(int256((zipped >> 120) % (1 << 24))), zu);
+        }
+    }
+
     function test_emptyWrite(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu) public {
         positions[0] = xl;
         positions[1] = xu;
