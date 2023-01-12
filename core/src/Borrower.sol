@@ -41,10 +41,10 @@ contract Borrower is IUniswapV3MintCallback {
     /// @notice The second token of the Uniswap pair
     ERC20 public immutable TOKEN1;
 
-    /// @notice TODO
+    /// @notice The lender of `TOKEN0`
     Lender public immutable LENDER0;
 
-    /// @notice TODO
+    /// @notice The lender of `TOKEN1`
     Lender public immutable LENDER1;
 
     struct PackedSlot {
@@ -52,7 +52,7 @@ contract Borrower is IUniswapV3MintCallback {
         bool isInCallback;
     }
 
-    struct SolvencyCache {
+    struct Prices {
         uint160 a;
         uint160 b;
         uint160 c;
@@ -93,7 +93,7 @@ contract Borrower is IUniswapV3MintCallback {
                 UNISWAP_POOL.feeGrowthGlobal0X128(),
                 UNISWAP_POOL.feeGrowthGlobal1X128()
             ),
-            _getSolvencyCache()
+            _getPrices()
         );
 
         if (!isSolvent) packedSlot.owner = msg.sender;
@@ -122,7 +122,7 @@ contract Borrower is IUniswapV3MintCallback {
                     UNISWAP_POOL.feeGrowthGlobal0X128(),
                     UNISWAP_POOL.feeGrowthGlobal1X128()
                 ),
-                _getSolvencyCache()
+                _getPrices()
             ),
             "Aloe: need more margin"
         );
@@ -131,8 +131,8 @@ contract Borrower is IUniswapV3MintCallback {
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
         require(packedSlot.isInCallback);
 
-        if (amount0 != 0) LENDER0.borrow(amount0, recipient);
-        if (amount1 != 0) LENDER1.borrow(amount1, recipient);
+        if (amount0 > 0) LENDER0.borrow(amount0, recipient);
+        if (amount1 > 0) LENDER1.borrow(amount1, recipient);
     }
 
     // Technically uneccessary. but:
@@ -141,12 +141,15 @@ contract Borrower is IUniswapV3MintCallback {
     // --> Keep because it allows integrators to repay debts without configuring the `allowances` bool array
     function repay(uint256 amount0, uint256 amount1) external {
         require(packedSlot.isInCallback);
+        _repay(amount0, amount1);
+    }
 
-        if (amount0 != 0) {
+    function _repay(uint256 amount0, uint256 amount1) private {
+        if (amount0 > 0) {
             TOKEN0.safeTransfer(address(LENDER0), amount0);
             LENDER0.repay(amount0, address(this));
         }
-        if (amount1 != 0) {
+        if (amount1 > 0) {
             TOKEN1.safeTransfer(address(LENDER1), amount1);
             LENDER1.repay(amount1, address(this));
         }
@@ -184,8 +187,8 @@ contract Borrower is IUniswapV3MintCallback {
     /// @dev Callback for Uniswap V3 pool.
     function uniswapV3MintCallback(uint256 amount0, uint256 amount1, bytes calldata) external {
         require(msg.sender == address(UNISWAP_POOL));
-        if (amount0 != 0) TOKEN0.safeTransfer(msg.sender, amount0);
-        if (amount1 != 0) TOKEN1.safeTransfer(msg.sender, amount1);
+        if (amount0 > 0) TOKEN0.safeTransfer(msg.sender, amount0);
+        if (amount1 > 0) TOKEN1.safeTransfer(msg.sender, amount1);
     }
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
@@ -194,23 +197,23 @@ contract Borrower is IUniswapV3MintCallback {
         return positions.read();
     }
 
-    function _getSolvencyCache() private view returns (SolvencyCache memory c) {
+    function _getPrices() private view returns (Prices memory prices) {
         (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
         uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
 
         // compute prices at which solvency will be checked
         uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
         (uint160 a, uint160 b) = _computeProbePrices(sqrtMeanPriceX96, sigma);
-        c = SolvencyCache(a, b, sqrtMeanPriceX96);
+        prices = Prices(a, b, sqrtMeanPriceX96);
     }
 
     function _isSolvent(
         int24[] memory positions_,
         Uniswap.FeeComputationCache memory c1,
-        SolvencyCache memory c2
+        Prices memory prices
     ) private view returns (bool) {
-        Assets memory mem = _getAssets(positions_, c1, c2);
-        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+        Assets memory mem = _getAssets(positions_, c1, prices);
+        (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
 
         // liquidation incentive. counted as liability because account will owe it to someone.
         // compensates liquidators for inventory risk.
@@ -219,7 +222,7 @@ contract Borrower is IUniswapV3MintCallback {
             mem.fixed1 + mem.fluid1C,
             liabilities0,
             liabilities1,
-            c2.c
+            prices.c
         );
         // some useless configurations (e.g. just borrow and hold) create no inventory risk for
         // liquidators, but may still need to be liquidated due to interest accrual. to service gas
@@ -241,12 +244,12 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 liabilities;
         uint256 assets;
 
-        priceX96 = uint224(Math.mulDiv(c2.a, c2.a, FixedPoint96.Q96));
+        priceX96 = uint224(Math.mulDiv(prices.a, prices.a, FixedPoint96.Q96));
         liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
         assets = mem.fluid1A + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
         if (liabilities > assets) return false;
 
-        priceX96 = uint224(Math.mulDiv(c2.b, c2.b, FixedPoint96.Q96));
+        priceX96 = uint224(Math.mulDiv(prices.b, prices.b, FixedPoint96.Q96));
         liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
         assets = mem.fluid1B + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
         if (liabilities > assets) return false;
@@ -266,7 +269,7 @@ contract Borrower is IUniswapV3MintCallback {
     function _getAssets(
         int24[] memory positions_,
         Uniswap.FeeComputationCache memory c1,
-        SolvencyCache memory c2
+        Prices memory c2
     ) private view returns (Assets memory assets) {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
@@ -294,7 +297,7 @@ contract Borrower is IUniswapV3MintCallback {
         }
     }
 
-    function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
+    function getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
         amount0 = LENDER0.borrowBalanceStored(address(this));
         amount1 = LENDER1.borrowBalanceStored(address(this));
     }
