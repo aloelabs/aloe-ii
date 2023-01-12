@@ -8,7 +8,7 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {LiquidationEngine, Assets, Prices} from "./libraries/BalanceSheet.sol";
+import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {FixedPoint96} from "./libraries/FixedPoint96.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {Oracle} from "./libraries/Oracle.sol";
@@ -52,10 +52,10 @@ contract Borrower is IUniswapV3MintCallback {
     /// @notice The second token of the Uniswap pair
     ERC20 public immutable TOKEN1;
 
-    /// @notice The lender for `TOKEN0`
+    /// @notice The lender of `TOKEN0`
     Lender public immutable LENDER0;
 
-    /// @notice The lender for `TOKEN1`
+    /// @notice The lender of `TOKEN1`
     Lender public immutable LENDER1;
 
     struct PackedSlot {
@@ -94,7 +94,7 @@ contract Borrower is IUniswapV3MintCallback {
         (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
 
         require(
-            !LiquidationEngine.isSolvent(liabilities0, liabilities1, _getAssets(positions.read(), prices, true), prices)
+            !BalanceSheet.isHealthy(liabilities0, liabilities1, _getAssets(positions.read(), prices, true), prices)
         );
 
         uint256 assets0 = TOKEN0.balanceOf(address(this));
@@ -163,7 +163,7 @@ contract Borrower is IUniswapV3MintCallback {
         (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
 
         require(
-            LiquidationEngine.isSolvent(liabilities0, liabilities1, _getAssets(positions_, prices, false), prices),
+            BalanceSheet.isHealthy(liabilities0, liabilities1, _getAssets(positions_, prices, false), prices),
             "Aloe: need more margin"
         );
 
@@ -299,7 +299,7 @@ contract Borrower is IUniswapV3MintCallback {
 
         // compute prices at which solvency will be checked
         uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
-        (uint160 a, uint160 b) = LiquidationEngine.computeProbePrices(sqrtMeanPriceX96, sigma, B);
+        (uint160 a, uint160 b) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, sigma, B);
         prices = Prices(a, b, sqrtMeanPriceX96);
     }
 

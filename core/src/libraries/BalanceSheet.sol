@@ -6,17 +6,6 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import {FixedPoint96} from "./FixedPoint96.sol";
 
-// struct BalanceSheet {
-//     uint256 fixed0;
-//     uint256 fixed1;
-//     uint256 fluid1A;
-//     uint256 fluid1B;
-//     uint256 fluid0C;
-//     uint256 fluid1C;
-//     uint256 liabilities0;
-//     uint256 liabilities1;
-// }
-
 struct Assets {
     uint256 fixed0;
     uint256 fixed1;
@@ -32,12 +21,12 @@ struct Prices {
     uint160 c;
 }
 
-library LiquidationEngine {
+library BalanceSheet {
     uint256 public constant MIN_SIGMA = 2e16;
 
     uint256 public constant MAX_SIGMA = 15e16;
 
-    function isSolvent(
+    function isHealthy(
         uint256 liabilities0,
         uint256 liabilities1,
         Assets memory mem,
@@ -52,7 +41,11 @@ library LiquidationEngine {
             liabilities1,
             prices.c
         );
-        liabilities1 += liquidationIncentive;
+
+        unchecked {
+            liabilities0 = (liabilities0 * 1.005e18) / 1e18;
+            liabilities1 = (liabilities1 * 1.005e18) / 1e18 + liquidationIncentive;
+        } // TODO is unchecked safe here?
 
         // combine
         uint224 priceX96;
