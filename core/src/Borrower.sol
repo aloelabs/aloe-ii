@@ -109,8 +109,8 @@ contract Borrower is IUniswapV3MintCallback {
         // re-computing it (or at least compare gas between the 2 options)
         uint256 priceX96 = Math.mulDiv(prices.c, prices.c, FixedPoint96.Q96);
 
-        // If both are zero or neither is zero, there's nothing more to do
-        if (liabilities0 + liabilities1 == 0 || liabilities0 * liabilities1 > 0) {
+        if (liabilities0 + liabilities1 == 0 || (liabilities0 > 0 && liabilities1 > 0)) {
+            // If both are zero or neither is zero, there's nothing more to do
             payable(msg.sender).transfer(ANTE);
             return;
         } else if (liabilities0 > 0) {
