@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
+import {MIN_RESERVE_FACTOR, MAX_RESERVE_FACTOR} from "./libraries/constants/Constants.sol";
+import {Q112} from "./libraries/constants/Q.sol";
 import {SafeCastLib} from "./libraries/SafeCastLib.sol";
 
 import {Ledger} from "./Ledger.sol";
@@ -15,9 +16,9 @@ interface IFlashBorrower {
 }
 
 contract Lender is Ledger {
-    using SafeTransferLib for ERC20;
     using FixedPointMathLib for uint256;
     using SafeCastLib for uint256;
+    using SafeTransferLib for ERC20;
 
     event Approval(address indexed owner, address indexed spender, uint256 amount);
 
@@ -48,7 +49,7 @@ contract Lender is Ledger {
         initialChainId = block.chainid;
 
         rateModel = rateModel_;
-        require(4 <= reserveFactor_ && reserveFactor_ <= 20);
+        require(MIN_RESERVE_FACTOR <= reserveFactor_ && reserveFactor_ <= MAX_RESERVE_FACTOR);
         reserveFactor = reserveFactor_;
     }
 

@@ -2,14 +2,14 @@
 pragma solidity ^0.8.15;
 
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
-import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
+import {LIQUIDATION_INCENTIVE} from "./libraries/constants/Constants.sol";
+import {Q96} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
-import {FixedPoint96} from "./libraries/FixedPoint96.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {Oracle} from "./libraries/Oracle.sol";
 import {Positions} from "./libraries/Positions.sol";
@@ -103,7 +103,7 @@ contract Borrower is IUniswapV3MintCallback {
 
         // TODO: this is already computed inside of computeLiquidationIncentive, so use that instead of
         // re-computing it (or at least compare gas between the 2 options)
-        uint256 priceX96 = Math.mulDiv(prices.c, prices.c, FixedPoint96.Q96);
+        uint256 priceX96 = Math.mulDiv(prices.c, prices.c, Q96);
 
         if (liabilities0 + liabilities1 == 0 || (liabilities0 > 0 && liabilities1 > 0)) {
             // If both are zero or neither is zero, there's nothing more to do
@@ -114,7 +114,8 @@ contract Borrower is IUniswapV3MintCallback {
             uint256 converted0 = callee.callback0(data, assets1 - repayable1, liabilities0);
             TOKEN1.safeApprove(address(callee), 0);
 
-            uint256 maxLoss1 = Math.mulDiv(converted0 * 105, priceX96, 100 * FixedPoint96.Q96);
+            uint256 maxLoss1 = Math.mulDiv(converted0, priceX96, Q96);
+            maxLoss1 += maxLoss1 / LIQUIDATION_INCENTIVE;
             require(assets1 - TOKEN1.balanceOf(address(this)) <= maxLoss1);
 
             // TODO: compensate liquidators for txn costs using ANTE
@@ -123,9 +124,10 @@ contract Borrower is IUniswapV3MintCallback {
         } else {
             TOKEN0.safeApprove(address(callee), type(uint256).max);
             uint256 converted1 = callee.callback1(data, assets0 - repayable0, liabilities1);
-            TOKEN1.safeApprove(address(callee), 0);
+            TOKEN0.safeApprove(address(callee), 0);
 
-            uint256 maxLoss0 = Math.mulDiv(converted1 * 105, FixedPoint96.Q96, 100 * priceX96);
+            uint256 maxLoss0 = Math.mulDiv(converted1 * 105, Q96, 100 * priceX96);
+            maxLoss0 += maxLoss0 / LIQUIDATION_INCENTIVE;
             require(assets0 - TOKEN0.balanceOf(address(this)) <= maxLoss0);
 
             // TODO: compensate liquidators for txn costs using ANTE

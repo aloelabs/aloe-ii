@@ -6,14 +6,14 @@ import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
+import {Q112} from "./libraries/constants/Q.sol";
+
 import {RateModel} from "./RateModel.sol";
 
 contract Ledger {
     using FixedPointMathLib for uint256;
 
     uint256 internal constant ONE = 1e12;
-
-    uint256 internal constant Q112 = 1 << 112;
 
     uint256 internal constant BORROWS_SCALER = type(uint72).max * ONE; // uint72 is from borrowIndex type
 

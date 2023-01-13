@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.15;
 
-uint256 constant Q24 = 0x1000000;
+import {Q24} from "./constants/Q.sol";
 
 /**
  * @notice Compresses `positions` into `zipped`. Useful for creating the return value of `IManager.callback`
