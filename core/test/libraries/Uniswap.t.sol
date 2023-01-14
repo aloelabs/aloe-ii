@@ -22,16 +22,50 @@ contract UniswapTest is Test {
         position = Uniswap.Position(187540, 215270);
     }
 
+    function test_burnBehaviour() public {
+        Uniswap.PositionInfo memory positionInfo = position.info(UNISWAP_POOL, POSITION_OWNER);
+
+        vm.expectRevert(bytes("LS"));
+        vm.prank(POSITION_OWNER);
+        UNISWAP_POOL.burn(position.lower - 1, position.upper, positionInfo.liquidity);
+
+        vm.expectRevert(bytes("TLU"));
+        vm.prank(POSITION_OWNER);
+        UNISWAP_POOL.burn(position.upper, position.lower, positionInfo.liquidity);
+
+        // Should be able to burn all liquidity, obviously
+        vm.prank(POSITION_OWNER);
+        UNISWAP_POOL.burn(position.lower, position.upper, positionInfo.liquidity);
+
+        // All liquidity is gone now, so we shouldn't be able to burn it again
+        vm.expectRevert(bytes("LS"));
+        vm.prank(POSITION_OWNER);
+        UNISWAP_POOL.burn(position.lower, position.upper, positionInfo.liquidity);
+
+        // Uniswap won't even allow us to poke the position if it has 0 liquidity
+        vm.expectRevert(bytes("NP"));
+        vm.prank(POSITION_OWNER);
+        UNISWAP_POOL.burn(position.lower, position.upper, 0);
+
+        // But checking info should still work
+        position.info(UNISWAP_POOL, POSITION_OWNER);
+
+        // And collecting should work
+        vm.prank(POSITION_OWNER);
+        UNISWAP_POOL.collect(address(this), position.lower, position.upper, type(uint128).max, type(uint128).max);
+
+        // Again
+        vm.prank(POSITION_OWNER);
+        UNISWAP_POOL.collect(address(this), position.lower, position.upper, type(uint128).max, type(uint128).max);
+
+        position.lower = position.upper + 123;
+        positionInfo = position.info(UNISWAP_POOL, POSITION_OWNER);
+        assertEq(positionInfo.liquidity, 0);
+    }
+
     function test_fees() public {
         (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
-        Uniswap.PositionInfo memory positionInfoA;
-        (
-            positionInfoA.liquidity,
-            positionInfoA.feeGrowthInside0LastX128,
-            positionInfoA.feeGrowthInside1LastX128,
-            positionInfoA.tokensOwed0,
-            positionInfoA.tokensOwed1
-        ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(POSITION_OWNER, position.lower, position.upper)));
+        Uniswap.PositionInfo memory positionInfoA = position.info(UNISWAP_POOL, POSITION_OWNER);
 
         // library function (view-only)
         (uint256 fees0, uint256 fees1) = position.fees(
@@ -47,28 +81,14 @@ contract UniswapTest is Test {
         // poke (state-changing)
         vm.prank(POSITION_OWNER);
         UNISWAP_POOL.burn(position.lower, position.upper, 0);
-        Uniswap.PositionInfo memory positionInfoB;
-        (
-            positionInfoB.liquidity,
-            positionInfoB.feeGrowthInside0LastX128,
-            positionInfoB.feeGrowthInside1LastX128,
-            positionInfoB.tokensOwed0,
-            positionInfoB.tokensOwed1
-        ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(POSITION_OWNER, position.lower, position.upper)));
+        Uniswap.PositionInfo memory positionInfoB = position.info(UNISWAP_POOL, POSITION_OWNER);
 
         assertEq(fees0, positionInfoB.tokensOwed0);
         assertEq(fees1, positionInfoB.tokensOwed1);
     }
 
     function test_gas_getAmountsWithView() public view {
-        Uniswap.PositionInfo memory positionInfo;
-        (
-            positionInfo.liquidity,
-            positionInfo.feeGrowthInside0LastX128,
-            positionInfo.feeGrowthInside1LastX128,
-            positionInfo.tokensOwed0,
-            positionInfo.tokensOwed1
-        ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(POSITION_OWNER, position.lower, position.upper)));
+        Uniswap.PositionInfo memory positionInfo = position.info(UNISWAP_POOL, POSITION_OWNER);
 
         (uint160 sqrtPriceX96, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         (uint256 fees0, uint256 fees1) = position.fees(
@@ -87,7 +107,9 @@ contract UniswapTest is Test {
     }
 
     function test_gas_getAmountsWithPoke() public {
+        vm.pauseGasMetering();
         vm.prank(POSITION_OWNER);
+        vm.resumeGasMetering();
         UNISWAP_POOL.burn(position.lower, position.upper, 0);
 
         (uint128 liquidity, , , uint256 fees0, uint256 fees1) = UNISWAP_POOL.positions(

@@ -252,11 +252,12 @@ contract Borrower is IUniswapV3MintCallback {
                     // Fetch amount of `liquidity` in the position
                     (liquidity, , , , ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(address(this), l, u)));
 
+                    if (liquidity == 0) continue;
+
                     // Compute lower and upper sqrt ratios
                     L = TickMath.getSqrtRatioAtTick(l);
                     U = TickMath.getSqrtRatioAtTick(u);
 
-                    // TODO what happens if we attempt to withdraw a position that doesn't exist?
                     // Withdraw all `liquidity` from the position, adding earned fees as fixed assets
                     (uint256 burned0, uint256 burned1) = UNISWAP_POOL.burn(l, u, liquidity);
                     (uint256 collected0, uint256 collected1) = UNISWAP_POOL.collect(
