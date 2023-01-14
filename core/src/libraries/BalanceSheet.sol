@@ -4,7 +4,8 @@ pragma solidity ^0.8.15;
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
-import {FixedPoint96} from "./FixedPoint96.sol";
+import {MIN_SIGMA, MAX_SIGMA, MAX_LEVERAGE, LIQUIDATION_INCENTIVE} from "./constants/Constants.sol";
+import {Q96} from "./constants/Q.sol";
 
 struct Assets {
     uint256 fixed0;
@@ -22,10 +23,6 @@ struct Prices {
 }
 
 library BalanceSheet {
-    uint256 public constant MIN_SIGMA = 2e16;
-
-    uint256 public constant MAX_SIGMA = 15e16;
-
     function isHealthy(
         uint256 liabilities0,
         uint256 liabilities1,
@@ -43,23 +40,23 @@ library BalanceSheet {
         );
 
         unchecked {
-            liabilities0 = (liabilities0 * 1.005e18) / 1e18;
-            liabilities1 = (liabilities1 * 1.005e18) / 1e18 + liquidationIncentive;
-        } // TODO is unchecked safe here?
+            liabilities0 += liabilities0 / MAX_LEVERAGE;
+            liabilities1 += liabilities1 / MAX_LEVERAGE + liquidationIncentive;
+        }
 
         // combine
         uint224 priceX96;
         uint256 liabilities;
         uint256 assets;
 
-        priceX96 = uint224(Math.mulDiv(prices.a, prices.a, FixedPoint96.Q96));
-        liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
-        assets = mem.fluid1A + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
+        priceX96 = uint224(Math.mulDiv(prices.a, prices.a, Q96));
+        liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, Q96);
+        assets = mem.fluid1A + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, Q96);
         if (liabilities > assets) return false;
 
-        priceX96 = uint224(Math.mulDiv(prices.b, prices.b, FixedPoint96.Q96));
-        liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, FixedPoint96.Q96);
-        assets = mem.fluid1B + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, FixedPoint96.Q96);
+        priceX96 = uint224(Math.mulDiv(prices.b, prices.b, Q96));
+        liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, Q96);
+        assets = mem.fluid1B + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, Q96);
         if (liabilities > assets) return false;
 
         return true;
@@ -89,14 +86,14 @@ library BalanceSheet {
         uint160 sqrtMeanPriceX96
     ) private pure returns (uint256 reward1) {
         unchecked {
-            uint256 meanPriceX96 = Math.mulDiv(sqrtMeanPriceX96, sqrtMeanPriceX96, FixedPoint96.Q96);
+            uint256 meanPriceX96 = Math.mulDiv(sqrtMeanPriceX96, sqrtMeanPriceX96, Q96);
 
             if (liabilities0 > assets0) {
                 // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
                 uint256 shortfall = liabilities0 - assets0;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                reward1 += Math.mulDiv(shortfall, 0.05e9 * meanPriceX96, 1e9 * FixedPoint96.Q96);
+                reward1 += Math.mulDiv(shortfall, meanPriceX96, Q96) / LIQUIDATION_INCENTIVE;
             }
 
             if (liabilities1 > assets1) {
@@ -104,7 +101,7 @@ library BalanceSheet {
                 uint256 shortfall = liabilities1 - assets1;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                reward1 += Math.mulDiv(shortfall, 0.05e9, 1e9);
+                reward1 += shortfall / LIQUIDATION_INCENTIVE;
             }
         }
     }

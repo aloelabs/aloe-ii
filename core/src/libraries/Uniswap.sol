@@ -4,7 +4,7 @@ pragma solidity ^0.8.15;
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {FixedPoint128} from "./FixedPoint128.sol";
+import {Q128} from "./constants/Q.sol";
 import {LiquidityAmounts} from "./LiquidityAmounts.sol";
 import {TickMath} from "./TickMath.sol";
 
@@ -169,19 +169,11 @@ library Uniswap {
         unchecked {
             amount0 =
                 positionInfo.tokensOwed0 +
-                Math.mulDiv(
-                    feeGrowthInside0X128 - positionInfo.feeGrowthInside0LastX128,
-                    positionInfo.liquidity,
-                    FixedPoint128.Q128
-                );
+                Math.mulDiv(feeGrowthInside0X128 - positionInfo.feeGrowthInside0LastX128, positionInfo.liquidity, Q128);
 
             amount1 =
                 positionInfo.tokensOwed1 +
-                Math.mulDiv(
-                    feeGrowthInside1X128 - positionInfo.feeGrowthInside1LastX128,
-                    positionInfo.liquidity,
-                    FixedPoint128.Q128
-                );
+                Math.mulDiv(feeGrowthInside1X128 - positionInfo.feeGrowthInside1LastX128, positionInfo.liquidity, Q128);
         }
     }
 }
