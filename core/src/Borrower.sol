@@ -14,7 +14,6 @@ import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {Oracle} from "./libraries/Oracle.sol";
 import {Positions} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
-import {Uniswap} from "./libraries/Uniswap.sol";
 
 import {Lender} from "./Lender.sol";
 
@@ -39,7 +38,6 @@ interface IManager {
 contract Borrower is IUniswapV3MintCallback {
     using SafeTransferLib for ERC20;
     using Positions for int24[6];
-    using Uniswap for Uniswap.Position;
 
     uint8 public constant B = 3;
 
@@ -256,7 +254,6 @@ contract Borrower is IUniswapV3MintCallback {
 
                 if (!withdraw) continue;
 
-                // if (withdraw) {
                 // Withdraw all `liquidity` from the position, adding earned fees as fixed assets
                 (uint256 burned0, uint256 burned1) = UNISWAP_POOL.burn(l, u, liquidity);
                 (uint256 collected0, uint256 collected1) = UNISWAP_POOL.collect(
@@ -268,12 +265,9 @@ contract Borrower is IUniswapV3MintCallback {
                 );
                 assets.fixed0 += collected0 - burned0;
                 assets.fixed1 += collected1 - burned1;
-                // }
             }
         }
     }
-
-    // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
     function getUniswapPositions() external view returns (int24[] memory) {
         return positions.read();
