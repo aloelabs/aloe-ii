@@ -88,8 +88,8 @@ contract Borrower is IUniswapV3MintCallback {
         require(!packedSlot.isInCallback);
 
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-        Prices memory prices = _getPrices();
-        Assets memory assets = _getAssetsAndWithdrawPositions(positions.read(), prices);
+        Prices memory prices = getPrices();
+        Assets memory assets = _getAssets(positions.read(), prices, true);
 
         require(!BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices));
 
@@ -152,18 +152,9 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
-        (, int24 currentTick, , , , , ) = UNISWAP_POOL.slot0();
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-        Prices memory prices = _getPrices();
-        Assets memory assets = _getAssets(
-            positions_,
-            Uniswap.FeeComputationCache(
-                currentTick,
-                UNISWAP_POOL.feeGrowthGlobal0X128(),
-                UNISWAP_POOL.feeGrowthGlobal1X128()
-            ),
-            prices
-        );
+        Prices memory prices = getPrices();
+        Assets memory assets = _getAssets(positions_, prices, false);
 
         require(BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices), "Aloe: need more margin");
     }
@@ -231,9 +222,10 @@ contract Borrower is IUniswapV3MintCallback {
         if (amount1 > 0) TOKEN1.safeTransfer(msg.sender, amount1);
     }
 
-    function _getAssetsAndWithdrawPositions(
+    function _getAssets(
         int24[] memory positions_,
-        Prices memory prices
+        Prices memory prices,
+        bool withdraw
     ) private returns (Assets memory assets) {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
@@ -241,35 +233,17 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 count = positions_.length;
         unchecked {
             for (uint256 i; i < count; i += 2) {
-                uint160 L;
-                uint160 U;
-                uint128 liquidity;
+                // Load lower and upper ticks from the `positions_` array
+                int24 l = positions_[i];
+                int24 u = positions_[i + 1];
+                // Fetch amount of `liquidity` in the position
+                (uint128 liquidity, , , , ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(address(this), l, u)));
 
-                {
-                    // Load lower and upper ticks from the `positions_` array
-                    int24 l = positions_[i];
-                    int24 u = positions_[i + 1];
-                    // Fetch amount of `liquidity` in the position
-                    (liquidity, , , , ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(address(this), l, u)));
+                if (liquidity == 0) continue;
 
-                    if (liquidity == 0) continue;
-
-                    // Compute lower and upper sqrt ratios
-                    L = TickMath.getSqrtRatioAtTick(l);
-                    U = TickMath.getSqrtRatioAtTick(u);
-
-                    // Withdraw all `liquidity` from the position, adding earned fees as fixed assets
-                    (uint256 burned0, uint256 burned1) = UNISWAP_POOL.burn(l, u, liquidity);
-                    (uint256 collected0, uint256 collected1) = UNISWAP_POOL.collect(
-                        address(this),
-                        l,
-                        u,
-                        type(uint128).max,
-                        type(uint128).max
-                    );
-                    assets.fixed0 += collected0 - burned0;
-                    assets.fixed1 += collected1 - burned1;
-                }
+                // Compute lower and upper sqrt ratios
+                uint160 L = TickMath.getSqrtRatioAtTick(l);
+                uint160 U = TickMath.getSqrtRatioAtTick(u);
 
                 // Compute the value of `liquidity` (in terms of token1) at both probe prices
                 assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(prices.a, L, U, liquidity);
@@ -279,17 +253,33 @@ contract Borrower is IUniswapV3MintCallback {
                 (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.c, L, U, liquidity);
                 assets.fluid0C += amount0;
                 assets.fluid1C += amount1;
+
+                if (!withdraw) continue;
+
+                // if (withdraw) {
+                // Withdraw all `liquidity` from the position, adding earned fees as fixed assets
+                (uint256 burned0, uint256 burned1) = UNISWAP_POOL.burn(l, u, liquidity);
+                (uint256 collected0, uint256 collected1) = UNISWAP_POOL.collect(
+                    address(this),
+                    l,
+                    u,
+                    type(uint128).max,
+                    type(uint128).max
+                );
+                assets.fixed0 += collected0 - burned0;
+                assets.fixed1 += collected1 - burned1;
+                // }
             }
         }
     }
 
     // ⬇️⬇️⬇️⬇️ VIEW FUNCTIONS ⬇️⬇️⬇️⬇️  ------------------------------------------------------------------------------
 
-    function getUniswapPositions() public view returns (int24[] memory) {
+    function getUniswapPositions() external view returns (int24[] memory) {
         return positions.read();
     }
 
-    function _getPrices() private view returns (Prices memory prices) {
+    function getPrices() public view returns (Prices memory prices) {
         (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
         uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
 
@@ -297,36 +287,6 @@ contract Borrower is IUniswapV3MintCallback {
         uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
         (uint160 a, uint160 b) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, sigma, B);
         prices = Prices(a, b, sqrtMeanPriceX96);
-    }
-
-    function _getAssets(
-        int24[] memory positions_,
-        Uniswap.FeeComputationCache memory c1,
-        Prices memory prices
-    ) private view returns (Assets memory assets) {
-        assets.fixed0 = TOKEN0.balanceOf(address(this));
-        assets.fixed1 = TOKEN1.balanceOf(address(this));
-
-        uint256 count = positions_.length;
-        for (uint256 i; i < count; i += 2) {
-            Uniswap.Position memory position = Uniswap.Position(positions_[i], positions_[i + 1]);
-
-            Uniswap.PositionInfo memory info = position.info(UNISWAP_POOL);
-
-            (uint256 temp0, uint256 temp1) = position.fees(UNISWAP_POOL, info, c1);
-            assets.fixed0 += temp0;
-            assets.fixed1 += temp1;
-
-            uint160 lower = TickMath.getSqrtRatioAtTick(position.lower);
-            uint160 upper = TickMath.getSqrtRatioAtTick(position.upper);
-
-            assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(prices.a, lower, upper, info.liquidity);
-            assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(prices.b, lower, upper, info.liquidity);
-
-            (temp0, temp1) = LiquidityAmounts.getAmountsForLiquidity(prices.c, lower, upper, info.liquidity);
-            assets.fluid0C += temp0;
-            assets.fluid1C += temp1;
-        }
     }
 
     function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {

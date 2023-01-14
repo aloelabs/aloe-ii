@@ -31,7 +31,7 @@ library BalanceSheet {
     ) internal pure returns (bool) {
         // liquidation incentive. counted as liability because account will owe it to someone.
         // compensates liquidators for inventory risk.
-        uint256 liquidationIncentive = _computeLiquidationIncentive(
+        uint256 liquidationIncentive = computeLiquidationIncentive(
             mem.fixed0 + mem.fluid0C,
             mem.fixed1 + mem.fluid1C,
             liabilities0,
@@ -78,13 +78,13 @@ library BalanceSheet {
         }
     }
 
-    function _computeLiquidationIncentive(
+    function computeLiquidationIncentive(
         uint256 assets0,
         uint256 assets1,
         uint256 liabilities0,
         uint256 liabilities1,
         uint160 sqrtMeanPriceX96
-    ) private pure returns (uint256 reward1) {
+    ) internal pure returns (uint256 reward1) {
         unchecked {
             uint256 meanPriceX96 = Math.mulDiv(sqrtMeanPriceX96, sqrtMeanPriceX96, Q96);
 
