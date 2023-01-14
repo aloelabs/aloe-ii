@@ -106,7 +106,6 @@ contract Borrower is IUniswapV3MintCallback {
         if (liabilities0 + liabilities1 == 0 || (liabilities0 > 0 && liabilities1 > 0)) {
             // If both are zero or neither is zero, there's nothing more to do
             // TODO: compensate liquidators for txn costs using ANTE
-            return;
         } else if (liabilities0 > 0) {
             TOKEN1.safeApprove(address(callee), type(uint256).max);
             uint256 converted0 = callee.callback0(data, assets1 - repayable1, liabilities0);
@@ -124,7 +123,7 @@ contract Borrower is IUniswapV3MintCallback {
             uint256 converted1 = callee.callback1(data, assets0 - repayable0, liabilities1);
             TOKEN0.safeApprove(address(callee), 0);
 
-            uint256 maxLoss0 = Math.mulDiv(converted1 * 105, Q96, 100 * priceX96);
+            uint256 maxLoss0 = Math.mulDiv(converted1, Q96, priceX96);
             maxLoss0 += maxLoss0 / LIQUIDATION_INCENTIVE;
             require(assets0 - TOKEN0.balanceOf(address(this)) <= maxLoss0);
 
