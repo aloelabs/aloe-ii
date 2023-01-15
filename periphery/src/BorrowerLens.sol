@@ -2,7 +2,8 @@
 pragma solidity ^0.8.15;
 
 import {MAX_LEVERAGE} from "aloe-ii-core/libraries/constants/Constants.sol";
-import {Uniswap} from "aloe-ii-core/libraries/Uniswap.sol";
+
+import {Uniswap} from "./libraries/Uniswap.sol";
 
 import "aloe-ii-core/Borrower.sol";
 

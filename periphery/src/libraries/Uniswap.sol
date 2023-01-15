@@ -4,9 +4,9 @@ pragma solidity ^0.8.15;
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {Q128} from "./constants/Q.sol";
-import {LiquidityAmounts} from "./LiquidityAmounts.sol";
-import {TickMath} from "./TickMath.sol";
+import {Q128} from "aloe-ii-core/libraries/constants/Q.sol";
+import {LiquidityAmounts} from "aloe-ii-core/libraries/LiquidityAmounts.sol";
+import {TickMath} from "aloe-ii-core/libraries/TickMath.sol";
 
 library Uniswap {
     struct Position {
