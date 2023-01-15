@@ -10,7 +10,7 @@ import "src/Lender.sol";
 
 import {deploySingleLender} from "./Utils.sol";
 
-contract LiquidatorGasTest is Test, IManager {
+contract LiquidatorGasTest is Test, IManager, ILiquidator {
     IUniswapV3Pool constant pool = IUniswapV3Pool(0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8);
     ERC20 constant asset0 = ERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     ERC20 constant asset1 = ERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
@@ -54,7 +54,7 @@ contract LiquidatorGasTest is Test, IManager {
         assertEq(lender0.borrowBalance(address(account)), 200e18);
 
         vm.expectRevert(bytes(""));
-        account.liquidate(ILiquidator(address(this)), bytes(""));
+        account.liquidate(ILiquidator(address(this)), bytes(""), 1);
 
         skip(1 days); // seconds
         lender0.accrueInterest();
@@ -65,7 +65,7 @@ contract LiquidatorGasTest is Test, IManager {
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(ILiquidator(address(this)), bytes(""));
+        account.liquidate(ILiquidator(address(this)), bytes(""), 1);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);
@@ -88,7 +88,7 @@ contract LiquidatorGasTest is Test, IManager {
         assertEq(lender1.borrowBalance(address(account)), 20e18);
 
         vm.expectRevert(bytes(""));
-        account.liquidate(ILiquidator(address(this)), bytes(""));
+        account.liquidate(ILiquidator(address(this)), bytes(""), 1);
 
         skip(1 days); // seconds
         lender0.accrueInterest();
@@ -102,7 +102,7 @@ contract LiquidatorGasTest is Test, IManager {
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(ILiquidator(address(this)), bytes(""));
+        account.liquidate(ILiquidator(address(this)), bytes(""), 1);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);
@@ -135,7 +135,7 @@ contract LiquidatorGasTest is Test, IManager {
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(ILiquidator(address(this)), bytes(""));
+        account.liquidate(ILiquidator(address(this)), bytes(""), 1);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);
@@ -143,19 +143,44 @@ contract LiquidatorGasTest is Test, IManager {
         vm.resumeGasMetering();
     }
 
-    function test_withCallback() public {
-
-    }
-
     function test_withCallbackAndSwap() public {
+        vm.pauseGasMetering();
 
+        // give the account 1 WETH
+        deal(address(asset1), address(account), 1e18);
+
+        // borrow 600 DAI
+        bytes memory data = abi.encode(Action.BORROW, 1689.12e18, 0);
+        bool[2] memory allowances;
+        account.modify(this, data, allowances);
+
+        // withdraw 600 DAI
+        data = abi.encode(Action.WITHDRAW, 1689.12e18, 0);
+        allowances[0] = true;
+        account.modify(this, data, allowances);
+
+        skip(1 days); // seconds
+        lender0.accrueInterest();
+        lender1.accrueInterest();
+
+        vm.resumeGasMetering();
+
+        // MARK: actual command
+        account.liquidate(ILiquidator(address(this)), bytes(""), 1);
+
+        vm.pauseGasMetering();
+        assertEq(lender0.borrowBalance(address(account)), 0);
+        assertEq(lender1.borrowBalance(address(account)), 0);
+        vm.resumeGasMetering();
     }
 
     enum Action {
+        WITHDRAW,
         BORROW,
         UNI_DEPOSIT
     }
 
+    // IManager
     function callback(
         bytes calldata data
     ) external returns (uint144 positions) {
@@ -163,7 +188,10 @@ contract LiquidatorGasTest is Test, IManager {
 
         (Action action, uint256 amount0, uint256 amount1) = abi.decode(data, (Action, uint256, uint256));
 
-        if (action == Action.BORROW) {
+        if (action == Action.WITHDRAW) {
+            if (amount0 > 0) asset0.transferFrom(address(account), address(this), amount0);
+            if (amount1 > 0) asset1.transferFrom(address(account), address(this), amount1);
+        } else if (action == Action.BORROW) {
             account.borrow(amount0, amount1, msg.sender);
         } else if (action == Action.UNI_DEPOSIT) {
             account.uniswapDeposit(-75600, -75540, 100000000000000000);
@@ -171,8 +199,30 @@ contract LiquidatorGasTest is Test, IManager {
         }
     }
 
-    function uniswapV3MintCallback(uint256 _amount0, uint256 _amount1, bytes calldata) external {
-        if (_amount0 != 0) asset0.transfer(msg.sender, _amount0);
-        if (_amount1 != 0) asset1.transfer(msg.sender, _amount1);
+    // ILiquidator
+    function callback0(
+        bytes calldata,
+        uint256,
+        uint256 liabilities0
+    ) external {
+        pool.swap(msg.sender, false, -int256(liabilities0), TickMath.MAX_SQRT_RATIO - 1, bytes(""));
+    }
+
+    function callback1(
+        bytes calldata,
+        uint256,
+        uint256 liabilities1
+    ) external {
+        pool.swap(msg.sender, true, -int256(liabilities1), TickMath.MIN_SQRT_RATIO + 1, bytes(""));
+    }
+
+    // IUniswapV3SwapCallback
+    function uniswapV3SwapCallback(
+        int256 amount0Delta,
+        int256 amount1Delta,
+        bytes calldata
+    ) external {
+        if (amount0Delta > 0) asset0.transfer(msg.sender, uint256(amount0Delta));
+        if (amount1Delta > 0) asset1.transfer(msg.sender, uint256(amount1Delta));
     }
 }
