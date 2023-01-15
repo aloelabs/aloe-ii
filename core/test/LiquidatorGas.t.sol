@@ -53,7 +53,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
 
         assertEq(lender0.borrowBalance(address(account)), 200e18);
 
-        vm.expectRevert(bytes(""));
+        vm.expectRevert(bytes("Aloe: already healthy"));
         account.liquidate(ILiquidator(address(this)), bytes(""), 1);
 
         skip(1 days); // seconds
@@ -87,7 +87,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         assertEq(lender0.borrowBalance(address(account)), 200e18);
         assertEq(lender1.borrowBalance(address(account)), 20e18);
 
-        vm.expectRevert(bytes(""));
+        vm.expectRevert(bytes("Aloe: already healthy"));
         account.liquidate(ILiquidator(address(this)), bytes(""), 1);
 
         skip(1 days); // seconds
@@ -149,12 +149,12 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        // borrow 600 DAI
+        // borrow 1689.12 DAI
         bytes memory data = abi.encode(Action.BORROW, 1689.12e18, 0);
         bool[2] memory allowances;
         account.modify(this, data, allowances);
 
-        // withdraw 600 DAI
+        // withdraw 1689.12 DAI
         data = abi.encode(Action.WITHDRAW, 1689.12e18, 0);
         allowances[0] = true;
         account.modify(this, data, allowances);

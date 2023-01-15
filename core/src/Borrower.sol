@@ -81,7 +81,7 @@ contract Borrower is IUniswapV3MintCallback {
         Prices memory prices = getPrices();
         Assets memory assets = _getAssets(positions.read(), prices, true);
 
-        require(!BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices));
+        require(!BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices), "Aloe: already healthy");
 
         uint256 assets0 = TOKEN0.balanceOf(address(this));
         uint256 repayable0 = Math.min(assets0, liabilities0);
