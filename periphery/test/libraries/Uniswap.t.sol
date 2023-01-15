@@ -2,7 +2,6 @@
 pragma solidity ^0.8.15;
 
 import "forge-std/Test.sol";
-import "forge-std/console.sol";
 
 import "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
