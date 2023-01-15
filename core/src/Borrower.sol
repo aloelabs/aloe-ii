@@ -18,17 +18,9 @@ import {TickMath} from "./libraries/TickMath.sol";
 import {Lender} from "./Lender.sol";
 
 interface ILiquidator {
-    function callback0(
-        bytes calldata data,
-        uint256 assets1,
-        uint256 liabilities0
-    ) external returns (uint256 converted0);
+    function callback0(bytes calldata data, uint256 assets1, uint256 liabilities0) external;
 
-    function callback1(
-        bytes calldata data,
-        uint256 assets0,
-        uint256 liabilities1
-    ) external returns (uint256 converted1);
+    function callback1(bytes calldata data, uint256 assets0, uint256 liabilities1) external;
 }
 
 interface IManager {
@@ -82,14 +74,14 @@ contract Borrower is IUniswapV3MintCallback {
         packedSlot.owner = owner;
     }
 
-    function liquidate(ILiquidator callee, bytes calldata data) external {
+    function liquidate(ILiquidator callee, bytes calldata data, uint256 strain) external {
         require(!packedSlot.isInCallback);
 
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         Prices memory prices = getPrices();
         Assets memory assets = _getAssets(positions.read(), prices, true);
 
-        require(!BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices));
+        require(!BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices), "Aloe: already healthy");
 
         uint256 assets0 = TOKEN0.balanceOf(address(this));
         uint256 repayable0 = Math.min(assets0, liabilities0);
@@ -106,27 +98,26 @@ contract Borrower is IUniswapV3MintCallback {
         if (liabilities0 + liabilities1 == 0 || (liabilities0 > 0 && liabilities1 > 0)) {
             // If both are zero or neither is zero, there's nothing more to do
             // TODO: compensate liquidators for txn costs using ANTE
-            return;
         } else if (liabilities0 > 0) {
-            TOKEN1.safeApprove(address(callee), type(uint256).max);
-            uint256 converted0 = callee.callback0(data, assets1 - repayable1, liabilities0);
-            TOKEN1.safeApprove(address(callee), 0);
+            uint256 converted0 = liabilities0 / strain;
 
             uint256 maxLoss1 = Math.mulDiv(converted0, priceX96, Q96);
             maxLoss1 += maxLoss1 / LIQUIDATION_INCENTIVE;
-            require(assets1 - TOKEN1.balanceOf(address(this)) <= maxLoss1);
+            TOKEN1.safeTransfer(address(callee), maxLoss1);
+
+            callee.callback0(data, maxLoss1, converted0);
 
             // TODO: compensate liquidators for txn costs using ANTE
 
             repayable0 += converted0;
         } else {
-            TOKEN0.safeApprove(address(callee), type(uint256).max);
-            uint256 converted1 = callee.callback1(data, assets0 - repayable0, liabilities1);
-            TOKEN0.safeApprove(address(callee), 0);
+            uint256 converted1 = liabilities1 / strain;
 
-            uint256 maxLoss0 = Math.mulDiv(converted1 * 105, Q96, 100 * priceX96);
+            uint256 maxLoss0 = Math.mulDiv(converted1, Q96, priceX96);
             maxLoss0 += maxLoss0 / LIQUIDATION_INCENTIVE;
-            require(assets0 - TOKEN0.balanceOf(address(this)) <= maxLoss0);
+            TOKEN0.safeTransfer(address(callee), maxLoss0);
+
+            callee.callback1(data, maxLoss0, converted1);
 
             // TODO: compensate liquidators for txn costs using ANTE
 
