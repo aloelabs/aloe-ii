@@ -56,7 +56,7 @@ contract Ledger {
     mapping(address => mapping(address => uint256)) public allowance;
 
     /*//////////////////////////////////////////////////////////////
-                            EIP-2612 STORAGE
+                            ERC2612 STORAGE
     //////////////////////////////////////////////////////////////*/
 
     bytes32 internal initialDomainSeparator;
