@@ -42,6 +42,10 @@ contract Lender is Ledger {
 
     event CreditedCourier(uint32 indexed id, address indexed account);
 
+    /*//////////////////////////////////////////////////////////////
+                       CONSTRUCTOR & INITIALIZER
+    //////////////////////////////////////////////////////////////*/
+
     constructor(address reserve) Ledger(reserve) {}
 
     function initialize(RateModel rateModel_, uint8 reserveFactor_) external {
@@ -235,43 +239,6 @@ contract Lender is Ledger {
         _save(cache, /* didChangeBorrowBase: */ false);
     }
 
-    /// @dev Note that if `RESERVE` ever gives credit to a courier, its principle won't be tracked properly.
-    function _load() private returns (Cache memory cache, uint256 inventory) {
-        cache = Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
-        // Guard against reentrancy
-        require(cache.lastAccrualTime != 0, "Aloe: locked");
-        lastAccrualTime = 0;
-
-        // Accrue interest (only in memory)
-        uint256 newTotalSupply;
-        (cache, inventory, newTotalSupply) = _previewInterest(cache);
-
-        // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
-        if (newTotalSupply != cache.totalSupply) {
-            _unsafeMint(RESERVE, newTotalSupply - cache.totalSupply, 0);
-            cache.totalSupply = newTotalSupply;
-        }
-    }
-
-    function _save(Cache memory cache, bool didChangeBorrowBase) private {
-        if (cache.lastAccrualTime == 0) {
-            // `cache.lastAccrualTime == 0` implies that `cache.borrowIndex` was updated.
-            // `cache.borrowBase` MAY also have been updated, so we store both components of the slot.
-            borrowBase = cache.borrowBase.safeCastTo184();
-            borrowIndex = cache.borrowIndex.safeCastTo72();
-            // Now that we've read the flag, we can update `cache.lastAccrualTime` to the real, appropriate value
-            cache.lastAccrualTime = block.timestamp;
-        } else if (didChangeBorrowBase) {
-            // Here, `cache.lastAccrualTime` is a real timestamp (could be `block.timestamp` or older). We can infer
-            // that `cache.borrowIndex` was *not* updated. So we only have to store `cache.borrowBase`.
-            borrowBase = cache.borrowBase.safeCastTo184();
-        }
-
-        totalSupply = cache.totalSupply.safeCastTo112();
-        lastBalance = cache.lastBalance.safeCastTo112();
-        lastAccrualTime = cache.lastAccrualTime.safeCastTo32(); // Disables reentrancy guard
-    }
-
     /*//////////////////////////////////////////////////////////////
                                ERC20 LOGIC
     //////////////////////////////////////////////////////////////*/
@@ -445,5 +412,42 @@ contract Lender is Ledger {
         }
 
         emit Transfer(from, address(0), shares);
+    }
+
+    /// @dev Note that if `RESERVE` ever gives credit to a courier, its principle won't be tracked properly.
+    function _load() private returns (Cache memory cache, uint256 inventory) {
+        cache = Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
+        // Guard against reentrancy
+        require(cache.lastAccrualTime != 0, "Aloe: locked");
+        lastAccrualTime = 0;
+
+        // Accrue interest (only in memory)
+        uint256 newTotalSupply;
+        (cache, inventory, newTotalSupply) = _previewInterest(cache);
+
+        // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
+        if (newTotalSupply != cache.totalSupply) {
+            _unsafeMint(RESERVE, newTotalSupply - cache.totalSupply, 0);
+            cache.totalSupply = newTotalSupply;
+        }
+    }
+
+    function _save(Cache memory cache, bool didChangeBorrowBase) private {
+        if (cache.lastAccrualTime == 0) {
+            // `cache.lastAccrualTime == 0` implies that `cache.borrowIndex` was updated.
+            // `cache.borrowBase` MAY also have been updated, so we store both components of the slot.
+            borrowBase = cache.borrowBase.safeCastTo184();
+            borrowIndex = cache.borrowIndex.safeCastTo72();
+            // Now that we've read the flag, we can update `cache.lastAccrualTime` to the real, appropriate value
+            cache.lastAccrualTime = block.timestamp;
+        } else if (didChangeBorrowBase) {
+            // Here, `cache.lastAccrualTime` is a real timestamp (could be `block.timestamp` or older). We can infer
+            // that `cache.borrowIndex` was *not* updated. So we only have to store `cache.borrowBase`.
+            borrowBase = cache.borrowBase.safeCastTo184();
+        }
+
+        totalSupply = cache.totalSupply.safeCastTo112();
+        lastBalance = cache.lastBalance.safeCastTo112();
+        lastAccrualTime = cache.lastAccrualTime.safeCastTo32(); // Disables reentrancy guard
     }
 }

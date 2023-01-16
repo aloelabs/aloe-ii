@@ -93,11 +93,6 @@ contract Ledger {
         RESERVE = reserve;
     }
 
-    /// @notice The address of the underlying token.
-    function asset() public pure returns (ERC20) {
-        return ERC20(ImmutableArgs.addr());
-    }
-
     /// @notice The name of the banknote.
     function name() external view returns (string memory) {
         return string.concat("Aloe II ", asset().name());
@@ -111,6 +106,15 @@ contract Ledger {
     /// @notice The number of decimals the banknote uses. Matches the underlying token.
     function decimals() external view returns (uint8) {
         return asset().decimals();
+    }
+
+    /// @notice The address of the underlying token.
+    function asset() public pure returns (ERC20) {
+        return ERC20(ImmutableArgs.addr());
+    }
+
+    function DOMAIN_SEPARATOR() public view returns (bytes32) {
+        return block.chainid == initialChainId ? initialDomainSeparator : _computeDomainSeparator();
     }
 
     /**
@@ -296,10 +300,6 @@ contract Ledger {
                                  HELPERS
     //////////////////////////////////////////////////////////////*/
 
-    function DOMAIN_SEPARATOR() public view returns (bytes32) {
-        return block.chainid == initialChainId ? initialDomainSeparator : _computeDomainSeparator();
-    }
-
     function _computeDomainSeparator() internal view returns (bytes32) {
         return
             keccak256(
@@ -340,8 +340,24 @@ contract Ledger {
         }
     }
 
-    function _getCache() private view returns (Cache memory) {
-        return Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
+    function _convertToShares(
+        uint256 assets,
+        uint256 inventory,
+        uint256 totalSupply_,
+        bool roundUp
+    ) internal pure returns (uint256) {
+        if (totalSupply_ == 0) return assets;
+        return roundUp ? assets.mulDivUp(totalSupply_, inventory) : assets.mulDivDown(totalSupply_, inventory);
+    }
+
+    function _convertToAssets(
+        uint256 shares,
+        uint256 inventory,
+        uint256 totalSupply_,
+        bool roundUp
+    ) internal pure returns (uint256) {
+        if (totalSupply_ == 0) return shares;
+        return roundUp ? shares.mulDivUp(inventory, totalSupply_) : shares.mulDivDown(inventory, totalSupply_);
     }
 
     function _nominalShares(
@@ -384,23 +400,7 @@ contract Ledger {
         }
     }
 
-    function _convertToShares(
-        uint256 assets,
-        uint256 inventory,
-        uint256 totalSupply_,
-        bool roundUp
-    ) internal pure returns (uint256) {
-        if (totalSupply_ == 0) return assets;
-        return roundUp ? assets.mulDivUp(totalSupply_, inventory) : assets.mulDivDown(totalSupply_, inventory);
-    }
-
-    function _convertToAssets(
-        uint256 shares,
-        uint256 inventory,
-        uint256 totalSupply_,
-        bool roundUp
-    ) internal pure returns (uint256) {
-        if (totalSupply_ == 0) return shares;
-        return roundUp ? shares.mulDivUp(inventory, totalSupply_) : shares.mulDivDown(inventory, totalSupply_);
+    function _getCache() private view returns (Cache memory) {
+        return Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
     }
 }

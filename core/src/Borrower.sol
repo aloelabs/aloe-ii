@@ -57,6 +57,10 @@ contract Borrower is IUniswapV3MintCallback {
 
     int24[6] public positions;
 
+    /*//////////////////////////////////////////////////////////////
+                       CONSTRUCTOR & INITIALIZER
+    //////////////////////////////////////////////////////////////*/
+
     constructor(IUniswapV3Pool pool, Lender lender0, Lender lender1) {
         UNISWAP_POOL = pool;
         LENDER0 = lender0;
@@ -73,6 +77,10 @@ contract Borrower is IUniswapV3MintCallback {
         require(packedSlot.owner == address(0));
         packedSlot.owner = owner;
     }
+
+    /*//////////////////////////////////////////////////////////////
+                           MAIN ENTRY POINTS
+    //////////////////////////////////////////////////////////////*/
 
     function liquidate(ILiquidator callee, bytes calldata data, uint256 strain) external {
         require(!packedSlot.isInCallback);
@@ -148,31 +156,16 @@ contract Borrower is IUniswapV3MintCallback {
         require(BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices), "Aloe: need more margin");
     }
 
-    function borrow(uint256 amount0, uint256 amount1, address recipient) external {
-        require(packedSlot.isInCallback);
+    /*//////////////////////////////////////////////////////////////
+                              SUB-ACTIONS
+    //////////////////////////////////////////////////////////////*/
 
-        if (amount0 > 0) LENDER0.borrow(amount0, recipient);
-        if (amount1 > 0) LENDER1.borrow(amount1, recipient);
-    }
+    /// @dev Callback for Uniswap V3 pool.
+    function uniswapV3MintCallback(uint256 amount0, uint256 amount1, bytes calldata) external {
+        require(msg.sender == address(UNISWAP_POOL));
 
-    // Technically uneccessary. but:
-    // --> Keep because it allows us to use transfer instead of transferFrom, saving allowance reads in the underlying asset contracts
-    // --> Keep for integrator convenience
-    // --> Keep because it allows integrators to repay debts without configuring the `allowances` bool array
-    function repay(uint256 amount0, uint256 amount1) external {
-        require(packedSlot.isInCallback);
-        _repay(amount0, amount1);
-    }
-
-    function _repay(uint256 amount0, uint256 amount1) private {
-        if (amount0 > 0) {
-            TOKEN0.safeTransfer(address(LENDER0), amount0);
-            LENDER0.repay(amount0, address(this));
-        }
-        if (amount1 > 0) {
-            TOKEN1.safeTransfer(address(LENDER1), amount1);
-            LENDER1.repay(amount1, address(this));
-        }
+        if (amount0 > 0) TOKEN0.safeTransfer(msg.sender, amount0);
+        if (amount1 > 0) TOKEN1.safeTransfer(msg.sender, amount1);
     }
 
     function uniswapDeposit(
@@ -204,11 +197,39 @@ contract Borrower is IUniswapV3MintCallback {
         );
     }
 
-    /// @dev Callback for Uniswap V3 pool.
-    function uniswapV3MintCallback(uint256 amount0, uint256 amount1, bytes calldata) external {
-        require(msg.sender == address(UNISWAP_POOL));
-        if (amount0 > 0) TOKEN0.safeTransfer(msg.sender, amount0);
-        if (amount1 > 0) TOKEN1.safeTransfer(msg.sender, amount1);
+    function borrow(uint256 amount0, uint256 amount1, address recipient) external {
+        require(packedSlot.isInCallback);
+
+        if (amount0 > 0) LENDER0.borrow(amount0, recipient);
+        if (amount1 > 0) LENDER1.borrow(amount1, recipient);
+    }
+
+    // Technically uneccessary. but:
+    // --> Keep because it allows us to use transfer instead of transferFrom, saving allowance reads in the underlying asset contracts
+    // --> Keep for integrator convenience
+    // --> Keep because it allows integrators to repay debts without configuring the `allowances` bool array
+    function repay(uint256 amount0, uint256 amount1) external {
+        require(packedSlot.isInCallback);
+
+        _repay(amount0, amount1);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             BALANCE SHEET
+    //////////////////////////////////////////////////////////////*/
+
+    function getUniswapPositions() external view returns (int24[] memory) {
+        return positions.read();
+    }
+
+    function getPrices() public view returns (Prices memory prices) {
+        (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
+        uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
+
+        // compute prices at which solvency will be checked
+        uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
+        (uint160 a, uint160 b) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, sigma, B);
+        prices = Prices(a, b, sqrtMeanPriceX96);
     }
 
     function _getAssets(
@@ -260,22 +281,23 @@ contract Borrower is IUniswapV3MintCallback {
         }
     }
 
-    function getUniswapPositions() external view returns (int24[] memory) {
-        return positions.read();
-    }
-
-    function getPrices() public view returns (Prices memory prices) {
-        (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
-        uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
-
-        // compute prices at which solvency will be checked
-        uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
-        (uint160 a, uint160 b) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, sigma, B);
-        prices = Prices(a, b, sqrtMeanPriceX96);
-    }
-
     function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
         amount0 = LENDER0.borrowBalanceStored(address(this));
         amount1 = LENDER1.borrowBalanceStored(address(this));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                 HELPERS
+    //////////////////////////////////////////////////////////////*/
+
+    function _repay(uint256 amount0, uint256 amount1) private {
+        if (amount0 > 0) {
+            TOKEN0.safeTransfer(address(LENDER0), amount0);
+            LENDER0.repay(amount0, address(this));
+        }
+        if (amount1 > 0) {
+            TOKEN1.safeTransfer(address(LENDER1), amount1);
+            LENDER1.repay(amount1, address(this));
+        }
     }
 }
