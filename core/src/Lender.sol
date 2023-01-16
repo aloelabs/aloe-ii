@@ -38,6 +38,10 @@ contract Lender is Ledger {
 
     event Repay(address indexed caller, address indexed beneficiary, uint256 amount, uint256 units);
 
+    event EnrolledCourier(uint32 indexed id, address indexed wallet, uint16 cut);
+
+    event CreditedCourier(uint32 indexed id, address indexed account);
+
     constructor(address reserve) Ledger(reserve) {}
 
     function initialize(RateModel rateModel_, uint8 reserveFactor_) external {
@@ -74,6 +78,8 @@ contract Lender is Ledger {
         require(couriers[id].cut == 0);
 
         couriers[id] = Courier(wallet, cut);
+
+        emit EnrolledCourier(id, wallet, cut);
     }
 
     function creditCourier(uint32 id, address account) external {
@@ -88,6 +94,8 @@ contract Lender is Ledger {
         // be cheated out of their fees.
         require(balances[account] % Q112 == 0);
         balances[account] = uint256(id) << 224;
+
+        emit CreditedCourier(id, account);
     }
 
     /*//////////////////////////////////////////////////////////////
