@@ -97,15 +97,19 @@ contract Borrower is IUniswapV3MintCallback {
     function liquidate(ILiquidator callee, bytes calldata data, uint256 strain) external {
         require(!packedSlot.isInCallback);
 
-        // Fetch liabilities from lenders and prices from oracle
-        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+        // Fetch prices from oracle
         Prices memory prices = getPrices();
+
+        uint256 liabilities0;
+        uint256 liabilities1;
 
         {
             // Withdraw Uniswap positions while tallying assets
             Assets memory assets = _getAssets(positions.read(), prices, true);
+            // Fetch liabilities from lenders
+            (liabilities0, liabilities1) = _getLiabilities();
             // Ensure only unhealthy accounts can be liquidated
-            require(!BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices), "Aloe: already healthy");
+            require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: already healthy");
         }
 
         // NOTE: The health check values assets at the TWAP and is difficult to manipulate. However,
@@ -187,11 +191,11 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
-        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         Prices memory prices = getPrices();
         Assets memory assets = _getAssets(positions_, prices, false);
+        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
-        require(BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices), "Aloe: need more margin");
+        require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: need more margin");
     }
 
     /*//////////////////////////////////////////////////////////////

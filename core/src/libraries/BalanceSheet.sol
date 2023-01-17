@@ -24,14 +24,14 @@ struct Prices {
 
 library BalanceSheet {
     function isHealthy(
-        uint256 liabilities0,
-        uint256 liabilities1,
+        Prices memory prices,
         Assets memory mem,
-        Prices memory prices
+        uint256 liabilities0,
+        uint256 liabilities1
     ) internal pure returns (bool) {
         // liquidation incentive. counted as liability because account will owe it to someone.
         // compensates liquidators for inventory risk.
-        uint256 liquidationIncentive = computeLiquidationIncentive(
+        uint256 incentive1 = computeLiquidationIncentive(
             mem.fixed0 + mem.fluid0C,
             mem.fixed1 + mem.fluid1C,
             liabilities0,
@@ -41,7 +41,7 @@ library BalanceSheet {
 
         unchecked {
             liabilities0 += liabilities0 / MAX_LEVERAGE;
-            liabilities1 += liabilities1 / MAX_LEVERAGE + liquidationIncentive;
+            liabilities1 += liabilities1 / MAX_LEVERAGE + incentive1;
         }
 
         // combine
@@ -84,7 +84,7 @@ library BalanceSheet {
         uint256 liabilities0,
         uint256 liabilities1,
         uint160 sqrtMeanPriceX96
-    ) internal pure returns (uint256 reward1) {
+    ) internal pure returns (uint256 incentive1) {
         unchecked {
             uint256 meanPriceX96 = Math.mulDiv(sqrtMeanPriceX96, sqrtMeanPriceX96, Q96);
 
@@ -93,7 +93,7 @@ library BalanceSheet {
                 uint256 shortfall = liabilities0 - assets0;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                reward1 += Math.mulDiv(shortfall, meanPriceX96, Q96) / LIQUIDATION_INCENTIVE;
+                incentive1 += Math.mulDiv(shortfall, meanPriceX96, Q96) / LIQUIDATION_INCENTIVE;
             }
 
             if (liabilities1 > assets1) {
@@ -101,7 +101,7 @@ library BalanceSheet {
                 uint256 shortfall = liabilities1 - assets1;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                reward1 += shortfall / LIQUIDATION_INCENTIVE;
+                incentive1 += shortfall / LIQUIDATION_INCENTIVE;
             }
         }
     }
