@@ -82,22 +82,50 @@ contract Borrower is IUniswapV3MintCallback {
                            MAIN ENTRY POINTS
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Liquidates the borrower, using all available assets to pay down liabilities. If
+     * some or all of the payment cannot be made in-kind, `callee` is expected to swap one asset
+     * for the other at a venue of their choosing.
+     * @dev TODO: describe reward
+     * @param callee A smart contract capable of swapping `TOKEN0` for `TOKEN1` and vice versa
+     * @param data Encoded parameters that get forwarded to `callee` callbacks
+     * @param strain Almost always set to `1` to pay off all debt and receive maximum reward. If
+     * liquidity is thin and swap price impact would be too large, you can use higher values to
+     * reduce swap size and make it easier for `callee` to do its job. `2` would be half swap size,
+     * `3` one third, and so on.
+     */
     function liquidate(ILiquidator callee, bytes calldata data, uint256 strain) external {
         require(!packedSlot.isInCallback);
 
+        // Fetch liabilities from lenders and prices from oracle
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         Prices memory prices = getPrices();
-        Assets memory assets = _getAssets(positions.read(), prices, true);
 
-        require(!BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices), "Aloe: already healthy");
+        {
+            // Withdraw Uniswap positions while tallying assets
+            Assets memory assets = _getAssets(positions.read(), prices, true);
+            // Ensure only unhealthy accounts can be liquidated
+            require(!BalanceSheet.isHealthy(liabilities0, liabilities1, assets, prices), "Aloe: already healthy");
+        }
 
+        // NOTE: The health check values assets at the TWAP and is difficult to manipulate. However,
+        // the instantaneous price does impact what tokens we receive when burning Uniswap positions.
+        // As such, additional calls to `TOKEN0.balanceOf` and `TOKEN1.balanceOf` are required for
+        // precise inventory.
+
+        // Figure out what portion of `liabilities0` can be repaid using existing `assets0`
         uint256 assets0 = TOKEN0.balanceOf(address(this));
         uint256 repayable0 = Math.min(assets0, liabilities0);
-        liabilities0 -= repayable0;
+        unchecked {
+            liabilities0 -= repayable0;
+        }
 
+        // Figure out what portion of `liabilities1` can be repaid using existing `assets`.
         uint256 assets1 = TOKEN1.balanceOf(address(this));
         uint256 repayable1 = Math.min(assets1, liabilities1);
-        liabilities1 -= repayable1;
+        unchecked {
+            liabilities1 -= repayable1;
+        }
 
         // TODO: this is already computed inside of computeLiquidationIncentive, so use that instead of
         // re-computing it (or at least compare gas between the 2 options)
@@ -135,6 +163,16 @@ contract Borrower is IUniswapV3MintCallback {
         _repay(repayable0, repayable1);
     }
 
+    /**
+     * @notice Allows the owner to manage their account by handing control to some `callee`. Inside the
+     * callback `callee` has access to all sub-commands (`uniswapDeposit`, `uniswapWithdraw`, `borrow`,
+     * and `repay`) and if `allowances` are set, it also has permission to transfer ERC20s. Whatever
+     * `callee` does, the account MUST be healthy after the callback.
+     * @param callee The smart contract that will get temporary control of this account
+     * @param data Encoded parameters that get forwarded to `callee`
+     * @param allowances Whether to approve `callee` to transfer ERC20s. The first entry is for `TOKEN0`,
+     * and the 2nd is for `TOKEN1`.
+     */
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external {
         require(msg.sender == packedSlot.owner, "Aloe: only owner");
         require(!packedSlot.isInCallback);
@@ -157,7 +195,7 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /*//////////////////////////////////////////////////////////////
-                              SUB-ACTIONS
+                              SUB-COMMANDS
     //////////////////////////////////////////////////////////////*/
 
     /// @dev Callback for Uniswap V3 pool.
