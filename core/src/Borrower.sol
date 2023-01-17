@@ -223,16 +223,7 @@ contract Borrower is IUniswapV3MintCallback {
     ) external returns (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) {
         require(packedSlot.isInCallback);
 
-        (burned0, burned1) = UNISWAP_POOL.burn(lower, upper, liquidity);
-
-        // Collect all owed tokens including earned fees
-        (collected0, collected1) = UNISWAP_POOL.collect(
-            address(this),
-            lower,
-            upper,
-            type(uint128).max,
-            type(uint128).max
-        );
+        (burned0, burned1, collected0, collected1) = _uniswapWithdraw(lower, upper, liquidity);
     }
 
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
@@ -305,16 +296,9 @@ contract Borrower is IUniswapV3MintCallback {
                 if (!withdraw) continue;
 
                 // Withdraw all `liquidity` from the position, adding earned fees as fixed assets
-                (uint256 burned0, uint256 burned1) = UNISWAP_POOL.burn(l, u, liquidity);
-                (uint256 collected0, uint256 collected1) = UNISWAP_POOL.collect(
-                    address(this),
-                    l,
-                    u,
-                    type(uint128).max,
-                    type(uint128).max
-                );
-                assets.fixed0 += collected0 - burned0;
-                assets.fixed1 += collected1 - burned1;
+                (uint256 b0, uint256 b1, uint256 c0, uint256 c1) = _uniswapWithdraw(l, u, liquidity);
+                assets.fixed0 += c0 - b0;
+                assets.fixed1 += c1 - b1;
             }
         }
     }
@@ -327,6 +311,21 @@ contract Borrower is IUniswapV3MintCallback {
     /*//////////////////////////////////////////////////////////////
                                  HELPERS
     //////////////////////////////////////////////////////////////*/
+
+    function _uniswapWithdraw(
+        int24 lower,
+        int24 upper,
+        uint128 liquidity
+    ) private returns (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) {
+        (burned0, burned1) = UNISWAP_POOL.burn(lower, upper, liquidity);
+        (collected0, collected1) = UNISWAP_POOL.collect(
+            address(this),
+            lower,
+            upper,
+            type(uint128).max,
+            type(uint128).max
+        );
+    }
 
     function _repay(uint256 amount0, uint256 amount1) private {
         if (amount0 > 0) {
