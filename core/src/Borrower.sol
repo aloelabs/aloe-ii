@@ -17,9 +17,9 @@ import {TickMath} from "./libraries/TickMath.sol";
 import {Lender} from "./Lender.sol";
 
 interface ILiquidator {
-    function callback0(bytes calldata data, uint256 assets1, uint256 liabilities0) external;
+    function swap1For0(bytes calldata data, uint256 received1, uint256 expected0) external;
 
-    function callback1(bytes calldata data, uint256 assets0, uint256 liabilities1) external;
+    function swap0For1(bytes calldata data, uint256 received0, uint256 expected1) external;
 }
 
 interface IManager {
@@ -140,21 +140,21 @@ contract Borrower is IUniswapV3MintCallback {
                 // If both are zero or neither is zero, there's nothing more to do.
                 // Callbacks/swaps won't help.
             } else if (liabilities0 > 0) {
-                uint256 converted0 = liabilities0 / strain;
-                uint256 maxLoss1 = Math.mulDiv(converted0, priceX96, Q96) + incentive1 / strain;
+                uint256 expected0 = liabilities0 / strain;
+                uint256 advance1 = Math.mulDiv(expected0, priceX96, Q96) + incentive1 / strain;
 
-                TOKEN1.safeTransfer(address(callee), maxLoss1);
-                callee.callback0(data, maxLoss1, converted0);
+                TOKEN1.safeTransfer(address(callee), advance1);
+                callee.swap1For0(data, advance1, expected0);
 
-                repayable0 += converted0;
+                repayable0 += expected0;
             } else {
-                uint256 converted1 = liabilities1 / strain;
-                uint256 maxLoss0 = Math.mulDiv(converted1 + incentive1 / strain, Q96, priceX96);
+                uint256 expected1 = liabilities1 / strain;
+                uint256 advance0 = Math.mulDiv(expected1 + incentive1 / strain, Q96, priceX96);
 
-                TOKEN0.safeTransfer(address(callee), maxLoss0);
-                callee.callback1(data, maxLoss0, converted1);
+                TOKEN0.safeTransfer(address(callee), advance0);
+                callee.swap0For1(data, advance0, expected1);
 
-                repayable1 += converted1;
+                repayable1 += expected1;
             }
 
             _repay(repayable0, repayable1);
