@@ -125,48 +125,40 @@ contract Borrower is IUniswapV3MintCallback {
         // NOTE: The health check values assets at the TWAP and is difficult to manipulate. However,
         // the instantaneous price does impact what tokens we receive when burning Uniswap positions.
         // As such, additional calls to `TOKEN0.balanceOf` and `TOKEN1.balanceOf` are required for
-        // precise inventory.
+        // precise inventory, and we take care not to change `incentive1`.
 
-        // Figure out what portion of `liabilities0` can be repaid using existing assets
-        uint256 repayable0 = Math.min(liabilities0, TOKEN0.balanceOf(address(this)));
         unchecked {
+            // Figure out what portion of liabilities can be repaid using existing assets
+            uint256 repayable0 = Math.min(liabilities0, TOKEN0.balanceOf(address(this)));
+            uint256 repayable1 = Math.min(liabilities1, TOKEN1.balanceOf(address(this)));
+
+            // See what remains (similar to "shortfall" in BalanceSheet)
             liabilities0 -= repayable0;
-        }
-
-        // Figure out what portion of `liabilities1` can be repaid using existing assets
-        uint256 repayable1 = Math.min(liabilities1, TOKEN1.balanceOf(address(this)));
-        unchecked {
             liabilities1 -= repayable1;
+
+            if (liabilities0 + liabilities1 == 0 || (liabilities0 > 0 && liabilities1 > 0)) {
+                // If both are zero or neither is zero, there's nothing more to do.
+                // Callbacks/swaps won't help.
+            } else if (liabilities0 > 0) {
+                uint256 converted0 = liabilities0 / strain;
+                uint256 maxLoss1 = Math.mulDiv(converted0, priceX96, Q96) + incentive1 / strain;
+
+                TOKEN1.safeTransfer(address(callee), maxLoss1);
+                callee.callback0(data, maxLoss1, converted0);
+
+                repayable0 += converted0;
+            } else {
+                uint256 converted1 = liabilities1 / strain;
+                uint256 maxLoss0 = Math.mulDiv(converted1 + incentive1 / strain, Q96, priceX96);
+
+                TOKEN0.safeTransfer(address(callee), maxLoss0);
+                callee.callback1(data, maxLoss0, converted1);
+
+                repayable1 += converted1;
+            }
+
+            _repay(repayable0, repayable1);
         }
-
-        if (liabilities0 + liabilities1 == 0 || (liabilities0 > 0 && liabilities1 > 0)) {
-            // If both are zero or neither is zero, there's nothing more to do
-            // TODO: compensate liquidators for txn costs using ANTE
-        } else if (liabilities0 > 0) {
-            uint256 converted0 = liabilities0 / strain;
-
-            uint256 maxLoss1 = Math.mulDiv(converted0, priceX96, Q96) + incentive1 / strain;
-            TOKEN1.safeTransfer(address(callee), maxLoss1);
-
-            callee.callback0(data, maxLoss1, converted0);
-
-            // TODO: compensate liquidators for txn costs using ANTE
-
-            repayable0 += converted0;
-        } else {
-            uint256 converted1 = liabilities1 / strain;
-
-            uint256 maxLoss0 = Math.mulDiv(converted1 + incentive1 / strain, Q96, priceX96);
-            TOKEN0.safeTransfer(address(callee), maxLoss0);
-
-            callee.callback1(data, maxLoss0, converted1);
-
-            // TODO: compensate liquidators for txn costs using ANTE
-
-            repayable1 += converted1;
-        }
-
-        _repay(repayable0, repayable1);
     }
 
     /**
