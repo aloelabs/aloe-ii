@@ -3,6 +3,7 @@ pragma solidity ^0.8.15;
 
 import "forge-std/Test.sol";
 
+import {LIQUIDATION_INCENTIVE} from "src/libraries/constants/Constants.sol";
 import {zip} from "src/libraries/Positions.sol";
 
 import "src/Borrower.sol";
@@ -53,7 +54,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(lender0.borrowBalance(address(account)), 200e18);
         assertEq(asset0.balanceOf(address(account)), 201e18);
 
-        vm.expectRevert(bytes("Aloe: already healthy"));
+        vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(ILiquidator(address(this)), bytes(""), strain);
 
         setInterest(lender0, 10010);
@@ -80,7 +81,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(lender1.borrowBalance(address(account)), 20e18);
         assertEq(asset1.balanceOf(address(account)), 20.1e18);
 
-        vm.expectRevert(bytes("Aloe: already healthy"));
+        vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(ILiquidator(address(this)), bytes(""), strain);
 
         setInterest(lender1, 10010);
@@ -110,7 +111,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(asset0.balanceOf(address(account)), 201e18);
         assertEq(asset1.balanceOf(address(account)), 20.1e18);
 
-        vm.expectRevert(bytes("Aloe: already healthy"));
+        vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(ILiquidator(address(this)), bytes(""), strain);
 
         setInterest(lender0, 10010);
@@ -146,7 +147,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(lender0.borrowBalance(address(account)), 200e18);
         assertEq(lender1.borrowBalance(address(account)), 20e18);
 
-        vm.expectRevert(bytes("Aloe: already healthy"));
+        vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(ILiquidator(address(this)), bytes(""), strain);
 
         setInterest(lender0, 10010);
@@ -189,7 +190,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         assertEq(asset0.balanceOf(address(account)), 0);
 
-        vm.expectRevert(bytes("Aloe: already healthy"));
+        vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(ILiquidator(address(this)), bytes(""), 1);
 
         setInterest(lender0, 10010);
@@ -201,8 +202,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         Prices memory prices = account.getPrices();
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
-        uint256 assets1 = Math.mulDiv(1690809120000000000000 / strain, price, Q96);
-        assets1 += assets1 / LIQUIDATION_INCENTIVE;
+        uint256 incentive1 = Math.mulDiv(1690809120000000000000 / LIQUIDATION_INCENTIVE, price, Q96);
+        uint256 assets1 = Math.mulDiv(1690809120000000000000 / strain, price, Q96) + incentive1 / strain;
 
         // MARK: actual command
         data = abi.encode(assets1);
@@ -240,7 +241,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         assertEq(asset1.balanceOf(address(account)), 0);
 
-        vm.expectRevert(bytes("Aloe: already healthy"));
+        vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(ILiquidator(address(this)), bytes(""), 1);
 
         setInterest(lender1, 10010);
@@ -252,8 +253,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.liquidate(ILiquidator(address(this)), bytes(""), 0);
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
-        uint256 assets0 = Math.mulDiv(borrow1 / strain, Q96, price);
-        assets0 += assets0 / LIQUIDATION_INCENTIVE;
+        uint256 incentive1 = borrow1 / LIQUIDATION_INCENTIVE;
+        uint256 assets0 = Math.mulDiv(borrow1 / strain + incentive1 / strain, Q96, price);
 
         // MARK: actual command
         data = abi.encode(assets0);
@@ -291,7 +292,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         assertEq(asset0.balanceOf(address(account)), 0);
 
-        vm.expectRevert(bytes("Aloe: already healthy"));
+        vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(ILiquidator(address(this)), bytes(""), 1);
 
         // increase price of DAI by 1 tick

@@ -7,7 +7,6 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {LIQUIDATION_INCENTIVE} from "./libraries/constants/Constants.sol";
 import {Q96} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
@@ -103,13 +102,24 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 liabilities0;
         uint256 liabilities1;
 
+        uint256 incentive1;
+        uint256 priceX96;
+
         {
             // Withdraw Uniswap positions while tallying assets
             Assets memory assets = _getAssets(positions.read(), prices, true);
             // Fetch liabilities from lenders
             (liabilities0, liabilities1) = _getLiabilities();
+            // Calculate liquidation incentive
+            (incentive1, priceX96) = BalanceSheet.computeLiquidationIncentive(
+                assets.fixed0 + assets.fluid0C, // total assets0 at `prices.c` (the TWAP)
+                assets.fixed1 + assets.fluid1C, // total assets1 at `prices.c` (the TWAP)
+                liabilities0,
+                liabilities1,
+                prices.c
+            );
             // Ensure only unhealthy accounts can be liquidated
-            require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: already healthy");
+            require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1, incentive1), "Aloe: healthy");
         }
 
         // NOTE: The health check values assets at the TWAP and is difficult to manipulate. However,
@@ -117,23 +127,17 @@ contract Borrower is IUniswapV3MintCallback {
         // As such, additional calls to `TOKEN0.balanceOf` and `TOKEN1.balanceOf` are required for
         // precise inventory.
 
-        // Figure out what portion of `liabilities0` can be repaid using existing `assets0`
-        uint256 assets0 = TOKEN0.balanceOf(address(this));
-        uint256 repayable0 = Math.min(assets0, liabilities0);
+        // Figure out what portion of `liabilities0` can be repaid using existing assets
+        uint256 repayable0 = Math.min(liabilities0, TOKEN0.balanceOf(address(this)));
         unchecked {
             liabilities0 -= repayable0;
         }
 
-        // Figure out what portion of `liabilities1` can be repaid using existing `assets`.
-        uint256 assets1 = TOKEN1.balanceOf(address(this));
-        uint256 repayable1 = Math.min(assets1, liabilities1);
+        // Figure out what portion of `liabilities1` can be repaid using existing assets
+        uint256 repayable1 = Math.min(liabilities1, TOKEN1.balanceOf(address(this)));
         unchecked {
             liabilities1 -= repayable1;
         }
-
-        // TODO: this is already computed inside of computeLiquidationIncentive, so use that instead of
-        // re-computing it (or at least compare gas between the 2 options)
-        uint256 priceX96 = Math.mulDiv(prices.c, prices.c, Q96);
 
         if (liabilities0 + liabilities1 == 0 || (liabilities0 > 0 && liabilities1 > 0)) {
             // If both are zero or neither is zero, there's nothing more to do
@@ -141,8 +145,7 @@ contract Borrower is IUniswapV3MintCallback {
         } else if (liabilities0 > 0) {
             uint256 converted0 = liabilities0 / strain;
 
-            uint256 maxLoss1 = Math.mulDiv(converted0, priceX96, Q96);
-            maxLoss1 += maxLoss1 / LIQUIDATION_INCENTIVE;
+            uint256 maxLoss1 = Math.mulDiv(converted0, priceX96, Q96) + incentive1 / strain;
             TOKEN1.safeTransfer(address(callee), maxLoss1);
 
             callee.callback0(data, maxLoss1, converted0);
@@ -153,8 +156,7 @@ contract Borrower is IUniswapV3MintCallback {
         } else {
             uint256 converted1 = liabilities1 / strain;
 
-            uint256 maxLoss0 = Math.mulDiv(converted1, Q96, priceX96);
-            maxLoss0 += maxLoss0 / LIQUIDATION_INCENTIVE;
+            uint256 maxLoss0 = Math.mulDiv(converted1 + incentive1 / strain, Q96, priceX96);
             TOKEN0.safeTransfer(address(callee), maxLoss0);
 
             callee.callback1(data, maxLoss0, converted1);
