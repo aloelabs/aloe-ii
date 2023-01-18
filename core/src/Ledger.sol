@@ -49,7 +49,6 @@ contract Ledger {
                              ERC20 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    // TODO Confirm that 2**32 unique referral codes is sufficient to prevent griefing
     /// @dev Highest 32 bits are the referral code, next 112 are the principle, lowest 112 are the shares.
     mapping(address => uint256) public balances;
 
@@ -178,9 +177,6 @@ contract Ledger {
             return (b - 1).mulDivUp(borrowIndex, BORROWS_SCALER);
         }
     }
-
-    // TODO add totalBorrows()
-    // TODO helpful to have previewBorrow previewRepay, maxBorrow, maxRepay, etc.?
 
     /*//////////////////////////////////////////////////////////////
                            ERC4626 ACCOUNTING
