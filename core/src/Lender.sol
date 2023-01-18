@@ -70,7 +70,7 @@ contract Lender is Ledger {
         // `borrow` and `repay` have to read the `borrows` mapping anyway, so setting this to 1
         // allows them to efficiently check whether a given borrower is whitelisted. This extra
         // unit of debt won't accrue interest or impact solvency calculations.
-        borrows[borrower] = 1; // TODO test that `repay` can never trigger this to go back to 0
+        borrows[borrower] = 1;
     }
 
     function enrollCourier(uint32 id, address wallet, uint16 cut) external {
@@ -112,8 +112,6 @@ contract Lender is Ledger {
 
         shares = _convertToShares(amount, inventory, cache.totalSupply, /* roundUp: */ false);
         require(shares != 0, "Aloe: zero impact");
-
-        // TODO: apparently ERC4626 requires us to support the approve/transferFrom flow as well
 
         // Ensure tokens were transferred
         cache.lastBalance += amount;

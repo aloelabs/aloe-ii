@@ -259,7 +259,7 @@ contract Borrower is IUniswapV3MintCallback {
 
     function getPrices() public view returns (Prices memory prices) {
         (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
-        uint256 sigma = 0.025e18; // TODO fetch real data from the volatility oracle
+        uint256 sigma = 0.025e18; // TODO: fetch real data from the volatility oracle
 
         // compute prices at which solvency will be checked
         uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);

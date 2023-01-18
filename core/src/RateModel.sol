@@ -3,10 +3,6 @@ pragma solidity ^0.8.15;
 
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
-// TODO (when switching to PID controller)
-// - will need both view and non-view versions of this
-// - use utilization to update PID controller
-// - each Lender gets needs its own RateModel in order for PID controller state to work well. Could still point to single proxy for logic though.
 contract RateModel {
     uint256 private constant A = 6.1010463348e20;
 

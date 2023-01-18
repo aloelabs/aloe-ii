@@ -255,13 +255,13 @@ contract LenderReferralsTest is Test {
         assertApproxEqAbs(lender.underlyingBalance(wallet), reward, 1);
     }
 
-    // TODO test chaining
+    // TODO: test chaining
 
-    // TODO test withdrawing in 25% chunks
+    // TODO: test withdrawing in 25% chunks
 
-    // TODO test that nominalShares = balanceOf before any interest has accrued
+    // TODO: test that nominalShares = balanceOf before any interest has accrued
 
-    // TODO expect revert if shares > post-fee balance, even if shares < pre-fee balance
+    // TODO: expect revert if shares > post-fee balance, even if shares < pre-fee balance
 
     function _enroll(uint32 id, address wallet, uint16 cut) private returns (uint32, address, uint16) {
         cut = cut % 10_000;
