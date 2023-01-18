@@ -33,6 +33,8 @@ contract BorrowerGasTest is Test, IManager {
     }
 
     function setUp() public {
+        deal(address(account), account.ANTE() + 1);
+
         // deal to this contract (so we're able to test add margin)
         deal(address(asset0), address(this), 99e18); // DAI
         deal(address(asset1), address(this), 0.8e18); // WETH

@@ -38,6 +38,8 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         deal(address(asset1), address(lender1), 10000e18); // WETH
         lender0.deposit(10000e18, address(12345));
         lender1.deposit(10000e18, address(12345));
+
+        deal(address(account), account.ANTE() + 1);
     }
 
     function test_noCallbackOneAsset() public {
@@ -54,7 +56,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         assertEq(lender0.borrowBalance(address(account)), 200e18);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(ILiquidator(address(this)), bytes(""), 1);
+        account.liquidate(this, bytes(""), 1);
 
         skip(1 days); // seconds
         lender0.accrueInterest();
@@ -65,7 +67,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(ILiquidator(address(this)), bytes(""), 1);
+        account.liquidate(this, bytes(""), 1);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);
@@ -88,7 +90,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         assertEq(lender1.borrowBalance(address(account)), 20e18);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(ILiquidator(address(this)), bytes(""), 1);
+        account.liquidate(this, bytes(""), 1);
 
         skip(1 days); // seconds
         lender0.accrueInterest();
@@ -102,7 +104,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(ILiquidator(address(this)), bytes(""), 1);
+        account.liquidate(this, bytes(""), 1);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);
@@ -135,7 +137,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(ILiquidator(address(this)), bytes(""), 1);
+        account.liquidate(this, bytes(""), 1);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);
@@ -166,7 +168,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(ILiquidator(address(this)), bytes(""), 1);
+        account.liquidate(this, bytes(""), 1);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);
@@ -200,6 +202,8 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
     }
 
     // ILiquidator
+    receive() external payable {}
+
     function swap1For0(
         bytes calldata,
         uint256,

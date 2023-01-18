@@ -51,7 +51,11 @@ contract BorrowerTest is Test, IManager {
 
         lender0.whitelist(address(account));
         lender1.whitelist(address(account));
+
+        deal(address(account), account.ANTE() + 1);
     }
+
+    // TODO: Test missing ante
 
     function test_liquidateLogicBothAreZero(uint184 liabilities0, uint184 liabilities1) public {
         unchecked {

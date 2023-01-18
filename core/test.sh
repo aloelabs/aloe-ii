@@ -27,7 +27,7 @@ if [ "${modifies_state}" != "0" ]; then
 fi
 
 # Run forge tests
-forge test -vv --gas-report --no-match-contract ".*Gas"
+forge test -vv --no-match-contract ".*Gas"
 
 # Get coverage
 forge coverage --report lcov --report summary --no-match-contract ".*Gas"
