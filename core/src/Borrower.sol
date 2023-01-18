@@ -51,12 +51,9 @@ contract Borrower is IUniswapV3MintCallback {
     /// @notice The lender of `TOKEN1`
     Lender public immutable LENDER1;
 
-    struct PackedSlot {
-        address owner;
-        bool isInCallback;
-    }
+    address owner;
 
-    PackedSlot public packedSlot;
+    bool isInCallback;
 
     int24[6] public positions;
 
@@ -76,9 +73,9 @@ contract Borrower is IUniswapV3MintCallback {
         require(pool.token1() == address(TOKEN1));
     }
 
-    function initialize(address owner) external {
-        require(packedSlot.owner == address(0));
-        packedSlot.owner = owner;
+    function initialize(address owner_) external {
+        require(owner == address(0));
+        owner = owner_;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -98,7 +95,7 @@ contract Borrower is IUniswapV3MintCallback {
      * `3` one third, and so on.
      */
     function liquidate(ILiquidator callee, bytes calldata data, uint256 strain) external {
-        require(!packedSlot.isInCallback);
+        require(!isInCallback);
 
         // Fetch prices from oracle
         Prices memory prices = getPrices();
@@ -178,15 +175,15 @@ contract Borrower is IUniswapV3MintCallback {
      * and the 2nd is for `TOKEN1`.
      */
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external {
-        require(msg.sender == packedSlot.owner, "Aloe: only owner");
-        require(!packedSlot.isInCallback);
+        require(msg.sender == owner, "Aloe: only owner");
+        require(!isInCallback);
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
 
-        packedSlot.isInCallback = true;
+        isInCallback = true;
         int24[] memory positions_ = positions.write(callee.callback(data));
-        packedSlot.isInCallback = false;
+        isInCallback = false;
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
@@ -218,7 +215,7 @@ contract Borrower is IUniswapV3MintCallback {
         int24 upper,
         uint128 liquidity
     ) external returns (uint256 amount0, uint256 amount1) {
-        require(packedSlot.isInCallback);
+        require(isInCallback);
 
         (amount0, amount1) = UNISWAP_POOL.mint(address(this), lower, upper, liquidity, "");
     }
@@ -228,13 +225,13 @@ contract Borrower is IUniswapV3MintCallback {
         int24 upper,
         uint128 liquidity
     ) external returns (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) {
-        require(packedSlot.isInCallback);
+        require(isInCallback);
 
         (burned0, burned1, collected0, collected1) = _uniswapWithdraw(lower, upper, liquidity);
     }
 
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
-        require(packedSlot.isInCallback);
+        require(isInCallback);
 
         if (amount0 > 0) LENDER0.borrow(amount0, recipient);
         if (amount1 > 0) LENDER1.borrow(amount1, recipient);
@@ -245,7 +242,7 @@ contract Borrower is IUniswapV3MintCallback {
     // --> Keep for integrator convenience
     // --> Keep because it allows integrators to repay debts without configuring the `allowances` bool array
     function repay(uint256 amount0, uint256 amount1) external {
-        require(packedSlot.isInCallback);
+        require(isInCallback);
 
         _repay(amount0, amount1);
     }
