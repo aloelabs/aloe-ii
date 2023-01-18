@@ -17,6 +17,8 @@ import {TickMath} from "./libraries/TickMath.sol";
 import {Lender} from "./Lender.sol";
 
 interface ILiquidator {
+    receive() external payable;
+
     function swap1For0(bytes calldata data, uint256 received1, uint256 expected0) external;
 
     function swap0For1(bytes calldata data, uint256 received0, uint256 expected1) external;
@@ -30,7 +32,9 @@ contract Borrower is IUniswapV3MintCallback {
     using SafeTransferLib for ERC20;
     using Positions for int24[6];
 
-    uint8 public constant B = 3;
+    uint8 public constant B = 3; // TODO: To make this governable, move it into packedSlot
+
+    uint256 public constant ANTE = 0.001 ether; // TODO: To make this governable, move it into packedSlot
 
     /// @notice The Uniswap pair in which the vault will manage positions
     IUniswapV3Pool public immutable UNISWAP_POOL;
@@ -158,6 +162,8 @@ contract Borrower is IUniswapV3MintCallback {
             }
 
             _repay(repayable0, repayable1);
+
+            payable(callee).transfer(address(this).balance / strain);
         }
     }
 
@@ -189,7 +195,10 @@ contract Borrower is IUniswapV3MintCallback {
         Assets memory assets = _getAssets(positions_, prices, false);
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
-        require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: need more margin");
+        require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
+        unchecked {
+            if (liabilities0 + liabilities1 > 0) require(address(this).balance > ANTE, "Aloe: missing ante");
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
