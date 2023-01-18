@@ -351,24 +351,24 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     }
 
     // ILiquidator
-    function callback0(
+    function swap1For0(
         bytes calldata data,
         uint256 actual,
-        uint256 liabilities0
+        uint256 expected0
     ) external {
         uint256 expected = abi.decode(data, (uint256));
         assertEq(actual, expected);
-        pool.swap(msg.sender, false, -int256(liabilities0), TickMath.MAX_SQRT_RATIO - 1, bytes(""));
+        pool.swap(msg.sender, false, -int256(expected0), TickMath.MAX_SQRT_RATIO - 1, bytes(""));
     }
 
-    function callback1(
+    function swap0For1(
         bytes calldata data,
         uint256 actual,
-        uint256 liabilities1
+        uint256 expected1
     ) external {
         uint256 expected = abi.decode(data, (uint256));
         assertEq(actual, expected);
-        pool.swap(msg.sender, true, -int256(liabilities1), TickMath.MIN_SQRT_RATIO + 1, bytes(""));
+        pool.swap(msg.sender, true, -int256(expected1), TickMath.MIN_SQRT_RATIO + 1, bytes(""));
     }
 
     // IUniswapV3SwapCallback
