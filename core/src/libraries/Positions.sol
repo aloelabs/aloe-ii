@@ -103,7 +103,7 @@ library Positions {
             );
         }
 
-        // Note: we still haven't checked that each `lower < upper`, or that the ticks align
+        // NOTE: we still haven't checked that each `lower < upper`, or that the ticks align
         // with tickSpacing. Uniswap will do that for us.
         return positions_;
     }

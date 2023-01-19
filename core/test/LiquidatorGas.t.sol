@@ -53,7 +53,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
 
         assertEq(lender0.borrowBalance(address(account)), 200e18);
 
-        vm.expectRevert(bytes("Aloe: already healthy"));
+        vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(ILiquidator(address(this)), bytes(""), 1);
 
         skip(1 days); // seconds
@@ -87,7 +87,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         assertEq(lender0.borrowBalance(address(account)), 200e18);
         assertEq(lender1.borrowBalance(address(account)), 20e18);
 
-        vm.expectRevert(bytes("Aloe: already healthy"));
+        vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(ILiquidator(address(this)), bytes(""), 1);
 
         skip(1 days); // seconds
