@@ -141,21 +141,25 @@ contract Borrower is IUniswapV3MintCallback {
                 // If both are zero or neither is zero, there's nothing more to do.
                 // Callbacks/swaps won't help.
             } else if (liabilities0 > 0) {
-                uint256 expected0 = liabilities0 / strain;
-                uint256 advance1 = Math.mulDiv(expected0, priceX96, Q96) + incentive1 / strain;
+                liabilities0 /= strain;
+                incentive1 /= strain;
 
-                TOKEN1.safeTransfer(address(callee), advance1);
-                callee.swap1For0(data, advance1, expected0);
+                uint256 available1 = Math.mulDiv(liabilities0, priceX96, Q96) + incentive1;
 
-                repayable0 += expected0;
+                TOKEN1.safeTransfer(address(callee), available1);
+                callee.swap1For0(data, available1, liabilities0);
+
+                repayable0 += liabilities0;
             } else {
-                uint256 expected1 = liabilities1 / strain;
-                uint256 advance0 = Math.mulDiv(expected1 + incentive1 / strain, Q96, priceX96);
+                liabilities1 /= strain;
+                incentive1 /= strain;
 
-                TOKEN0.safeTransfer(address(callee), advance0);
-                callee.swap0For1(data, advance0, expected1);
+                uint256 available0 = Math.mulDiv(liabilities1 + incentive1, Q96, priceX96);
 
-                repayable1 += expected1;
+                TOKEN0.safeTransfer(address(callee), available0);
+                callee.swap0For1(data, available0, liabilities1);
+
+                repayable1 += liabilities1;
             }
 
             _repay(repayable0, repayable1);
