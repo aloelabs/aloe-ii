@@ -222,6 +222,38 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertGt(asset1.balanceOf(address(this)), 0);
     }
 
+    function test_spec_cannotReenterLiquidate(uint8 strain) public {
+        strain = (strain % 8) + 1;
+
+        // give the account 1 WETH
+        deal(address(asset1), address(account), 1e18);
+
+        // borrow 1689.12 DAI
+        bytes memory data = abi.encode(Action.BORROW, 1689.12e18, 0);
+        bool[2] memory allowances;
+        account.modify(this, data, allowances);
+
+        // withdraw 1689.12 DAI
+        data = abi.encode(Action.WITHDRAW, 1689.12e18, 0);
+        allowances[0] = true;
+        account.modify(this, data, allowances);
+
+        setInterest(lender0, 10010);
+
+        Prices memory prices = account.getPrices();
+        uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
+        uint256 incentive1 = Math.mulDiv(1690809120000000000000 / LIQUIDATION_INCENTIVE, price, Q96);
+        uint256 assets1 = Math.mulDiv(1690809120000000000000 / strain, price, Q96) + incentive1 / strain;
+
+        vm.expectRevert();
+        data = abi.encode(type(uint256).max); // Special value that we're using to tell our test callback to try to re-enter
+        account.liquidate(this, data, strain);
+
+        // MARK: actual command
+        data = abi.encode(assets1, false);
+        account.liquidate(this, data, strain);
+    }
+
     function test_spec_interestTriggerRepayETHUsingSwap(uint8 scale, uint8 strain) public {
         // These tests are forked, so we don't want to spam the RPC with too many fuzzing values
         strain = (strain % 8) + 1;
@@ -367,6 +399,9 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         uint256 expected0
     ) external {
         uint256 expected = abi.decode(data, (uint256));
+        if (expected == type(uint256).max) {
+            Borrower(msg.sender).liquidate(this, data, 1);
+        }
         assertEq(actual, expected);
         pool.swap(msg.sender, false, -int256(expected0), TickMath.MAX_SQRT_RATIO - 1, bytes(""));
     }
@@ -377,6 +412,9 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         uint256 expected1
     ) external {
         uint256 expected = abi.decode(data, (uint256));
+        if (expected == type(uint256).max) {
+            Borrower(msg.sender).liquidate(this, data, 1);
+        }
         assertEq(actual, expected);
         pool.swap(msg.sender, true, -int256(expected1), TickMath.MIN_SQRT_RATIO + 1, bytes(""));
     }
