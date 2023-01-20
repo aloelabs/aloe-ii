@@ -165,6 +165,11 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         lender0.accrueInterest();
         lender1.accrueInterest();
 
+        account.warn();
+        skip(2 minutes + 1 seconds);
+        lender0.accrueInterest();
+        lender1.accrueInterest();
+
         vm.resumeGasMetering();
 
         // MARK: actual command
@@ -174,6 +179,31 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         assertEq(lender0.borrowBalance(address(account)), 0);
         assertEq(lender1.borrowBalance(address(account)), 0);
         vm.resumeGasMetering();
+    }
+
+    function test_warn() public {
+        vm.pauseGasMetering();
+
+        // give the account 1 WETH
+        deal(address(asset1), address(account), 1e18);
+
+        // borrow 1689.12 DAI
+        bytes memory data = abi.encode(Action.BORROW, 1689.12e18, 0);
+        bool[2] memory allowances;
+        account.modify(this, data, allowances);
+
+        // withdraw 1689.12 DAI
+        data = abi.encode(Action.WITHDRAW, 1689.12e18, 0);
+        allowances[0] = true;
+        account.modify(this, data, allowances);
+
+        skip(1 days); // seconds
+        lender0.accrueInterest();
+        lender1.accrueInterest();
+
+        vm.resumeGasMetering();
+
+        account.warn();
     }
 
     enum Action {

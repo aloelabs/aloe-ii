@@ -43,6 +43,51 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         deal(address(account), account.ANTE() + 1);
     }
 
+    function test_warn(uint8 seed0, uint8 seed1) public {
+        uint256 margin0 = 1e18 * (seed0 % 8 + 1); // TODO: Fuzz testing RPC concerns
+        uint256 margin1 = 0.1e18 * (seed1 % 8 + 1);
+        uint256 borrows0 = margin0 * 200;
+        uint256 borrows1 = margin1 * 200;
+
+        deal(address(asset0), address(account), margin0);
+        deal(address(asset1), address(account), margin1);
+
+        bytes memory data = abi.encode(Action.BORROW, borrows0, borrows1);
+        bool[2] memory allowances;
+        account.modify(this, data, allowances);
+
+        assertEq(lender0.borrowBalance(address(account)), borrows0);
+        assertEq(lender1.borrowBalance(address(account)), borrows1);
+        assertEq(asset0.balanceOf(address(account)), borrows0 + margin0);
+        assertEq(asset1.balanceOf(address(account)), borrows1 + margin1);
+
+        vm.expectRevert(bytes("Aloe: healthy"));
+        account.warn();
+
+        vm.expectRevert(bytes("Aloe: healthy"));
+        account.liquidate(this, bytes(""), 1);
+
+        setInterest(lender0, 10010);
+        setInterest(lender1, 10010);
+        assertEq(lender0.borrowBalance(address(account)), borrows0 * 10010 / 10000);
+        assertEq(lender1.borrowBalance(address(account)), borrows1 * 10010 / 10000);
+
+        account.warn();
+
+        assertEq(account.unleashLiquidationTime(), block.timestamp + LIQUIDATION_GRACE_PERIOD);
+
+        vm.expectRevert(bytes(""));
+        account.warn();
+
+        // MARK: actual command
+        account.liquidate(this, bytes(""), 1);
+
+        assertEq(lender0.borrowBalance(address(account)), 0);
+        assertEq(lender1.borrowBalance(address(account)), 0);
+        assertEq(asset0.balanceOf(address(account)), borrows0 + margin0 - borrows0 * 10010 / 10000);
+        assertEq(asset1.balanceOf(address(account)), borrows1 + margin1 - borrows1 * 10010 / 10000);
+    }
+
     function test_spec_repayDAI() public {
         uint256 strain = 1;
         // give the account 1 DAI
@@ -206,6 +251,11 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         setInterest(lender0, 10010);
         assertEq(lender0.borrowBalance(address(account)), 1690809120000000000000);
 
+        // Disable warn() requirement by setting unleashLiquidationTime=1
+        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(
+            uint160(address(this)) + (1 << 160)
+        )));
+
         vm.expectRevert();
         account.liquidate(this, bytes(""), 0);
 
@@ -239,6 +289,11 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.modify(this, data, allowances);
 
         setInterest(lender0, 10010);
+
+        // Disable warn() requirement by setting unleashLiquidationTime=1
+        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(
+            uint160(address(this)) + (1 << 160)
+        )));
 
         Prices memory prices = account.getPrices();
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
@@ -288,6 +343,11 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         setInterest(lender1, 10010);
         borrow1 = borrow1 * 10010 / 10000;
         assertEq(lender1.borrowBalance(address(account)), borrow1);
+
+        // Disable warn() requirement by setting unleashLiquidationTime=1
+        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(
+            uint160(address(this)) + (1 << 160)
+        )));
 
         vm.expectRevert();
         account.liquidate(this, bytes(""), 0);
@@ -351,6 +411,11 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
             );
         }
 
+        // Disable warn() requirement by setting unleashLiquidationTime=1
+        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(
+            uint160(address(this)) + (1 << 160)
+        )));
+
         prices = account.getPrices();
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
@@ -363,6 +428,76 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         assertEq(lender0.borrowBalance(address(account)), borrow0 - borrow0 / strain);
         assertGt(asset1.balanceOf(address(this)), 0);
+    }
+
+    function test_warnDoesProtect() public {
+        uint256 strain = 1;
+
+        Prices memory prices = account.getPrices();
+        uint256 borrow0 = 1000e18;
+        {
+            uint256 effectiveLiabilities0 = borrow0 + borrow0 / 200;
+            uint256 margin1 = Math.mulDiv(effectiveLiabilities0, Math.mulDiv(prices.b, prices.b, Q96), Q96);
+            margin1 += Math.mulDiv(borrow0, Math.mulDiv(prices.c, prices.c, Q96), Q96) / 20;
+            // give the account its margin
+            deal(address(asset1), address(account), margin1 + 1);
+        }
+
+        // borrow DAI
+        bytes memory data = abi.encode(Action.BORROW, borrow0, 0);
+        bool[2] memory allowances;
+        account.modify(this, data, allowances);
+
+        // withdraw DAI
+        data = abi.encode(Action.WITHDRAW, borrow0, 0);
+        allowances[0] = true;
+        account.modify(this, data, allowances);
+
+        vm.expectRevert(bytes("Aloe: healthy"));
+        account.liquidate(this, bytes(""), 1);
+
+        // increase price of DAI by 1 tick
+        {
+            uint32[] memory t = new uint32[](2);
+            t[0] = 1200;
+            t[1] = 0;
+            (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s) = pool.observe(t);
+            int24 newTick = TickMath.getTickAtSqrtRatio(prices.c) + 1;
+            tickCumulatives[0] = 0;
+            tickCumulatives[1] = int56(newTick) * 1200;
+            vm.mockCall(
+                address(pool),
+                abi.encodeWithSelector(pool.observe.selector),
+                abi.encode(tickCumulatives, secondsPerLiquidityCumulativeX128s)
+            );
+        }
+
+        vm.expectRevert(bytes("Aloe: grace"));
+        account.liquidate(this, bytes(""), 1);
+
+        account.warn();
+
+        vm.expectRevert(bytes("Aloe: grace"));
+        account.liquidate(this, bytes(""), 1);
+
+        skip(LIQUIDATION_GRACE_PERIOD);
+
+        vm.expectRevert(bytes("Aloe: grace"));
+        account.liquidate(this, bytes(""), 1);
+
+        skip(1);
+
+        prices = account.getPrices();
+
+        uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
+        uint256 assets1 = Math.mulDiv(borrow0 / strain, price, Q96);
+        assets1 += assets1 / LIQUIDATION_INCENTIVE;
+
+        // MARK: actual command
+        data = abi.encode(assets1);
+        account.liquidate(this, data, strain);
+
+        assertEq(account.unleashLiquidationTime(), 0);
     }
 
     enum Action {
