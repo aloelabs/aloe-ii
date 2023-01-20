@@ -7,6 +7,7 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
+import {LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
 import {Q96} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
@@ -59,6 +60,8 @@ contract Borrower is IUniswapV3MintCallback {
 
     address owner;
 
+    uint88 public unleashLiquidationTime;
+
     State public state;
 
     int24[6] public positions;
@@ -88,6 +91,23 @@ contract Borrower is IUniswapV3MintCallback {
                            MAIN ENTRY POINTS
     //////////////////////////////////////////////////////////////*/
 
+    function warn() external {
+        require(state == State.Ready && unleashLiquidationTime == 0);
+
+        {
+            // Fetch prices from oracle
+            Prices memory prices = getPrices();
+            // Withdraw Uniswap positions while tallying assets
+            Assets memory assets = _getAssets(positions.read(), prices, false);
+            // Fetch liabilities from lenders
+            (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+            // Ensure only unhealthy accounts get warned
+            require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
+        }
+
+        unleashLiquidationTime = uint88(block.timestamp + LIQUIDATION_GRACE_PERIOD);
+    }
+
     /**
      * @notice Liquidates the borrower, using all available assets to pay down liabilities. If
      * some or all of the payment cannot be made in-kind, `callee` is expected to swap one asset
@@ -102,6 +122,7 @@ contract Borrower is IUniswapV3MintCallback {
      */
     function liquidate(ILiquidator callee, bytes calldata data, uint256 strain) external {
         require(state == State.Ready);
+        uint256 unleashTime = unleashLiquidationTime;
         state = State.Locked;
 
         // Fetch prices from oracle
@@ -148,6 +169,8 @@ contract Borrower is IUniswapV3MintCallback {
                 // If both are zero or neither is zero, there's nothing more to do.
                 // Callbacks/swaps won't help.
             } else if (liabilities0 > 0) {
+                require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
+
                 liabilities0 /= strain;
                 incentive1 /= strain;
 
@@ -158,6 +181,8 @@ contract Borrower is IUniswapV3MintCallback {
 
                 repayable0 += liabilities0;
             } else {
+                require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
+
                 liabilities1 /= strain;
                 incentive1 /= strain;
 
@@ -174,6 +199,7 @@ contract Borrower is IUniswapV3MintCallback {
             payable(callee).transfer(address(this).balance / strain);
         }
 
+        unleashLiquidationTime = 0;
         state = State.Ready;
     }
 
@@ -196,6 +222,7 @@ contract Borrower is IUniswapV3MintCallback {
 
         state = State.InModifyCallback;
         int24[] memory positions_ = positions.write(callee.callback(data));
+        unleashLiquidationTime = 0;
         state = State.Ready;
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);

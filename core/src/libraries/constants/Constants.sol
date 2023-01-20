@@ -13,3 +13,5 @@ uint256 constant MAX_RESERVE_FACTOR = 20; // Expressed as reciprocal, e.g. 20 --
 uint256 constant MAX_LEVERAGE = 200;
 
 uint256 constant LIQUIDATION_INCENTIVE = 20; // Expressed as reciprocal, e.g. 20 --> 5%
+
+uint256 constant LIQUIDATION_GRACE_PERIOD = 2 minutes;
