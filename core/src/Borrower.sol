@@ -33,6 +33,10 @@ contract Borrower is IUniswapV3MintCallback {
     using SafeTransferLib for ERC20;
     using Positions for int24[6];
 
+    event Warn();
+
+    event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX96);
+
     uint8 public constant B = 3; // TODO: To make this governable, move it into packedSlot
 
     uint256 public constant ANTE = 0.001 ether; // TODO: To make this governable, move it into packedSlot
@@ -91,6 +95,10 @@ contract Borrower is IUniswapV3MintCallback {
                            MAIN ENTRY POINTS
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Warns the borrower that they're about to be liquidated. NOTE: Liquidators are only
+     * forced to call this in cases where the 5% swap bonus is up for grabs.
+     */
     function warn() external {
         require(state == State.Ready && unleashLiquidationTime == 0);
 
@@ -106,13 +114,19 @@ contract Borrower is IUniswapV3MintCallback {
         }
 
         unleashLiquidationTime = uint88(block.timestamp + LIQUIDATION_GRACE_PERIOD);
+
+        emit Warn();
     }
 
     /**
      * @notice Liquidates the borrower, using all available assets to pay down liabilities. If
      * some or all of the payment cannot be made in-kind, `callee` is expected to swap one asset
-     * for the other at a venue of their choosing.
-     * @dev TODO: describe reward
+     * for the other at a venue of their choosing. NOTE: Branches involving callbacks will fail
+     * until the borrower has been `warn`ed and the grace period has expired.
+     * @dev As a baseline, `callee` receives `address(this).balance / strain` ETH. This amount is
+     * intended to cover transaction fees. If the liquidation involves a swap callback, `callee`
+     * receives a 5% bonus denominated in the surplus token. In other words, if the two numeric
+     * callback arguments were denominated in the same asset, the first argument would be 5% larger.
      * @param callee A smart contract capable of swapping `TOKEN0` for `TOKEN1` and vice versa
      * @param data Encoded parameters that get forwarded to `callee` callbacks
      * @param strain Almost always set to `1` to pay off all debt and receive maximum reward. If
@@ -168,6 +182,7 @@ contract Borrower is IUniswapV3MintCallback {
             if (liabilities0 + liabilities1 == 0 || (liabilities0 > 0 && liabilities1 > 0)) {
                 // If both are zero or neither is zero, there's nothing more to do.
                 // Callbacks/swaps won't help.
+                incentive1 = 0;
             } else if (liabilities0 > 0) {
                 require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
 
@@ -195,12 +210,13 @@ contract Borrower is IUniswapV3MintCallback {
             }
 
             _repay(repayable0, repayable1);
-
             payable(callee).transfer(address(this).balance / strain);
-        }
 
-        unleashLiquidationTime = 0;
-        state = State.Ready;
+            unleashLiquidationTime = 0;
+            state = State.Ready;
+
+            emit Liquidate(repayable0, repayable1, incentive1, priceX96);
+        }
     }
 
     /**
@@ -277,6 +293,7 @@ contract Borrower is IUniswapV3MintCallback {
         if (amount1 > 0) LENDER1.borrow(amount1, recipient);
     }
 
+    // TODO: change/reword this
     // Technically uneccessary. but:
     // --> Keep because it allows us to use transfer instead of transferFrom, saving allowance reads in the underlying asset contracts
     // --> Keep for integrator convenience
