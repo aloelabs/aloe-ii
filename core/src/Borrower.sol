@@ -7,6 +7,7 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
+import {LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
 import {Q96} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
@@ -51,9 +52,17 @@ contract Borrower is IUniswapV3MintCallback {
     /// @notice The lender of `TOKEN1`
     Lender public immutable LENDER1;
 
-    address owner;
+    enum State {
+        Ready,
+        IsLocked,
+        IsInModifyCallback
+    }
 
-    bool isInCallback;
+    address public owner;
+
+    uint88 public unleashLiquidationTime;
+
+    State private state;
 
     int24[6] public positions;
 
@@ -76,11 +85,29 @@ contract Borrower is IUniswapV3MintCallback {
     function initialize(address owner_) external {
         require(owner == address(0));
         owner = owner_;
+        unleashLiquidationTime = 1;
     }
 
     /*//////////////////////////////////////////////////////////////
                            MAIN ENTRY POINTS
     //////////////////////////////////////////////////////////////*/
+
+    function warn() external {
+        require(unleashLiquidationTime == 1 && state == State.Ready);
+
+        {
+            // Fetch prices from oracle
+            Prices memory prices = getPrices();
+            // Withdraw Uniswap positions while tallying assets
+            Assets memory assets = _getAssets(positions.read(), prices, false);
+            // Fetch liabilities from lenders
+            (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+            // Ensure only unhealthy accounts get warned
+            require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
+        }
+
+        unleashLiquidationTime = uint88(block.timestamp + LIQUIDATION_GRACE_PERIOD);
+    }
 
     /**
      * @notice Liquidates the borrower, using all available assets to pay down liabilities. If
@@ -95,7 +122,9 @@ contract Borrower is IUniswapV3MintCallback {
      * `3` one third, and so on.
      */
     function liquidate(ILiquidator callee, bytes calldata data, uint256 strain) external {
-        require(!isInCallback);
+        require(state == State.Ready);
+        uint88 unleashTime = unleashLiquidationTime;
+        state = State.IsLocked;
 
         // Fetch prices from oracle
         Prices memory prices = getPrices();
@@ -141,6 +170,8 @@ contract Borrower is IUniswapV3MintCallback {
                 // If both are zero or neither is zero, there's nothing more to do.
                 // Callbacks/swaps won't help.
             } else if (liabilities0 > 0) {
+                require(1 < unleashTime && unleashTime < block.timestamp, "Aloe: wait");
+
                 liabilities0 /= strain;
                 incentive1 /= strain;
 
@@ -151,6 +182,8 @@ contract Borrower is IUniswapV3MintCallback {
 
                 repayable0 += liabilities0;
             } else {
+                require(1 < unleashTime && unleashTime < block.timestamp, "Aloe: wait");
+
                 liabilities1 /= strain;
                 incentive1 /= strain;
 
@@ -163,9 +196,11 @@ contract Borrower is IUniswapV3MintCallback {
             }
 
             _repay(repayable0, repayable1);
-
             payable(callee).transfer(address(this).balance / strain);
         }
+
+        unleashLiquidationTime = 1;
+        state = State.Ready;
     }
 
     /**
@@ -180,14 +215,15 @@ contract Borrower is IUniswapV3MintCallback {
      */
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external {
         require(msg.sender == owner, "Aloe: only owner");
-        require(!isInCallback);
+        require(state == State.Ready);
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
 
-        isInCallback = true;
+        state = State.IsInModifyCallback;
         int24[] memory positions_ = positions.write(callee.callback(data));
-        isInCallback = false;
+        unleashLiquidationTime = 1;
+        state = State.Ready;
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
@@ -219,7 +255,7 @@ contract Borrower is IUniswapV3MintCallback {
         int24 upper,
         uint128 liquidity
     ) external returns (uint256 amount0, uint256 amount1) {
-        require(isInCallback);
+        require(state == State.IsInModifyCallback);
 
         (amount0, amount1) = UNISWAP_POOL.mint(address(this), lower, upper, liquidity, "");
     }
@@ -229,13 +265,13 @@ contract Borrower is IUniswapV3MintCallback {
         int24 upper,
         uint128 liquidity
     ) external returns (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) {
-        require(isInCallback);
+        require(state == State.IsInModifyCallback);
 
         (burned0, burned1, collected0, collected1) = _uniswapWithdraw(lower, upper, liquidity);
     }
 
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
-        require(isInCallback);
+        require(state == State.IsInModifyCallback);
 
         if (amount0 > 0) LENDER0.borrow(amount0, recipient);
         if (amount1 > 0) LENDER1.borrow(amount1, recipient);
@@ -246,7 +282,7 @@ contract Borrower is IUniswapV3MintCallback {
     // --> Keep for integrator convenience
     // --> Keep because it allows integrators to repay debts without configuring the `allowances` bool array
     function repay(uint256 amount0, uint256 amount1) external {
-        require(isInCallback);
+        require(state == State.IsInModifyCallback);
 
         _repay(amount0, amount1);
     }
@@ -303,10 +339,8 @@ contract Borrower is IUniswapV3MintCallback {
 
                 if (!withdraw) continue;
 
-                // Withdraw all `liquidity` from the position, adding earned fees as fixed assets
-                (uint256 b0, uint256 b1, uint256 c0, uint256 c1) = _uniswapWithdraw(l, u, liquidity);
-                assets.fixed0 += c0 - b0;
-                assets.fixed1 += c1 - b1;
+                // Withdraw all `liquidity` from the position
+                _uniswapWithdraw(l, u, liquidity);
             }
         }
     }

@@ -165,6 +165,11 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         lender0.accrueInterest();
         lender1.accrueInterest();
 
+        account.warn();
+        skip(2 minutes + 1 seconds);
+        lender0.accrueInterest();
+        lender1.accrueInterest();
+
         vm.resumeGasMetering();
 
         // MARK: actual command
