@@ -364,9 +364,7 @@ contract Borrower is IUniswapV3MintCallback {
                 if (!withdraw) continue;
 
                 // Withdraw all `liquidity` from the position, adding earned fees as fixed assets
-                (uint256 b0, uint256 b1, uint256 c0, uint256 c1) = _uniswapWithdraw(l, u, liquidity);
-                assets.fixed0 += c0 - b0;
-                assets.fixed1 += c1 - b1;
+                _uniswapWithdraw(l, u, liquidity);
             }
         }
     }
