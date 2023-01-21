@@ -74,7 +74,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         account.warn();
 
-        assertEq(account.unleashLiquidationTime(), block.timestamp + LIQUIDATION_GRACE_PERIOD);
+        (, uint88 unleashLiquidationTime, ) = account.slot0();
+        assertEq(unleashLiquidationTime, block.timestamp + LIQUIDATION_GRACE_PERIOD);
 
         vm.expectRevert(bytes(""));
         account.warn();
@@ -497,7 +498,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         data = abi.encode(assets1);
         account.liquidate(this, data, strain);
 
-        assertEq(account.unleashLiquidationTime(), 0);
+        (, uint88 unleashLiquidationTime, ) = account.slot0();
+        assertEq(unleashLiquidationTime, 0);
     }
 
     enum Action {
