@@ -62,11 +62,13 @@ contract Borrower is IUniswapV3MintCallback {
         InModifyCallback
     }
 
-    address owner;
+    struct Slot0 {
+        address owner;
+        uint88 unleashLiquidationTime;
+        State state;
+    }
 
-    uint88 public unleashLiquidationTime;
-
-    State public state;
+    Slot0 public slot0;
 
     int24[6] public positions;
 
@@ -87,8 +89,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function initialize(address owner_) external {
-        require(owner == address(0));
-        owner = owner_;
+        require(slot0.owner == address(0));
+        slot0.owner = owner_;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -100,7 +102,13 @@ contract Borrower is IUniswapV3MintCallback {
      * forced to call this in cases where the 5% swap bonus is up for grabs.
      */
     function warn() external {
-        require(state == State.Ready && unleashLiquidationTime == 0);
+        // Load `slot0` from storage. We don't use `_loadSlot0` here because the `require` is different
+        uint256 slot0_;
+        assembly ("memory-safe") {
+            slot0_ := sload(slot0.slot)
+        }
+        // Equivalent to `slot0.state == State.Ready && slot0.unleashLiquidationTime == 0`
+        require(slot0_ >> 160 == 0);
 
         {
             // Fetch prices from oracle
@@ -113,8 +121,9 @@ contract Borrower is IUniswapV3MintCallback {
             require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
         }
 
-        unleashLiquidationTime = uint88(block.timestamp + LIQUIDATION_GRACE_PERIOD);
-
+        unchecked {
+            _saveSlot0(slot0_, (block.timestamp + LIQUIDATION_GRACE_PERIOD) << 160);
+        }
         emit Warn();
     }
 
@@ -135,9 +144,8 @@ contract Borrower is IUniswapV3MintCallback {
      * `3` one third, and so on.
      */
     function liquidate(ILiquidator callee, bytes calldata data, uint256 strain) external {
-        require(state == State.Ready);
-        uint256 unleashTime = unleashLiquidationTime;
-        state = State.Locked;
+        uint256 slot0_ = _loadSlot0();
+        _saveSlot0(slot0_, _formatted(State.Locked));
 
         // Fetch prices from oracle
         Prices memory prices = getPrices();
@@ -184,6 +192,7 @@ contract Borrower is IUniswapV3MintCallback {
                 // Callbacks/swaps won't help.
                 incentive1 = 0;
             } else if (liabilities0 > 0) {
+                uint256 unleashTime = slot0_ >> 160;
                 require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
 
                 liabilities0 /= strain;
@@ -196,6 +205,7 @@ contract Borrower is IUniswapV3MintCallback {
 
                 repayable0 += liabilities0;
             } else {
+                uint256 unleashTime = slot0_ >> 160;
                 require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
 
                 liabilities1 /= strain;
@@ -212,8 +222,7 @@ contract Borrower is IUniswapV3MintCallback {
             _repay(repayable0, repayable1);
             payable(callee).transfer(address(this).balance / strain);
 
-            unleashLiquidationTime = 0;
-            state = State.Ready;
+            _saveSlot0(slot0_ % (1 << 160), _formatted(State.Ready));
 
             emit Liquidate(repayable0, repayable1, incentive1, priceX96);
         }
@@ -230,16 +239,14 @@ contract Borrower is IUniswapV3MintCallback {
      * and the 2nd is for `TOKEN1`.
      */
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external {
-        require(msg.sender == owner, "Aloe: only owner");
-        require(state == State.Ready);
+        require(_loadSlot0() % (1 << 160) == uint160(msg.sender), "Aloe: only owner");
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
 
-        state = State.InModifyCallback;
+        _saveSlot0(uint160(msg.sender), _formatted(State.InModifyCallback));
         int24[] memory positions_ = positions.write(callee.callback(data));
-        unleashLiquidationTime = 0;
-        state = State.Ready;
+        _saveSlot0(uint160(msg.sender), _formatted(State.Ready));
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
@@ -271,7 +278,7 @@ contract Borrower is IUniswapV3MintCallback {
         int24 upper,
         uint128 liquidity
     ) external returns (uint256 amount0, uint256 amount1) {
-        require(state == State.InModifyCallback);
+        require(slot0.state == State.InModifyCallback);
 
         (amount0, amount1) = UNISWAP_POOL.mint(address(this), lower, upper, liquidity, "");
     }
@@ -281,13 +288,13 @@ contract Borrower is IUniswapV3MintCallback {
         int24 upper,
         uint128 liquidity
     ) external returns (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) {
-        require(state == State.InModifyCallback);
+        require(slot0.state == State.InModifyCallback);
 
         (burned0, burned1, collected0, collected1) = _uniswapWithdraw(lower, upper, liquidity);
     }
 
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
-        require(state == State.InModifyCallback);
+        require(slot0.state == State.InModifyCallback);
 
         if (amount0 > 0) LENDER0.borrow(amount0, recipient);
         if (amount1 > 0) LENDER1.borrow(amount1, recipient);
@@ -299,7 +306,7 @@ contract Borrower is IUniswapV3MintCallback {
     // --> Keep for integrator convenience
     // --> Keep because it allows integrators to repay debts without configuring the `allowances` bool array
     function repay(uint256 amount0, uint256 amount1) external {
-        require(state == State.InModifyCallback);
+        require(slot0.state == State.InModifyCallback);
 
         _repay(amount0, amount1);
     }
@@ -397,5 +404,24 @@ contract Borrower is IUniswapV3MintCallback {
             TOKEN1.safeTransfer(address(LENDER1), amount1);
             LENDER1.repay(amount1, address(this));
         }
+    }
+
+    /// @dev The name of this function impacts the optimizer's in-lining behavior. DO NOT CHANGE!
+    function _saveSlot0(uint256 slot0_, uint256 addend) private {
+        assembly ("memory-safe") {
+            sstore(slot0.slot, add(slot0_, addend))
+        }
+    }
+
+    function _loadSlot0() private view returns (uint256 slot0_) {
+        assembly ("memory-safe") {
+            slot0_ := sload(slot0.slot)
+        }
+        // Equivalent to `slot0.state == State.Ready`
+        require(slot0_ >> 248 == uint256(State.Ready));
+    }
+
+    function _formatted(State state) private pure returns (uint256) {
+        return uint256(state) << 248;
     }
 }
