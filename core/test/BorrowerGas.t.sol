@@ -60,6 +60,12 @@ contract BorrowerGasTest is Test, IManager {
         account.modify(this, data, allowances);
     }
 
+    function test_modifyWithAnte() public {
+        bytes memory data = abi.encode(Action.NONE, 0, 0);
+        bool[2] memory allowances;
+        account.modify{value: 0.001 ether + 1 wei}(this, data, allowances);
+    }
+
     function test_addMargin() public {
         asset1.transfer(address(account), 0.78e18);
     }
