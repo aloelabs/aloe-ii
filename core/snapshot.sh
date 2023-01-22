@@ -1,3 +1,3 @@
 #!/bin/bash
 
-forge snapshot -vv --match-contract ".*Gas"
+forge snapshot --match-contract ".*Gas"
