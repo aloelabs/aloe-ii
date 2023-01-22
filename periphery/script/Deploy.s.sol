@@ -11,7 +11,7 @@ import {FrontendManager} from "src/FrontendManager.sol";
 import {LenderLens} from "src/LenderLens.sol";
 import {Router} from "src/Router.sol";
 
-Factory constant FACTORY = Factory(0xa8a74E40d62CA77D9469E219794F9E56789c8612);
+Factory constant FACTORY = Factory(address(0));
 
 contract DeployScript is Script {
     function run() external {
