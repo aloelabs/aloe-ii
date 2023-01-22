@@ -238,7 +238,7 @@ contract Borrower is IUniswapV3MintCallback {
      * @param allowances Whether to approve `callee` to transfer ERC20s. The first entry is for `TOKEN0`,
      * and the 2nd is for `TOKEN1`.
      */
-    function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external {
+    function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external payable {
         require(_loadSlot0() % (1 << 160) == uint160(msg.sender), "Aloe: only owner");
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
