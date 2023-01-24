@@ -8,7 +8,7 @@ import {zip} from "src/libraries/Positions.sol";
 import "src/Borrower.sol";
 import "src/Lender.sol";
 
-import {deploySingleLender} from "./Utils.sol";
+import {deploySingleLender} from "../Utils.sol";
 
 contract LiquidatorGasTest is Test, IManager, ILiquidator {
     IUniswapV3Pool constant pool = IUniswapV3Pool(0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8);
