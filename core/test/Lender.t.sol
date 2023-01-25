@@ -21,8 +21,6 @@ contract LenderTest is Test {
         lender = deploySingleLender(asset, address(2), new RateModel());
     }
 
-    // TODO: test that `repay` can never trigger borrows to go back to 0
-
     function test_whitelist(address attacker, address borrower, uint256 value) public {
         address factory = lender.FACTORY();
 
