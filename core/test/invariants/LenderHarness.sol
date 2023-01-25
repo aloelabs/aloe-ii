@@ -228,8 +228,6 @@ contract LenderHarness {
         uint256 sharesBefore = LENDER.balanceOf(owner);
         uint256 reservesBefore = LENDER.balanceOf(LENDER.RESERVE());
         uint256 assetsBefore = LENDER.asset().balanceOf(recipient);
-        // uint32 courier = LENDER.courierOf(owner); // TODO:
-        // uint256 principle = LENDER.principleOf(owner); // TODO:
 
         // Actual action
         if (amount == 0) {
@@ -255,6 +253,7 @@ contract LenderHarness {
         } else {
             require(reservesAfter == reservesBefore + newReserves - shares, "redeem: burn from RESERVE issue");
         }
+        /// TODO: could also make assertions regarding courier payouts
     }
 
     /// @notice Borrows `amount` from the `LENDER` and sends it to `recipient`
@@ -324,7 +323,7 @@ contract LenderHarness {
         }
 
         // Check that `beneficiary` has borrowed at least `amount`
-        uint256 maxRepay = (b - 1) * LENDER.borrowIndex() / BORROWS_SCALER; // TODO: borrowBalance should work here (or at the very lest borrowBalanceStored; but they don't)
+        uint256 maxRepay = LENDER.borrowBalance(beneficiary);
         if (amount > maxRepay) {
             vm.prank(msg.sender);
             vm.expectRevert(bytes("Aloe: repay too much"));
@@ -437,6 +436,16 @@ contract LenderHarness {
         else return repay(amount, borrowers[i % count]);
     }
 
+    function repayMax(uint16 i) external returns (uint256) {
+        uint256 count = borrowers.length;
+        if (count == 0) return 0;
+        
+        address beneficiary = borrowers[i % count];
+        // uint256 amount = LENDER.borrowBalance(beneficiary);
+        // if (amount > type(uint112).max) amount = type(uint112).max;
+        return repay(uint112(LENDER.borrowBalance(beneficiary)), beneficiary);
+    }
+
     /*//////////////////////////////////////////////////////////////
                              SPECIAL CASES
     //////////////////////////////////////////////////////////////*/
@@ -466,8 +475,6 @@ contract LenderHarness {
     function borrowWithLenderAsAssetReceiver(uint112 amount) external returns (uint256 units) {
         units = borrow(amount, address(LENDER));
     }
-
-    // TODO: repayMax
 
     function transferToSelf(uint112 shares) external returns (bool) {
         return transfer(msg.sender, shares);

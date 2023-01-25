@@ -221,7 +221,7 @@ contract LenderTest is Test {
         lender.accrueInterest();
 
         assertEq(asset.balanceOf(jim), 10e6);
-        assertEq(lender.borrowBalance(jim), 10000058);
+        assertEq(lender.borrowBalance(jim), 10000057);
 
         assertEq(lender.underlyingBalance(alice), 100000050);
         assertEq(lender.underlyingBalanceStored(alice), 100000050);
