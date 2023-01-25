@@ -24,6 +24,10 @@ contract LenderHarness {
 
     address[] public borrowers;
 
+    uint32[] public courierIds;
+
+    mapping(uint32 => bool) alreadyEnrolledCourier;
+
     constructor(Lender lender, Router router) {
         LENDER = lender;
         ROUTER = router;
@@ -38,6 +42,69 @@ contract LenderHarness {
 
     function getBorrowerCount() external view returns (uint256) {
         return borrowers.length;
+    }
+
+    function enrollCourier(uint32 id, address wallet, uint16 cut) external {
+        if (id == 0 || cut == 0 || cut >= 10_000) {
+            vm.prank(msg.sender);
+            vm.expectRevert();
+            LENDER.enrollCourier(id, wallet, cut);
+        }
+        if (id == 0) id = 1;
+        cut = (cut % 9_999) + 1;
+
+        (, uint16 currentCut) = LENDER.couriers(id);
+        if (currentCut != 0) {
+            vm.prank(msg.sender);
+            vm.expectRevert();
+            LENDER.enrollCourier(id, wallet, cut);
+
+            assert(alreadyEnrolledCourier[id]);
+            return;
+        }
+
+        vm.prank(msg.sender);
+        LENDER.enrollCourier(id, wallet, cut);
+
+        assert(!alreadyEnrolledCourier[id]);
+        courierIds.push(id);
+        alreadyEnrolledCourier[id] = true;
+
+        if (!alreadyHolder[wallet]) {
+            holders.push(wallet);
+            alreadyHolder[wallet] = true;
+        }
+    }
+
+    function creditCourier(uint32 id, address account) public {
+        if (msg.sender != account) {
+            vm.prank(msg.sender);
+            vm.expectRevert();
+            LENDER.creditCourier(id, account);
+
+            vm.prank(account);
+            LENDER.approve(msg.sender, 1);
+        }
+
+        (address wallet, ) = LENDER.couriers(id);
+        if (wallet == account || !alreadyEnrolledCourier[id] || LENDER.balanceOf(account) > 0) {
+            vm.prank(msg.sender);
+            vm.expectRevert();
+            LENDER.creditCourier(id, account);
+            return;
+        }
+
+        vm.prank(msg.sender);
+        LENDER.creditCourier(id, account);
+
+        assert(LENDER.courierOf(account) == id);
+        assert(LENDER.principleOf(account) == 0);
+    }
+
+    function creditCourier(uint16 i, address account) external {
+        uint256 count = courierIds.length;
+        if (count == 0) return;
+        else creditCourier(courierIds[i % count], account);
     }
 
     function accrueInterest(uint16 elapsedTime) external {
@@ -237,8 +304,34 @@ contract LenderHarness {
     function repay(uint112 amount, uint16 i) external returns (uint256) {
         uint256 count = borrowers.length;
         if (count == 0) return 0;
-        else return repay(amount, borrowers[i % borrowers.length]);
+        else return repay(amount, borrowers[i % count]);
     }
 
     // TODO: repayMax
+
+    function transfer(address to, uint112 shares) external returns (bool) {
+        if (LENDER.courierOf(msg.sender) != 0 || LENDER.courierOf(to) != 0) {
+            vm.prank(msg.sender);
+            vm.expectRevert();
+            LENDER.transfer(to, shares);
+            return false;
+        }
+
+        uint256 balance = LENDER.balanceOf(msg.sender);
+        if (balance < shares) {
+            vm.prank(msg.sender);
+            vm.expectRevert();
+            LENDER.transfer(to, shares);
+
+            shares = balance > 0 ? uint112(shares % (balance + 1)) : 0;
+        }
+
+        if (!alreadyHolder[to]) {
+            holders.push(to);
+            alreadyHolder[to] = true;
+        }
+
+        vm.prank(msg.sender);
+        return LENDER.transfer(to, shares);
+    }
 }

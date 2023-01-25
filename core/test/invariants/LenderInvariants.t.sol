@@ -176,6 +176,25 @@ contract LenderInvariantsTest is Test, InvariantTest {
         );
     }
 
+    function invariant_maxWithdrawLessThanUnderlyingBalance() public {
+        uint256 count = lenderHarness.getHolderCount();
+        for (uint256 i = 0; i < count; i++) {
+            address user = lenderHarness.holders(i);
+
+            assertLe(lender.maxWithdraw(user), lender.underlyingBalance(user));
+            assertLe(lender.maxRedeem(user), lender.balanceOf(user));
+        }
+    }
+
+    function invariant_principleLessThanUnderlyingBalance() public {
+        uint256 count = lenderHarness.getHolderCount();
+        for (uint256 i = 0; i < count; i++) {
+            address user = lenderHarness.holders(i);
+
+            assertLe(lender.principleOf(user), lender.underlyingBalance(user));
+        }
+    }
+
     function invariant_totalBorrowsEqualsSumOfBorrowBalances() public {
         uint256 totalBorrows;
         uint256 count = lenderHarness.getBorrowerCount();
