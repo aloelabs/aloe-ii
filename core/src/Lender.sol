@@ -90,6 +90,9 @@ contract Lender is Ledger {
         // Callers are free to set their own courier, but they need permission to mess with others'
         require(msg.sender == account || allowance[account][msg.sender] != 0);
 
+        // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
+        require(account != RESERVE);
+
         // Payout logic can't handle self-reference, so don't let accounts credit themselves
         Courier memory courier = couriers[id];
         require(courier.cut != 0 && courier.wallet != account);
@@ -412,12 +415,6 @@ contract Lender is Ledger {
         emit Transfer(from, address(0), shares);
     }
 
-    // TODO: make sure that within a single txn, mappings aren't getting read from after being written
-    // to. This could cause problems because we don't do overflow check suntil _save, which means
-    // values could bleed into other data' compartments (esp. true for `balances` mapping).
-    // Seems that depositing with `to==reserves` will cause balances[reserves] to get updated twice?
-
-    /// @dev Note that if `RESERVE` ever gives credit to a courier, its principle won't be tracked properly.
     function _load() private returns (Cache memory cache, uint256 inventory) {
         cache = Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
         // Guard against reentrancy
@@ -429,7 +426,7 @@ contract Lender is Ledger {
         (cache, inventory, newTotalSupply) = _previewInterest(cache);
 
         // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
-        if (newTotalSupply != cache.totalSupply) {
+        if (newTotalSupply > cache.totalSupply) {
             _unsafeMint(RESERVE, newTotalSupply - cache.totalSupply, 0);
             cache.totalSupply = newTotalSupply;
         }

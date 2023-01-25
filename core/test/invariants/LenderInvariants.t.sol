@@ -11,9 +11,7 @@ import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 import "src/Lender.sol";
 
 import {LenderHarness, BORROWS_SCALER} from "./LenderHarness.sol";
-import {Router} from "../Utils.sol";
 
-// NOTE: We assume that lender.RESERVE() does not have a courier
 contract LenderInvariantsTest is Test, InvariantTest {
     ERC20 public asset;
 
@@ -50,8 +48,7 @@ contract LenderInvariantsTest is Test, InvariantTest {
             ));
             RateModel rateModel = new RateModel();
             lender.initialize(rateModel, 8);
-            Router router = new Router();
-            lenderHarness = new LenderHarness(lender, router);
+            lenderHarness = new LenderHarness(lender);
 
             targetContract(address(lenderHarness));
 
@@ -63,7 +60,6 @@ contract LenderInvariantsTest is Test, InvariantTest {
             excludeSender(address(lenderImplementation));
             excludeSender(address(lender));
             excludeSender(address(rateModel));
-            excludeSender(address(router));
             excludeSender(address(lenderHarness));
         }
 
@@ -192,6 +188,19 @@ contract LenderInvariantsTest is Test, InvariantTest {
             address user = lenderHarness.holders(i);
 
             assertLe(lender.principleOf(user), lender.underlyingBalance(user));
+        }
+    }
+
+    function invariant_underlyingBalanceLessThanConvertedShares() public {
+        uint256 count = lenderHarness.getHolderCount();
+        for (uint256 i = 0; i < count; i++) {
+            address user = lenderHarness.holders(i);
+
+            if (lender.courierOf(user) != 0) {
+                assertEq(lender.underlyingBalance(user), lender.convertToAssets(lender.balanceOf(user)));
+            } else {
+                assertLe(lender.underlyingBalance(user), lender.convertToAssets(lender.balanceOf(user)));
+            }
         }
     }
 
