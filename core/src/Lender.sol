@@ -204,10 +204,9 @@ contract Lender is Ledger {
             borrows[beneficiary] = b - units;
             cache.borrowBase -= units;
             // No overflow because `units < b` implies `units <= borrowBase`, which is a uint184.
-            // And `borrowIndex` is a uint72, so their product must fit in uint256. We add 1 instead
-            // of rounding up to avoid `amount == 0` and make things easier for integrators.
-            amount = 1 + (units * cache.borrowIndex) / BORROWS_SCALER;
+            // And `borrowIndex` is a uint72, so their product must fit in uint256.
         }
+        amount = units.mulDivUp(cache.borrowIndex, BORROWS_SCALER);
 
         // Ensure tokens were transferred
         cache.lastBalance += amount;
