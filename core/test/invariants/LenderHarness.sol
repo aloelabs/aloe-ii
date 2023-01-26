@@ -7,8 +7,6 @@ import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
 import "src/Lender.sol";
 
-uint256 constant BORROWS_SCALER = uint256(type(uint72).max) * 1e12;
-
 contract LenderHarness {
     Vm constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
