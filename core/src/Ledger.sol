@@ -43,7 +43,7 @@ contract Ledger {
 
     uint72 public borrowIndex;
 
-    mapping(address => uint256) public borrows;
+    mapping(address => uint256) internal borrows;
 
     /*//////////////////////////////////////////////////////////////
                              ERC20 STORAGE
@@ -159,6 +159,15 @@ contract Ledger {
         }
     }
 
+    function borrowUnits(address account) public view returns (uint256) {
+        uint256 b = borrows[account];
+        if (b == 0) return 0;
+
+        unchecked {
+            return b - 1;
+        }
+    }
+
     function borrowBalance(address account) external view returns (uint256) {
         uint256 b = borrows[account];
         if (b == 0) return 0;
@@ -166,6 +175,13 @@ contract Ledger {
         (Cache memory cache, , ) = _previewInterest(_getCache());
         unchecked {
             return ((b - 1) * cache.borrowIndex) / BORROWS_SCALER;
+        }
+    }
+
+    function totalBorrows() external view returns (uint256) {
+        (Cache memory cache, , ) = _previewInterest(_getCache());
+        unchecked {
+            return (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
         }
     }
 
