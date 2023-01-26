@@ -7,7 +7,7 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
+import {BORROWS_SCALER, LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
 import {Q96} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
@@ -253,7 +253,7 @@ contract Borrower is IUniswapV3MintCallback {
 
         Prices memory prices = getPrices();
         Assets memory assets = _getAssets(positions_, prices, false);
-        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+        (, , uint256 liabilities0, uint256 liabilities1, , ) = _getLiabilities();
 
         require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
         unchecked {
@@ -369,9 +369,13 @@ contract Borrower is IUniswapV3MintCallback {
         }
     }
 
-    function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
-        amount0 = LENDER0.borrowBalanceStored(address(this));
-        amount1 = LENDER1.borrowBalanceStored(address(this));
+    function _getLiabilities() private returns (uint256 units0, uint256 units1, uint256 amount0, uint256 amount1, uint72 borrowIndex0, uint72 borrowIndex1) {
+        (, borrowIndex0) = LENDER0.accrueInterest();
+        (, borrowIndex1) = LENDER1.accrueInterest();
+        units0 = LENDER0.borrowUnits(address(this));
+        units1 = LENDER1.borrowUnits(address(this));
+        amount0 = units0 * borrowIndex0 / BORROWS_SCALER;
+        amount1 = units1 * borrowIndex1 / BORROWS_SCALER;
     }
 
     /*//////////////////////////////////////////////////////////////
