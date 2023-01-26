@@ -115,15 +115,21 @@ contract Ledger {
 
     /**
      * @notice Gets basic lending statistics as if `accrueInterest` were just called.
-     * @return The sum of all banknote balances. Will differ from `totalSupply()` due to reserves inflation
+     * @return The updated `borrowIndex`
      * @return The sum of all banknote balances, in underlying units
      * @return The sum of all outstanding debts, in underlying units
+     * @return The sum of all banknote balances. Will differ from `totalSupply()` due to reserves inflation
      */
-    function stats() external view returns (uint256, uint256, uint256) {
+    function stats() external view returns (uint72, uint256, uint256, uint256) {
         (Cache memory cache, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());
 
         unchecked {
-            return (newTotalSupply, inventory, (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER);
+            return (
+                uint72(cache.borrowIndex),
+                inventory,
+                (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER,
+                newTotalSupply
+            );
         }
     }
 

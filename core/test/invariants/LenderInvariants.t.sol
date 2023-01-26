@@ -80,7 +80,7 @@ contract LenderInvariantsTest is Test, InvariantTest {
     }
 
     function invariant_statsValuesMatchOtherGetters() public {
-        (uint256 totalSupply, uint256 totalAssets, ) = lender.stats();
+        (, uint256 totalAssets, , uint256 totalSupply) = lender.stats();
         // NOTE: `totalSupply` from `stats()` assumes interest accrual --> shares minted to reserves --> so it's
         // always >= the current value
         assertGe(totalSupply, lender.totalSupply());
@@ -128,12 +128,12 @@ contract LenderInvariantsTest is Test, InvariantTest {
     }
 
     function invariant_totalSupplyLessThanTotalAssets() public {
-        (uint256 totalSupply, uint256 totalAssets, ) = lender.stats();
+        (, uint256 totalAssets, , uint256 totalSupply) = lender.stats();
         assertLe(totalSupply, totalAssets);
     }
 
     function invariant_convertToXXXXXXIsAccurate() public {
-        (uint256 totalSupply, uint256 totalAssets, ) = lender.stats();
+        (, uint256 totalAssets, , uint256 totalSupply) = lender.stats();
         assertApproxEqAbs(lender.convertToAssets(totalSupply), totalAssets, 1);
         assertApproxEqAbs(lender.convertToShares(totalAssets), totalSupply, 1);
     }
@@ -156,7 +156,7 @@ contract LenderInvariantsTest is Test, InvariantTest {
             totalAssetsStored += lender.underlyingBalanceStored(lenderHarness.holders(i));
         }
 
-        (, uint256 totalAssetsIncludingNewReserves, ) = lender.stats();
+        (, uint256 totalAssetsIncludingNewReserves, , ) = lender.stats();
         // NOTE: Σ(underlyingBalances) <= expected because `underlyingBalance` increases the denominator *as if*
         // shares have been minted to reserves, but doesn't actually increase reserves' balance.
         assertLe(totalAssetsExcludingNewReserves, totalAssetsIncludingNewReserves);
@@ -211,7 +211,7 @@ contract LenderInvariantsTest is Test, InvariantTest {
             totalBorrows += lender.borrowBalance(lenderHarness.borrowers(i));
         }
 
-        (, , uint256 expected) = lender.stats();
+        (, , uint256 expected, ) = lender.stats();
         assertApproxEqAbs(
             totalBorrows,
             expected,
