@@ -315,7 +315,7 @@ contract LenderHarness {
         uint256 b = LENDER.borrows(beneficiary);
         if (b == 0) {
             vm.prank(msg.sender);
-            vm.expectRevert(bytes("Aloe: not a borrower"));
+            vm.expectRevert(bytes("Aloe: repay too much"));
             LENDER.repay(amount, beneficiary);
             return 0;
         }

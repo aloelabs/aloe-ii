@@ -195,7 +195,6 @@ contract Lender is Ledger {
 
     function repay(uint256 amount, address beneficiary) external returns (uint256 units) {
         uint256 b = borrows[beneficiary];
-        require(b != 0, "Aloe: not a borrower");
 
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, ) = _load();
