@@ -115,7 +115,7 @@ contract Ledger {
 
     /**
      * @notice Gets basic lending statistics as if `accrueInterest` were just called.
-     * @return The sum of all banknote balances
+     * @return The sum of all banknote balances. Will differ from `totalSupply()` due to reserves inflation
      * @return The sum of all banknote balances, in underlying units
      * @return The sum of all outstanding debts, in underlying units
      */
@@ -179,16 +179,10 @@ contract Ledger {
                            ERC4626 ACCOUNTING
     //////////////////////////////////////////////////////////////*/
 
-    function totalAssets() public view returns (uint256) {
+    function totalAssets() external view returns (uint256) {
         (, uint256 inventory, ) = _previewInterest(_getCache());
         return inventory;
     }
-
-    // TODO: totalAssetsStored?
-
-    // TODO: totalBorrows?
-
-    // TODO: totalBorrowsStored?
 
     function convertToShares(uint256 assets) public view returns (uint256) {
         (, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());

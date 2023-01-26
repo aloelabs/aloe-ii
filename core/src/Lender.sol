@@ -4,7 +4,7 @@ pragma solidity ^0.8.15;
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
-import {MIN_RESERVE_FACTOR, MAX_RESERVE_FACTOR} from "./libraries/constants/Constants.sol";
+import {BORROWS_SCALER, ONE, MIN_RESERVE_FACTOR, MAX_RESERVE_FACTOR} from "./libraries/constants/Constants.sol";
 import {Q112} from "./libraries/constants/Q.sol";
 import {SafeCastLib} from "./libraries/SafeCastLib.sol";
 
@@ -235,9 +235,10 @@ contract Lender is Ledger {
         lastAccrualTime = _lastAccrualTime;
     }
 
-    function accrueInterest() external {
+    function accrueInterest() external returns (uint72) {
         (Cache memory cache, ) = _load();
         _save(cache, /* didChangeBorrowBase: */ false);
+        return uint72(cache.borrowIndex);
     }
 
     /*//////////////////////////////////////////////////////////////
