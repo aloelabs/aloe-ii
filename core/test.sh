@@ -1,5 +1,18 @@
 #!/bin/bash
 
+# Ensure each constant in `Constants.sol` is only defined once
+echo "Verifying that each constant is defined only once..."
+constants=$(grep -oh '[_A-Z]* =' ./src/libraries/constants/Constants.sol)
+while read constant; do 
+#   echo "  $constant"
+  n=$(grep -rnw --include=\*.sol '.' -e "$constant" | wc -l)
+  if (( n > 1)); then
+    echo "Failure"
+    exit 1
+  fi
+done <<< "$constants"
+echo "Success!"
+
 # Ensure that `Ledger` and `Lender` have the same storage layouts
 A=$(mktemp)
 B=$(mktemp)
