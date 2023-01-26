@@ -169,12 +169,9 @@ contract Ledger {
     }
 
     function borrowBalance(address account) external view returns (uint256) {
-        uint256 b = borrows[account];
-        if (b == 0) return 0;
-
         (Cache memory cache, , ) = _previewInterest(_getCache());
         unchecked {
-            return ((b - 1) * cache.borrowIndex) / BORROWS_SCALER;
+            return (borrowUnits(account) * cache.borrowIndex) / BORROWS_SCALER;
         }
     }
 
@@ -189,16 +186,10 @@ contract Ledger {
                            ERC4626 ACCOUNTING
     //////////////////////////////////////////////////////////////*/
 
-    function totalAssets() public view returns (uint256) {
+    function totalAssets() external view returns (uint256) {
         (, uint256 inventory, ) = _previewInterest(_getCache());
         return inventory;
     }
-
-    // TODO: totalAssetsStored?
-
-    // TODO: totalBorrows?
-
-    // TODO: totalBorrowsStored?
 
     function convertToShares(uint256 assets) public view returns (uint256) {
         (, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());
