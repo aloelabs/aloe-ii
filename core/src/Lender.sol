@@ -235,9 +235,11 @@ contract Lender is Ledger {
         lastAccrualTime = _lastAccrualTime;
     }
 
-    function accrueInterest() external {
+    function accrueInterest() external returns (uint184, uint72) {
         (Cache memory cache, ) = _load();
         _save(cache, /* didChangeBorrowBase: */ false);
+
+        return (uint184(cache.borrowBase), uint72(cache.borrowIndex));
     }
 
     /*//////////////////////////////////////////////////////////////
