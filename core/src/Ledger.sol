@@ -169,15 +169,6 @@ contract Ledger {
         }
     }
 
-    function borrowBalanceStored(address account) external view returns (uint256) {
-        uint256 b = borrows[account];
-        if (b == 0) return 0;
-
-        unchecked {
-            return ((b - 1) * borrowIndex) / BORROWS_SCALER;
-        }
-    }
-
     /*//////////////////////////////////////////////////////////////
                            ERC4626 ACCOUNTING
     //////////////////////////////////////////////////////////////*/

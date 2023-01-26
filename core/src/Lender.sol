@@ -193,19 +193,20 @@ contract Lender is Ledger {
         emit Borrow(msg.sender, recipient, amount, units);
     }
 
-    function repay(uint256 amount, address beneficiary) external returns (uint256 units) {
+    function repay(uint256 units, address beneficiary) external returns (uint256 amount) {
         uint256 b = borrows[beneficiary];
-        require(b != 0, "Aloe: not a borrower");
+        require(units < b, "Aloe: repay too much"); // NOTE: This also implies `b != 0`
 
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, ) = _load();
 
         unchecked {
-            units = (amount * BORROWS_SCALER) / cache.borrowIndex;
-            require(units < b, "Aloe: repay too much");
-
             borrows[beneficiary] = b - units;
             cache.borrowBase -= units;
+            // No overflow because `units < b` implies `units <= borrowBase`, which is a uint184.
+            // And `borrowIndex` is a uint72, so their product must fit in uint256. We add 1 instead
+            // of rounding up to avoid `amount == 0` and make things easier for integrators.
+            amount = 1 + (units * cache.borrowIndex) / BORROWS_SCALER;
         }
 
         // Ensure tokens were transferred
