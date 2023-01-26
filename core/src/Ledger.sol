@@ -117,10 +117,10 @@ contract Ledger {
     }
 
     /**
-     * @notice Gets basic lending statistics.
+     * @notice Gets basic lending statistics as if `accrueInterest` were just called.
      * @return The sum of all banknote balances
-     * @return The sum of all banknote balances, in underlying units (increases as interest accrues)
-     * @return The sum of all outstanding debts, in underlying units (increases as interest accrues)
+     * @return The sum of all banknote balances, in underlying units
+     * @return The sum of all outstanding debts, in underlying units
      */
     function stats() external view returns (uint256, uint256, uint256) {
         (Cache memory cache, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());
@@ -165,7 +165,7 @@ contract Ledger {
 
         (Cache memory cache, , ) = _previewInterest(_getCache());
         unchecked {
-            return (b - 1).mulDivUp(cache.borrowIndex, BORROWS_SCALER);
+            return ((b - 1) * cache.borrowIndex) / BORROWS_SCALER;
         }
     }
 
@@ -174,7 +174,7 @@ contract Ledger {
         if (b == 0) return 0;
 
         unchecked {
-            return (b - 1).mulDivUp(borrowIndex, BORROWS_SCALER);
+            return ((b - 1) * borrowIndex) / BORROWS_SCALER;
         }
     }
 
@@ -186,6 +186,12 @@ contract Ledger {
         (, uint256 inventory, ) = _previewInterest(_getCache());
         return inventory;
     }
+
+    // TODO: totalAssetsStored?
+
+    // TODO: totalBorrows?
+
+    // TODO: totalBorrowsStored?
 
     function convertToShares(uint256 assets) public view returns (uint256) {
         (, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());

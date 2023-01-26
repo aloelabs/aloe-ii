@@ -21,8 +21,6 @@ contract LenderTest is Test {
         lender = deploySingleLender(asset, address(2), new RateModel());
     }
 
-    // TODO: test that `repay` can never trigger borrows to go back to 0
-
     function test_whitelist(address attacker, address borrower, uint256 value) public {
         address factory = lender.FACTORY();
 
@@ -223,7 +221,7 @@ contract LenderTest is Test {
         lender.accrueInterest();
 
         assertEq(asset.balanceOf(jim), 10e6);
-        assertEq(lender.borrowBalance(jim), 10000058);
+        assertEq(lender.borrowBalance(jim), 10000057);
 
         assertEq(lender.underlyingBalance(alice), 100000050);
         assertEq(lender.underlyingBalanceStored(alice), 100000050);

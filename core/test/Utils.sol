@@ -14,3 +14,10 @@ function deploySingleLender(ERC20 asset, address treasury, RateModel rateModel) 
     Lender(proxy).initialize(rateModel, 8);
     return Lender(proxy);
 }
+
+contract Router {
+    function deposit(Lender lender, uint256 amount, address beneficiary) external returns (uint256 shares) {
+        lender.asset().transferFrom(msg.sender, address(lender), amount);
+        shares = lender.deposit(amount, beneficiary);
+    }
+}
