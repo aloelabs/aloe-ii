@@ -28,7 +28,7 @@ include_push_bytes = true  # Collect PUSH bytes from the contract code and add t
 
 [rpc_endpoints]
 mainnet = "${RPC_URL_MAINNET}"
-goerli = "${GOERLI_RPC_URL}"
+goerli = "${RPC_URL_GOERLI}"
 optimism = "${RPC_URL_OPTIMISM}"
 
 [etherscan]

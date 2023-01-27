@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+// SPDX-License-Identifier: AGPL-3.0-only
+pragma solidity 0.8.17;
 
 import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";

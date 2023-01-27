@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.15;
+pragma solidity 0.8.17;
 
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
+/// @title RateModel
+/// @author Aloe Labs, Inc.
+/// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract RateModel {
     uint256 private constant A = 6.1010463348e20;
 

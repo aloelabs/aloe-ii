@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+// SPDX-License-Identifier: AGPL-3.0-only
+pragma solidity 0.8.17;
 
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
@@ -15,6 +15,9 @@ interface IFlashBorrower {
     function onFlashLoan(address initiator, uint256 amount, bytes calldata data) external;
 }
 
+/// @title Lender
+/// @author Aloe Labs, Inc.
+/// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract Lender is Ledger {
     using FixedPointMathLib for uint256;
     using SafeCastLib for uint256;

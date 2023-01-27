@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.15;
+pragma solidity 0.8.17;
 
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
@@ -29,6 +29,9 @@ interface IManager {
     function callback(bytes calldata data) external returns (uint144 positions);
 }
 
+/// @title Borrower
+/// @author Aloe Labs, Inc.
+/// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract Borrower is IUniswapV3MintCallback {
     using SafeTransferLib for ERC20;
     using Positions for int24[6];
@@ -37,9 +40,9 @@ contract Borrower is IUniswapV3MintCallback {
 
     event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX96);
 
-    uint8 public constant B = 3; // TODO: To make this governable, move it into packedSlot
+    uint8 public constant B = 3;
 
-    uint256 public constant ANTE = 0.001 ether; // TODO: To make this governable, move it into packedSlot
+    uint256 public constant ANTE = 0.001 ether;
 
     /// @notice The Uniswap pair in which the vault will manage positions
     IUniswapV3Pool public immutable UNISWAP_POOL;
