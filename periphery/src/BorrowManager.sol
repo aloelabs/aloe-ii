@@ -35,7 +35,7 @@ contract BorrowManager is IManager {
             (uint8[], uint256[], uint256[])
         );
 
-        (address owner, ) = account.packedSlot();
+        (address owner, , ) = account.slot0();
 
         ERC20 token0;
         ERC20 token1;

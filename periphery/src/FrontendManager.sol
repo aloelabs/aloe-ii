@@ -19,7 +19,7 @@ contract FrontendManager is IManager {
 
     /* solhint-disable code-complexity */
 
-    // TODO this is an external function that does lots of different stuff. be extra sure that it's not a security risk,
+    // TODO: this is an external function that does lots of different stuff. be extra sure that it's not a security risk,
     // especially given that frontend users will be approving it to spend their tokens.
     function callback(bytes calldata data) external returns (uint144 positions) {
         require(FACTORY.isBorrower(msg.sender), "Aloe: bad account");
@@ -36,7 +36,7 @@ contract FrontendManager is IManager {
             // transfer in
             if (action == 0) {
                 (address asset, uint256 amount) = abi.decode(args[i], (address, uint256));
-                (address owner, ) = account.packedSlot();
+                (address owner, , ) = account.slot0();
                 ERC20(asset).safeTransferFrom(owner, msg.sender, amount);
                 continue;
             }
@@ -44,7 +44,7 @@ contract FrontendManager is IManager {
             // transfer out
             if (action == 1) {
                 (address asset, uint256 amount) = abi.decode(args[i], (address, uint256));
-                (address owner, ) = account.packedSlot();
+                (address owner, , ) = account.slot0();
                 ERC20(asset).safeTransferFrom(msg.sender, owner, amount);
                 continue;
             }
@@ -78,7 +78,7 @@ contract FrontendManager is IManager {
             }
         }
 
-        // TODO emit an event that includes the owner and the current uniswap tick
+        // TODO: emit an event that includes the owner and the current uniswap tick
     }
 
     /* solhint-enable code-complexity */
