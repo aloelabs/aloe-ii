@@ -1,10 +1,10 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+// SPDX-License-Identifier: AGPL-3.0-only
+pragma solidity 0.8.17;
 
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
-import {MIN_RESERVE_FACTOR, MAX_RESERVE_FACTOR} from "./libraries/constants/Constants.sol";
+import {BORROWS_SCALER, ONE, MIN_RESERVE_FACTOR, MAX_RESERVE_FACTOR} from "./libraries/constants/Constants.sol";
 import {Q112} from "./libraries/constants/Q.sol";
 import {SafeCastLib} from "./libraries/SafeCastLib.sol";
 
@@ -15,6 +15,9 @@ interface IFlashBorrower {
     function onFlashLoan(address initiator, uint256 amount, bytes calldata data) external;
 }
 
+/// @title Lender
+/// @author Aloe Labs, Inc.
+/// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract Lender is Ledger {
     using FixedPointMathLib for uint256;
     using SafeCastLib for uint256;
@@ -89,6 +92,9 @@ contract Lender is Ledger {
     function creditCourier(uint32 id, address account) external {
         // Callers are free to set their own courier, but they need permission to mess with others'
         require(msg.sender == account || allowance[account][msg.sender] != 0);
+
+        // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
+        require(account != RESERVE);
 
         // Payout logic can't handle self-reference, so don't let accounts credit themselves
         Courier memory courier = couriers[id];
@@ -192,7 +198,6 @@ contract Lender is Ledger {
 
     function repay(uint256 amount, address beneficiary) external returns (uint256 units) {
         uint256 b = borrows[beneficiary];
-        require(b != 0, "Aloe: not a borrower");
 
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, ) = _load();
@@ -232,9 +237,10 @@ contract Lender is Ledger {
         lastAccrualTime = _lastAccrualTime;
     }
 
-    function accrueInterest() external {
+    function accrueInterest() external returns (uint72) {
         (Cache memory cache, ) = _load();
         _save(cache, /* didChangeBorrowBase: */ false);
+        return uint72(cache.borrowIndex);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -412,7 +418,6 @@ contract Lender is Ledger {
         emit Transfer(from, address(0), shares);
     }
 
-    /// @dev Note that if `RESERVE` ever gives credit to a courier, its principle won't be tracked properly.
     function _load() private returns (Cache memory cache, uint256 inventory) {
         cache = Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
         // Guard against reentrancy
@@ -424,7 +429,7 @@ contract Lender is Ledger {
         (cache, inventory, newTotalSupply) = _previewInterest(cache);
 
         // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
-        if (newTotalSupply != cache.totalSupply) {
+        if (newTotalSupply > cache.totalSupply) {
             _unsafeMint(RESERVE, newTotalSupply - cache.totalSupply, 0);
             cache.totalSupply = newTotalSupply;
         }

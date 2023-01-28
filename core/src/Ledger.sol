@@ -1,21 +1,18 @@
-// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+// SPDX-License-Identifier: AGPL-3.0-only
+pragma solidity 0.8.17;
 
 import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
+import {BORROWS_SCALER, ONE} from "./libraries/constants/Constants.sol";
 import {Q112} from "./libraries/constants/Q.sol";
 
 import {RateModel} from "./RateModel.sol";
 
 contract Ledger {
     using FixedPointMathLib for uint256;
-
-    uint256 internal constant ONE = 1e12;
-
-    uint256 internal constant BORROWS_SCALER = type(uint72).max * ONE; // uint72 is from borrowIndex type
 
     address public immutable FACTORY;
 
@@ -117,16 +114,22 @@ contract Ledger {
     }
 
     /**
-     * @notice Gets basic lending statistics.
-     * @return The sum of all banknote balances
-     * @return The sum of all banknote balances, in underlying units (increases as interest accrues)
-     * @return The sum of all outstanding debts, in underlying units (increases as interest accrues)
+     * @notice Gets basic lending statistics as if `accrueInterest` were just called.
+     * @return The updated `borrowIndex`
+     * @return The sum of all banknote balances, in underlying units
+     * @return The sum of all outstanding debts, in underlying units
+     * @return The sum of all banknote balances. Will differ from `totalSupply()` due to reserves inflation
      */
-    function stats() external view returns (uint256, uint256, uint256) {
+    function stats() external view returns (uint72, uint256, uint256, uint256) {
         (Cache memory cache, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());
 
         unchecked {
-            return (newTotalSupply, inventory, (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER);
+            return (
+                uint72(cache.borrowIndex),
+                inventory,
+                (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER,
+                newTotalSupply
+            );
         }
     }
 
@@ -165,7 +168,7 @@ contract Ledger {
 
         (Cache memory cache, , ) = _previewInterest(_getCache());
         unchecked {
-            return (b - 1).mulDivUp(cache.borrowIndex, BORROWS_SCALER);
+            return ((b - 1) * cache.borrowIndex) / BORROWS_SCALER;
         }
     }
 
@@ -174,7 +177,7 @@ contract Ledger {
         if (b == 0) return 0;
 
         unchecked {
-            return (b - 1).mulDivUp(borrowIndex, BORROWS_SCALER);
+            return ((b - 1) * borrowIndex) / BORROWS_SCALER;
         }
     }
 
@@ -182,7 +185,7 @@ contract Ledger {
                            ERC4626 ACCOUNTING
     //////////////////////////////////////////////////////////////*/
 
-    function totalAssets() public view returns (uint256) {
+    function totalAssets() external view returns (uint256) {
         (, uint256 inventory, ) = _previewInterest(_getCache());
         return inventory;
     }

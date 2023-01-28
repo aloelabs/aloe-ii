@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.15;
+pragma solidity 0.8.17;
+
+uint256 constant ONE = 1e12;
+
+uint256 constant BORROWS_SCALER = type(uint72).max * ONE; // uint72 is from the type of borrowIndex in `Ledger`
 
 uint256 constant MIN_SIGMA = 0.02e18;
 

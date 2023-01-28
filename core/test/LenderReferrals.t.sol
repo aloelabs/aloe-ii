@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.15;
+pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
@@ -86,7 +86,7 @@ contract LenderReferralsTest is Test {
 
     function test_canCreditCourierWithPermission(uint32 id, address wallet, uint16 cut, address account) public {
         (id, wallet, cut) = _enroll(id, wallet, cut);
-        vm.assume(wallet != account);
+        vm.assume(wallet != account && account != lender.RESERVE());
 
         vm.prank(account);
         lender.approve(address(this), 1);
@@ -147,12 +147,13 @@ contract LenderReferralsTest is Test {
         vm.assume(amount > 1);
         (id, wallet, cut) = _enroll(id, wallet, cut);
 
-        vm.prank(to);
-        if (to == wallet) {
+        if (to == wallet || to == lender.RESERVE()) {
+            vm.prank(to);
             vm.expectRevert(bytes(""));
             lender.creditCourier(id, to);
             return;
         }
+        vm.prank(to);
         lender.creditCourier(id, to);
 
         deal(address(asset), address(lender), amount);
@@ -205,12 +206,13 @@ contract LenderReferralsTest is Test {
         (id, wallet, cut) = _enroll(id, wallet, cut);
         if (to == wallet || to == address(lender)) return;
 
-        vm.prank(to);
-        if (to == wallet) {
+        if (to == wallet || to == lender.RESERVE()) {
+            vm.prank(to);
             vm.expectRevert(bytes(""));
             lender.creditCourier(id, to);
             return;
         }
+        vm.prank(to);
         lender.creditCourier(id, to);
 
         deal(address(asset), address(lender), amount);

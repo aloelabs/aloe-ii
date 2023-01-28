@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.15;
+pragma solidity 0.8.17;
 
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
@@ -29,6 +29,9 @@ interface IManager {
     function callback(bytes calldata data) external returns (uint144 positions);
 }
 
+/// @title Borrower
+/// @author Aloe Labs, Inc.
+/// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract Borrower is IUniswapV3MintCallback {
     using SafeTransferLib for ERC20;
     using Positions for int24[6];
@@ -37,9 +40,9 @@ contract Borrower is IUniswapV3MintCallback {
 
     event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX96);
 
-    uint8 public constant B = 3; // TODO: To make this governable, move it into packedSlot
+    uint8 public constant B = 3;
 
-    uint256 public constant ANTE = 0.001 ether; // TODO: To make this governable, move it into packedSlot
+    uint256 public constant ANTE = 0.001 ether;
 
     /// @notice The Uniswap pair in which the vault will manage positions
     IUniswapV3Pool public immutable UNISWAP_POOL;
@@ -198,6 +201,9 @@ contract Borrower is IUniswapV3MintCallback {
                 liabilities0 /= strain;
                 incentive1 /= strain;
 
+                // NOTE: This value is not constrained to `TOKEN1.balanceOf(address(this))`, so liquidators
+                // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
+                // be an issue unless the borrower has already started accruing bad debt.
                 uint256 available1 = Math.mulDiv(liabilities0, priceX96, Q96) + incentive1;
 
                 TOKEN1.safeTransfer(address(callee), available1);
@@ -211,6 +217,9 @@ contract Borrower is IUniswapV3MintCallback {
                 liabilities1 /= strain;
                 incentive1 /= strain;
 
+                // NOTE: This value is not constrained to `TOKEN0.balanceOf(address(this))`, so liquidators
+                // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
+                // be an issue unless the borrower has already started accruing bad debt.
                 uint256 available0 = Math.mulDiv(liabilities1 + incentive1, Q96, priceX96);
 
                 TOKEN0.safeTransfer(address(callee), available0);

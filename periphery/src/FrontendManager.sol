@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.15;
+pragma solidity 0.8.17;
 
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
@@ -38,6 +38,7 @@ contract FrontendManager is IManager {
             // transfer in
             if (action == 0) {
                 (address asset, uint256 amount) = abi.decode(args[i], (address, uint256));
+                (address owner, , ) = account.slot0();
                 ERC20(asset).safeTransferFrom(owner, msg.sender, amount);
                 continue;
             }
@@ -45,6 +46,7 @@ contract FrontendManager is IManager {
             // transfer out
             if (action == 1) {
                 (address asset, uint256 amount) = abi.decode(args[i], (address, uint256));
+                (address owner, , ) = account.slot0();
                 ERC20(asset).safeTransferFrom(msg.sender, owner, amount);
                 continue;
             }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.15;
+pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
@@ -20,8 +20,6 @@ contract LenderTest is Test {
         asset = new MockERC20("Token", "TKN", 18);
         lender = deploySingleLender(asset, address(2), new RateModel());
     }
-
-    // TODO: test that `repay` can never trigger borrows to go back to 0
 
     function test_whitelist(address attacker, address borrower, uint256 value) public {
         address factory = lender.FACTORY();
@@ -223,7 +221,7 @@ contract LenderTest is Test {
         lender.accrueInterest();
 
         assertEq(asset.balanceOf(jim), 10e6);
-        assertEq(lender.borrowBalance(jim), 10000058);
+        assertEq(lender.borrowBalance(jim), 10000057);
 
         assertEq(lender.underlyingBalance(alice), 100000050);
         assertEq(lender.underlyingBalanceStored(alice), 100000050);

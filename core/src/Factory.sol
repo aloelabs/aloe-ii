@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.15;
+pragma solidity 0.8.17;
 
 import {Clones} from "clones-with-immutable-args/Clones.sol";
 import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
@@ -10,6 +10,9 @@ import {Borrower} from "./Borrower.sol";
 import {Lender} from "./Lender.sol";
 import {RateModel} from "./RateModel.sol";
 
+/// @title Factory
+/// @author Aloe Labs, Inc.
+/// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract Factory {
     using ClonesWithImmutableArgs for address;
 
@@ -37,6 +40,8 @@ contract Factory {
     }
 
     function createMarket(IUniswapV3Pool _pool) external {
+        // TODO: Require that Uniswap oracle cardinality (or just oldest observation) is greater than some value!
+
         address asset0 = _pool.token0();
         address asset1 = _pool.token1();
 

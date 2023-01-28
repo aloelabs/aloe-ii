@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity ^0.8.15;
+pragma solidity 0.8.17;
 
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
@@ -22,11 +22,9 @@ contract LenderLens {
         )
     {
         asset = lender.asset();
-        (totalSupply, inventory, totalBorrows) = lender.stats();
+        (, inventory, totalBorrows, totalSupply) = lender.stats();
 
-        if (inventory != 0) {
-            utilization = Math.mulDiv(1e18, totalBorrows, inventory);
-            interestRate = lender.rateModel().computeYieldPerSecond(utilization);
-        }
+        if (inventory != 0) utilization = Math.mulDiv(1e18, totalBorrows, inventory);
+        interestRate = lender.rateModel().computeYieldPerSecond(utilization);
     }
 }
