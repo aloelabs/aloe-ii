@@ -22,11 +22,11 @@ interface ImmutableCreate2Factory {
 
 ImmutableCreate2Factory constant PR00XY_FACTORY = ImmutableCreate2Factory(0x0000000000FFe8B47B3e2130213B802212439497);
 
-address constant ALOE_II_FACTORY = 0x00001e0800ef386E00005Ad9e11C82c8b800BF4f;
-bytes32 constant SALT_ALOE_II_FRONTEND_MANAGER = 0xbbc2cd847bdf10468861dab854cd2b2e315e28c8a03bc66dcbb0c001f6dbf5bd;
-bytes32 constant SALT_ALOE_II_LENDER_LENS = 0xbbc2cd847bdf10468861dab854cd2b2e315e28c8a03bc66dcbb0c001f6dbf5bd;
-bytes32 constant SALT_ALOE_II_BORROWER_LENS = 0xbbc2cd847bdf10468861dab854cd2b2e315e28c8a03bc66dcbb0c001f6dbf5bd;
-bytes32 constant SALT_ALOE_II_ROUTER = 0xbbc2cd847bdf10468861dab854cd2b2e315e28c8a03bc66dcbb0c001f6dbf5bd;
+address constant ALOE_II_FACTORY = 0x315980E4a137633952917a656ECEBa74c8f39768;
+bytes32 constant SALT_ALOE_II_FRONTEND_MANAGER = 0xbbc2cd847bdf10468861dab854cd2b2e315e28c8a03bc66dcbb0c001f6dbf5b1;
+bytes32 constant SALT_ALOE_II_LENDER_LENS = 0xbbc2cd847bdf10468861dab854cd2b2e315e28c8a03bc66dcbb0c001f6dbf5b1;
+bytes32 constant SALT_ALOE_II_BORROWER_LENS = 0xbbc2cd847bdf10468861dab854cd2b2e315e28c8a03bc66dcbb0c001f6dbf5b1;
+bytes32 constant SALT_ALOE_II_ROUTER = 0xbbc2cd847bdf10468861dab854cd2b2e315e28c8a03bc66dcbb0c001f6dbf5b1;
 
 contract DeployScript is Script {
     function run() external {
@@ -40,7 +40,6 @@ contract DeployScript is Script {
         creationCode = type(FrontendManager).creationCode;
         initializationCode = abi.encodePacked(creationCode, args);
         address frontendManager = PR00XY_FACTORY.safeCreate2(SALT_ALOE_II_FRONTEND_MANAGER, initializationCode);
-        assert(frontendManager == 0x000071E5490031009cbE0000866968003ebe0081);
 
         creationCode = type(LenderLens).creationCode;
         initializationCode = abi.encodePacked(creationCode);

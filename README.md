@@ -3,7 +3,9 @@
 ## Development
 
 ```bash
-source .env
+git clone https://github.com/aloelabs/aloe-ii.git
+git submodule update --init --recursive
+
 cd core # or periphery
 forge build
 ```
