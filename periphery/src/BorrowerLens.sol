@@ -13,10 +13,13 @@ contract BorrowerLens {
     // TODO: getCollateralFactor
 
     /// @dev Mirrors the logic in `BalanceSheet.isHealthy`, but returns numbers instead of a boolean
-    function getHealth(Borrower account) external view returns (uint256 healthA, uint256 healthB) {
+    function getHealth(
+        Borrower account,
+        bool previewInterest
+    ) external view returns (uint256 healthA, uint256 healthB) {
         Prices memory prices = account.getPrices();
         Assets memory assets = _getAssets(account, account.getUniswapPositions(), prices);
-        (uint256 liabilities0, uint256 liabilities1) = getLiabilities(account);
+        (uint256 liabilities0, uint256 liabilities1) = getLiabilities(account, previewInterest);
 
         // liquidation incentive. counted as liability because account will owe it to someone.
         // compensates liquidators for inventory risk.
@@ -94,9 +97,17 @@ contract BorrowerLens {
 
     /* solhint-enable code-complexity */
 
-    function getLiabilities(Borrower account) public view returns (uint256 amount0, uint256 amount1) {
-        amount0 = account.LENDER0().borrowBalanceStored(address(account));
-        amount1 = account.LENDER1().borrowBalanceStored(address(account));
+    function getLiabilities(
+        Borrower account,
+        bool previewInterest
+    ) public view returns (uint256 amount0, uint256 amount1) {
+        if (previewInterest) {
+            amount0 = account.LENDER0().borrowBalance(address(account));
+            amount1 = account.LENDER1().borrowBalance(address(account));
+        } else {
+            amount0 = account.LENDER0().borrowBalanceStored(address(account));
+            amount1 = account.LENDER1().borrowBalanceStored(address(account));
+        }
     }
 
     function getUniswapFees(Borrower account) external view returns (bytes32[] memory keys, uint256[] memory fees) {
