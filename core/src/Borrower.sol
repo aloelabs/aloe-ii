@@ -201,6 +201,9 @@ contract Borrower is IUniswapV3MintCallback {
                 liabilities0 /= strain;
                 incentive1 /= strain;
 
+                // NOTE: This value is not constrained to `TOKEN1.balanceOf(address(this))`, so liquidators
+                // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
+                // be an issue unless the borrower has already started accruing bad debt.
                 uint256 available1 = Math.mulDiv(liabilities0, priceX96, Q96) + incentive1;
 
                 TOKEN1.safeTransfer(address(callee), available1);
@@ -214,6 +217,9 @@ contract Borrower is IUniswapV3MintCallback {
                 liabilities1 /= strain;
                 incentive1 /= strain;
 
+                // NOTE: This value is not constrained to `TOKEN0.balanceOf(address(this))`, so liquidators
+                // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
+                // be an issue unless the borrower has already started accruing bad debt.
                 uint256 available0 = Math.mulDiv(liabilities1 + incentive1, Q96, priceX96);
 
                 TOKEN0.safeTransfer(address(callee), available0);

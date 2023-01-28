@@ -40,6 +40,8 @@ contract Factory {
     }
 
     function createMarket(IUniswapV3Pool _pool) external {
+        // TODO: Require that Uniswap oracle cardinality (or just oldest observation) is greater than some value!
+
         address asset0 = _pool.token0();
         address asset1 = _pool.token1();
 
