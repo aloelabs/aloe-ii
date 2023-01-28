@@ -18,8 +18,8 @@ interface ImmutableCreate2Factory {
 
 ImmutableCreate2Factory constant PR00XY_FACTORY = ImmutableCreate2Factory(0x0000000000FFe8B47B3e2130213B802212439497);
 
-bytes32 constant SALT_ALOE_II_RATE_MODEL = 0xbbc2cd847bdf10468861dab854cd2b2e315e28c82d7041b11db008801ba5ea43;
-bytes32 constant SALT_ALOE_II_FACTORY = 0xbbc2cd847bdf10468861dab854cd2b2e315e28c84f81a0a48c5d550005aa9b33;
+bytes32 constant SALT_ALOE_II_RATE_MODEL = 0xbbc2cd847bdf10468861dab854cd2b2e315e28c82d7041b11db008801ba5ea44;
+bytes32 constant SALT_ALOE_II_FACTORY = 0xbbc2cd847bdf10468861dab854cd2b2e315e28c84f81a0a48c5d550005aa9b34;
 
 contract DeployScript is Script {
     event GetInitHash(bytes32 initHash);
@@ -35,8 +35,6 @@ contract DeployScript is Script {
         initializationCode = abi.encodePacked(creationCode);
         address rateModel = PR00XY_FACTORY.safeCreate2(SALT_ALOE_II_RATE_MODEL, initializationCode);
 
-        assert(rateModel == 0x00000000a6f937BCB46F1dB682Ce4F0CDD99Afb1);
-
         args = abi.encode(rateModel);
         creationCode = type(Factory).creationCode;
         initializationCode = abi.encodePacked(creationCode, args);
@@ -44,8 +42,6 @@ contract DeployScript is Script {
         emit GetInitHash(keccak256(initializationCode));
 
         address factory = PR00XY_FACTORY.safeCreate2(SALT_ALOE_II_FACTORY, initializationCode);
-
-        assert(factory == 0x00001e0800ef386E00005Ad9e11C82c8b800BF4f);
 
         vm.stopBroadcast();
     }

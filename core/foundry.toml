@@ -4,8 +4,8 @@ src = 'src'
 test = 'test'
 libs = ['lib']
 
-out = '../build/core'
-cache_path = '../cache/core'
+out = 'build'
+cache_path = 'cache'
 
 via_ir = true
 optimizer = true
