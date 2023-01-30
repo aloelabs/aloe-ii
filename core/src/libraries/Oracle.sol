@@ -3,6 +3,8 @@ pragma solidity 0.8.17;
 
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
+import {TickMath} from "./TickMath.sol";
+
 /// @title Oracle
 /// @notice Provides functions to integrate with V3 pool oracle
 /// @author Modified from Uniswap (https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/OracleLibrary.sol)
@@ -11,7 +13,7 @@ library Oracle {
      * @notice Calculates time-weighted means of tick and liquidity for a given Uniswap V3 pool
      * @param pool Address of the pool that we want to observe
      * @param secondsAgo Number of seconds in the past from which to calculate the time-weighted means
-     * @return arithmeticMeanTick The arithmetic mean tick from (block.timestamp - secondsAgo) to block.timestamp
+     * @return sqrtMeanPriceX96 The sqrt(geometricMeanPrice) from (block.timestamp - secondsAgo) to block.timestamp
      * @return secondsPerLiquidityX128 The change in seconds per liquidity from (block.timestamp - secondsAgo)
      * to block.timestamp
      * @dev `secondsAgo` MUST NOT be 0
@@ -19,7 +21,7 @@ library Oracle {
     function consult(
         IUniswapV3Pool pool,
         uint32 secondsAgo
-    ) internal view returns (int24 arithmeticMeanTick, uint160 secondsPerLiquidityX128) {
+    ) internal view returns (uint160 sqrtMeanPriceX96, uint160 secondsPerLiquidityX128) {
         uint32[] memory secondsAgos = new uint32[](2);
         secondsAgos[0] = secondsAgo;
         secondsAgos[1] = 0;
@@ -30,10 +32,11 @@ library Oracle {
 
         unchecked {
             int56 tickCumulativesDelta = tickCumulatives[1] - tickCumulatives[0];
-            arithmeticMeanTick = int24(tickCumulativesDelta / int32(secondsAgo));
+            int24 arithmeticMeanTick = int24(tickCumulativesDelta / int32(secondsAgo));
             // Always round to negative infinity
             if (tickCumulativesDelta < 0 && (tickCumulativesDelta % int32(secondsAgo) != 0)) arithmeticMeanTick--;
 
+            sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
             secondsPerLiquidityX128 = secondsPerLiquidityCumulativeX128s[1] - secondsPerLiquidityCumulativeX128s[0];
         }
     }
