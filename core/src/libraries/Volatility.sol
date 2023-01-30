@@ -61,8 +61,9 @@ library Volatility {
         FeeGrowthGlobals memory b,
         uint256 scale
     ) internal pure returns (uint256) {
-        uint256 volumeGamma0Gamma1;
-        {
+        unchecked {
+            if (data.secondsPerLiquidityX128 == 0 || b.timestamp - a.timestamp == 0) return 0;
+
             uint128 revenue0Gamma1 = computeRevenueGamma(
                 a.feeGrowthGlobal0X128,
                 b.feeGrowthGlobal0X128,
@@ -80,21 +81,17 @@ library Volatility {
             // This is an approximation. Ideally the fees earned during each swap would be multiplied by the price
             // *at that swap*. But for prices simulated with GBM and swap sizes either normally or uniformly distributed,
             // the error you get from using geometric mean price is <1% even with high drift and volatility.
-            volumeGamma0Gamma1 = revenue1Gamma0 + amount0ToAmount1(revenue0Gamma1, data.arithmeticMeanTick);
-        }
+            uint256 volumeGamma0Gamma1 = revenue1Gamma0 + amount0ToAmount1(revenue0Gamma1, data.arithmeticMeanTick);
 
-        uint128 sqrtTickTVLX32 = uint128(
-            FixedPointMathLib.sqrt(
+            // Fits in uint128
+            uint256 sqrtTickTVLX32 = FixedPointMathLib.sqrt(
                 computeTickTVLX64(metadata.tickSpacing, data.currentTick, data.sqrtPriceX96, data.tickLiquidity)
-            )
-        );
-        uint48 timeAdjustmentX32 = uint48(FixedPointMathLib.sqrt((scale << 64) / (b.timestamp - a.timestamp)));
+            );
+            if (sqrtTickTVLX32 == 0) return 0;
 
-        if (sqrtTickTVLX32 == 0) return 0;
-        unchecked {
-            return
-                (uint256(2e18) * uint256(timeAdjustmentX32) * FixedPointMathLib.sqrt(volumeGamma0Gamma1)) /
-                sqrtTickTVLX32;
+            // Fits in uint48
+            uint256 timeAdjustmentX32 = FixedPointMathLib.sqrt((scale << 64) / (b.timestamp - a.timestamp));
+            return (uint256(2e18) * timeAdjustmentX32 * FixedPointMathLib.sqrt(volumeGamma0Gamma1)) / sqrtTickTVLX32;
         }
     }
 

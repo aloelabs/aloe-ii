@@ -5,6 +5,7 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 /// @title Oracle
 /// @notice Provides functions to integrate with V3 pool oracle
+/// @author Modified from Uniswap (https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/OracleLibrary.sol)
 library Oracle {
     /**
      * @notice Calculates time-weighted means of tick and liquidity for a given Uniswap V3 pool
@@ -13,13 +14,12 @@ library Oracle {
      * @return arithmeticMeanTick The arithmetic mean tick from (block.timestamp - secondsAgo) to block.timestamp
      * @return secondsPerLiquidityX128 The change in seconds per liquidity from (block.timestamp - secondsAgo)
      * to block.timestamp
+     * @dev `secondsAgo` MUST NOT be 0
      */
     function consult(
         IUniswapV3Pool pool,
         uint32 secondsAgo
     ) internal view returns (int24 arithmeticMeanTick, uint160 secondsPerLiquidityX128) {
-        require(secondsAgo != 0, "BP");
-
         uint32[] memory secondsAgos = new uint32[](2);
         secondsAgos[0] = secondsAgo;
         secondsAgos[1] = 0;
@@ -28,16 +28,18 @@ library Oracle {
             secondsAgos
         );
 
-        int56 tickCumulativesDelta = tickCumulatives[1] - tickCumulatives[0];
-        arithmeticMeanTick = int24(tickCumulativesDelta / int32(secondsAgo));
-        // Always round to negative infinity
-        if (tickCumulativesDelta < 0 && (tickCumulativesDelta % int32(secondsAgo) != 0)) arithmeticMeanTick--;
+        unchecked {
+            int56 tickCumulativesDelta = tickCumulatives[1] - tickCumulatives[0];
+            arithmeticMeanTick = int24(tickCumulativesDelta / int32(secondsAgo));
+            // Always round to negative infinity
+            if (tickCumulativesDelta < 0 && (tickCumulativesDelta % int32(secondsAgo) != 0)) arithmeticMeanTick--;
 
-        secondsPerLiquidityX128 = secondsPerLiquidityCumulativeX128s[1] - secondsPerLiquidityCumulativeX128s[0];
+            secondsPerLiquidityX128 = secondsPerLiquidityCumulativeX128s[1] - secondsPerLiquidityCumulativeX128s[0];
+        }
     }
 
     /**
-     * @notice Given a pool, it returns the number of seconds ago of the oldest stored observation
+     * @notice Given a pool, returns the number of seconds ago of the oldest stored observation
      * @param pool Address of Uniswap V3 pool that we want to observe
      * @param observationIndex The observation index from pool.slot0()
      * @param observationCardinality The observationCardinality from pool.slot0()
