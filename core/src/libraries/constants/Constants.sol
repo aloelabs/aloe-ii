@@ -19,3 +19,11 @@ uint256 constant MAX_LEVERAGE = 200;
 uint256 constant LIQUIDATION_INCENTIVE = 20; // Expressed as reciprocal, e.g. 20 --> 5%
 
 uint256 constant LIQUIDATION_GRACE_PERIOD = 2 minutes;
+
+uint256 constant IV_SCALE = 24 hours;
+
+uint256 constant IV_CHANGE_PER_SECOND = 1e12;
+
+uint256 constant FEE_GROWTH_GLOBALS_SAMPLE_PERIOD = 1 minutes;
+
+uint32 constant ORACLE_LOOKBACK = 20 minutes;

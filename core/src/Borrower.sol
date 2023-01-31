@@ -11,11 +11,11 @@ import {LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
 import {Q96} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
-import {Oracle} from "./libraries/Oracle.sol";
 import {Positions} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 
 import {Lender} from "./Lender.sol";
+import {VolatilityOracle} from "./VolatilityOracle.sol";
 
 interface ILiquidator {
     receive() external payable;
@@ -43,6 +43,9 @@ contract Borrower is IUniswapV3MintCallback {
     uint8 public constant B = 3;
 
     uint256 public constant ANTE = 0.001 ether;
+
+    /// @notice The oracle to use for prices and implied volatility
+    VolatilityOracle public immutable ORACLE;
 
     /// @notice The Uniswap pair in which the vault will manage positions
     IUniswapV3Pool public immutable UNISWAP_POOL;
@@ -79,7 +82,8 @@ contract Borrower is IUniswapV3MintCallback {
                        CONSTRUCTOR & INITIALIZER
     //////////////////////////////////////////////////////////////*/
 
-    constructor(IUniswapV3Pool pool, Lender lender0, Lender lender1) {
+    constructor(VolatilityOracle oracle, IUniswapV3Pool pool, Lender lender0, Lender lender1) {
+        ORACLE = oracle;
         UNISWAP_POOL = pool;
         LENDER0 = lender0;
         LENDER1 = lender1;
@@ -329,11 +333,9 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function getPrices() public view returns (Prices memory prices) {
-        (int24 arithmeticMeanTick, ) = Oracle.consult(UNISWAP_POOL, 1200);
-        uint256 sigma = 0.025e18; // TODO: fetch real data from the volatility oracle
+        (uint160 sqrtMeanPriceX96, uint256 sigma) = ORACLE.consult(UNISWAP_POOL);
 
         // compute prices at which solvency will be checked
-        uint160 sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(arithmeticMeanTick);
         (uint160 a, uint160 b) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, sigma, B);
         prices = Prices(a, b, sqrtMeanPriceX96);
     }

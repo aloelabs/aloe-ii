@@ -9,6 +9,7 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {Borrower} from "./Borrower.sol";
 import {Lender} from "./Lender.sol";
 import {RateModel} from "./RateModel.sol";
+import {VolatilityOracle} from "./VolatilityOracle.sol";
 
 /// @title Factory
 /// @author Aloe Labs, Inc.
@@ -26,6 +27,8 @@ contract Factory {
         Borrower borrowerImplementation;
     }
 
+    VolatilityOracle public immutable ORACLE;
+
     RateModel public immutable RATE_MODEL;
 
     address public immutable lenderImplementation;
@@ -34,13 +37,14 @@ contract Factory {
 
     mapping(address => bool) public isBorrower;
 
-    constructor(RateModel rateModel_) {
-        RATE_MODEL = rateModel_;
+    constructor(VolatilityOracle oracle, RateModel rateModel) {
+        ORACLE = oracle;
+        RATE_MODEL = rateModel;
         lenderImplementation = address(new Lender(address(this)));
     }
 
     function createMarket(IUniswapV3Pool _pool) external {
-        // TODO: Require that Uniswap oracle cardinality (or just oldest observation) is greater than some value!
+        ORACLE.prepare(_pool);
 
         address asset0 = _pool.token0();
         address asset1 = _pool.token1();
@@ -52,7 +56,7 @@ contract Factory {
         lender0.initialize(RATE_MODEL, 8);
         lender1.initialize(RATE_MODEL, 8);
 
-        Borrower borrowerImplementation = new Borrower(_pool, lender0, lender1);
+        Borrower borrowerImplementation = new Borrower(ORACLE, _pool, lender0, lender1);
 
         getMarket[_pool] = Market(lender0, lender1, borrowerImplementation);
         emit CreateMarket(_pool, lender0, lender1);

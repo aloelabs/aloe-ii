@@ -9,7 +9,7 @@ import {zip} from "src/libraries/Positions.sol";
 import "src/Borrower.sol";
 import "src/Lender.sol";
 
-import {deploySingleLender} from "./Utils.sol";
+import {deploySingleBorrower, deploySingleLender} from "./Utils.sol";
 
 contract LiquidatorTest is Test, IManager, ILiquidator {
     IUniswapV3Pool constant pool = IUniswapV3Pool(0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8);
@@ -26,7 +26,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         lender0 = deploySingleLender(asset0, address(this), new RateModel());
         lender1 = deploySingleLender(asset1, address(this), new RateModel());
-        account = new Borrower(pool, lender0, lender1);
+        account = deploySingleBorrower(pool, lender0, lender1);
         account.initialize(address(this));
 
         lender0.whitelist(address(account));

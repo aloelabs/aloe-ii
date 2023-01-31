@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 import "src/Borrower.sol";
 import "src/Lender.sol";
 
-import {deploySingleLender} from "./Utils.sol";
+import {deploySingleBorrower, deploySingleLender} from "./Utils.sol";
 
 contract BorrowerTest is Test, IManager {
     IUniswapV3Pool constant pool = IUniswapV3Pool(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640);
@@ -46,7 +46,7 @@ contract BorrowerTest is Test, IManager {
 
         lender0 = deploySingleLender(asset0, address(this), new RateModel());
         lender1 = deploySingleLender(asset1, address(this), new RateModel());
-        account = new Borrower(pool, lender0, lender1);
+        account = deploySingleBorrower(pool, lender0, lender1);
         account.initialize(address(this));
 
         lender0.whitelist(address(account));
