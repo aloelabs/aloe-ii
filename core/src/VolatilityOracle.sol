@@ -11,6 +11,8 @@ import {Volatility} from "./libraries/Volatility.sol";
 /// @author Aloe Labs, Inc.
 /// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract VolatilityOracle {
+    event Update(IUniswapV3Pool indexed pool, uint160 sqrtMeanPriceX96, uint256 iv);
+
     struct LastWrite {
         uint8 index;
         uint32 time;
@@ -76,6 +78,7 @@ contract VolatilityOracle {
             arr[next] = b;
             lastWrites[pool] = LastWrite(next, uint32(block.timestamp), uint216(iv));
 
+            emit Update(pool, data.sqrtMeanPriceX96, iv);
             return (data.sqrtMeanPriceX96, iv);
         }
     }
