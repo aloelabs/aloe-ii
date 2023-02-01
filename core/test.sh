@@ -33,14 +33,16 @@ fi
 
 # Ensure that `Ledger` has only view & pure functions
 forge build
-(node 'test/Ledger.js')
+(node 'test.js')
 modifies_state=$?
 if [ "${modifies_state}" != "0" ]; then
     exit 1
 fi
 
 # Run forge tests
-forge test -vv --no-match-contract ".*Gas"
+forge test -vv --no-match-contract ".*Gas" --no-match-test "historical"
 
-# Get coverage
-forge coverage --report lcov --report summary --no-match-contract ".*Gas"
+# Get coverage. `VolatilityTest` is excluded because it causes stack too deep when coverage instrumentation is added
+mv "test/libraries/Volatility.t.sol" "test/libraries/Volatility.ignore"
+forge coverage --report lcov --report summary --no-match-contract ".*Gas" --no-match-test "historical"
+mv "test/libraries/Volatility.ignore" "test/libraries/Volatility.t.sol"

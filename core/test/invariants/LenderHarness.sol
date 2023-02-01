@@ -244,7 +244,11 @@ contract LenderHarness {
 
         // Assertions
         require(LENDER.lastBalance() == lastBalance - amount, "redeem: lastBalance mismatch");
-        require(LENDER.asset().balanceOf(recipient) == assetsBefore + amount, "redeem: transfer issue");
+        if (recipient != address(LENDER)) {
+            require(LENDER.asset().balanceOf(recipient) == assetsBefore + amount, "redeem: transfer issue");
+        } else {
+            require(LENDER.asset().balanceOf(recipient) == assetsBefore, "redeem: bad self reference");
+        }
         if (owner != LENDER.RESERVE()) {
             require(LENDER.balanceOf(owner) == sharesBefore - shares, "redeem: burn issue");
             require(reservesAfter == reservesBefore + newReserves, "redeem: reserves issue");
