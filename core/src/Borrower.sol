@@ -278,7 +278,11 @@ contract Borrower is IUniswapV3MintCallback {
                               SUB-COMMANDS
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev Callback for Uniswap V3 pool.
+    /**
+     * @notice Callback for Uniswap V3 pool; necessary for `uniswapDeposit` to work
+     * @param amount0 The amount of `TOKEN0` owed to the `UNISWAP_POOL`
+     * @param amount1 The amount of `TOKEN1` owed to the `UNISWAP_POOL`
+     */
     function uniswapV3MintCallback(uint256 amount0, uint256 amount1, bytes calldata) external {
         require(msg.sender == address(UNISWAP_POOL));
 
@@ -286,6 +290,16 @@ contract Borrower is IUniswapV3MintCallback {
         if (amount1 > 0) TOKEN1.safeTransfer(msg.sender, amount1);
     }
 
+    /**
+     * @notice Allows the account owner to add liquidity to a Uniswap position (or create a new one).
+     * Only works within the `modify` callback.
+     * @dev The `LiquidityAmounts` library can help convert underlying amounts to units of `liquidity`
+     * @param lower The tick at the position's lower bound
+     * @param upper The tick at the position's upper bound
+     * @param liquidity The amount of liquidity to add, in Uniswap's internal units
+     * @return amount0 The precise amount of `TOKEN0` that went into the Uniswap position
+     * @return amount1 The precise amount of `TOKEN1` that went into the Uniswap position
+     */
     function uniswapDeposit(
         int24 lower,
         int24 upper,
@@ -296,6 +310,18 @@ contract Borrower is IUniswapV3MintCallback {
         (amount0, amount1) = UNISWAP_POOL.mint(address(this), lower, upper, liquidity, "");
     }
 
+    /**
+     * @notice Allows the account owner to withdraw liquidity from one of their Uniswap positions. Only
+     * works within the `modify` callback.
+     * @dev The `LiquidityAmounts` library can help convert underlying amounts to units of `liquidity`
+     * @param lower The tick at the position's lower bound
+     * @param upper The tick at the position's upper bound
+     * @param liquidity The amount of liquidity to remove, in Uniswap's internal units
+     * @return burned0 The amount of `TOKEN0` that was removed from the Uniswap position
+     * @return burned1 The amount of `TOKEN1` that was removed from the Uniswap position
+     * @return collected0 Equal to `burned0` plus any earned `TOKEN0` fees that hadn't yet been claimed
+     * @return collected1 Equal to `burned1` plus any earned `TOKEN1` fees that hadn't yet been claimed
+     */
     function uniswapWithdraw(
         int24 lower,
         int24 upper,
@@ -306,6 +332,15 @@ contract Borrower is IUniswapV3MintCallback {
         (burned0, burned1, collected0, collected1) = _uniswapWithdraw(lower, upper, liquidity);
     }
 
+    /**
+     * @notice Allows the account owner to borrow funds from `LENDER0` and `LENDER1`. Only works within
+     * the `modify` callback.
+     * @dev If `amount0 > 0` and interest hasn't yet accrued in this block for `LENDER0`, it will accrue
+     * prior to processing your new borrow. Same goes for `amount1 > 0` and `LENDER1`.
+     * @param amount0 The amount of `TOKEN0` to borrow
+     * @param amount1 The amount of `TOKEN1` to borrow
+     * @param recipient Receives the borrowed tokens. Usually the address of this `Borrower` account.
+     */
     function borrow(uint256 amount0, uint256 amount1, address recipient) external {
         require(slot0.state == State.InModifyCallback);
 
@@ -313,11 +348,15 @@ contract Borrower is IUniswapV3MintCallback {
         if (amount1 > 0) LENDER1.borrow(amount1, recipient);
     }
 
-    // TODO: change/reword this
-    // Technically uneccessary. but:
-    // --> Keep because it allows us to use transfer instead of transferFrom, saving allowance reads in the underlying asset contracts
-    // --> Keep for integrator convenience
-    // --> Keep because it allows integrators to repay debts without configuring the `allowances` bool array
+    /**
+     * @notice Allows the account owner to repay debts to `LENDER0` and `LENDER1`. Only works within the
+     * `modify` callback.
+     * @dev This is technically unnecessary since you could call `Lender.repay` directly, specifying this
+     * contract as the `beneficiary` and using `modify`'s `allowances` array to give yourself full control
+     * of assets. We include it because it's convenient and gas-efficient for common use-cases.
+     * @param amount0 The amount of `TOKEN0` to repay
+     * @param amount1 The amount of `TOKEN1` to repay
+     */
     function repay(uint256 amount0, uint256 amount1) external {
         require(slot0.state == State.InModifyCallback);
 
