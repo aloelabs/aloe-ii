@@ -10,8 +10,6 @@ import "aloe-ii-core/Borrower.sol";
 contract BorrowerLens {
     using Uniswap for Uniswap.Position;
 
-    // TODO: getCollateralFactor
-
     /// @dev Mirrors the logic in `BalanceSheet.isHealthy`, but returns numbers instead of a boolean
     function getHealth(
         Borrower account,
@@ -130,6 +128,8 @@ contract BorrowerLens {
 
                 Uniswap.Position memory position = Uniswap.Position(l, u);
                 Uniswap.PositionInfo memory info = position.info(pool, address(account));
+
+                // TODO: possibly need to skip fees check if `info.liquidity == 0`
 
                 (uint256 temp0, uint256 temp1) = position.fees(pool, info, c);
 
