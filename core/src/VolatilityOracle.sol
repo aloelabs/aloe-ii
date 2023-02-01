@@ -58,7 +58,7 @@ contract VolatilityOracle {
             // Only update IV if the feeGrowthGlobals samples are approximately 1 hour apart
             if (
                 isInInterval({
-                    min: 1 hours - 5 minutes, // NOTE: Keeping these constants here because they're related to `arr.length`
+                    min: 1 hours - 5 minutes, // NOTE: Keeping constants in-line because they're related to arr.length
                     x: b.timestamp - a.timestamp,
                     max: 1 hours + 5 minutes
                 })
@@ -130,11 +130,11 @@ contract VolatilityOracle {
     ) private view returns (Volatility.FeeGrowthGlobals memory) {
         uint256 target = block.timestamp - 1 hours;
 
-        // See if the newest sample is best
+        // See if the newest sample is nearest to `target`
         Volatility.FeeGrowthGlobals memory sample = arr[index];
         if (sample.timestamp <= target) return sample;
 
-        // See if the oldest sample is best
+        // See if the oldest sample is nearest to `target`
         uint256 next = (index + 1) % 60;
         sample = arr[next];
         if (sample.timestamp >= target) return sample;
