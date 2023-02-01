@@ -264,14 +264,12 @@ contract VolatilityTest is Test {
     }
 
     function test_noRevert_estimate(
-        uint8 tier,
+        uint32 feeGrowthSampleAge,
         uint256 feeGrowthGlobalA0X128,
         uint256 feeGrowthGlobalA1X128,
         uint224 feeGrowthGlobalDelta0X128,
         uint224 feeGrowthGlobalDelta1X128,
-        uint32 feeGrowthSampleAge,
-        uint24 gamma0,
-        uint24 gamma1,
+        uint48 gammas,
         int24 tick,
         int24 arithmeticMeanTick,
         uint160 secondsPerLiquidityX128,
@@ -282,20 +280,15 @@ contract VolatilityTest is Test {
         scale = uint32(bound(scale, 1 minutes, 2 days));
         oracleLookback = uint32(bound(oracleLookback, 15 seconds, 1 days));
 
-        Volatility.FeeGrowthGlobals memory a;
-        Volatility.FeeGrowthGlobals memory b;
-        unchecked {
-            a.feeGrowthGlobal0X128 = feeGrowthGlobalA0X128;
-            a.feeGrowthGlobal1X128 = feeGrowthGlobalA1X128;
-            a.timestamp = 0;
-            b.feeGrowthGlobal0X128 = feeGrowthGlobalA0X128 + feeGrowthGlobalDelta0X128;
-            b.feeGrowthGlobal1X128 = feeGrowthGlobalA1X128 + feeGrowthGlobalDelta1X128;
-            b.timestamp = feeGrowthSampleAge;
-        }
-
-        Volatility.PoolMetadata memory metadata = Volatility.PoolMetadata(0, gamma0, gamma1, 0);
+        Volatility.PoolMetadata memory metadata = Volatility.PoolMetadata(
+            0,
+            uint24(gammas % (1 << 24)),
+            uint24(gammas >> 24),
+            0
+        );
         {
-            tier = tier % 4;
+            // reusing randomness to avoid stack-too-deep
+            uint256 tier = feeGrowthSampleAge % 4;
             if (tier == 0) metadata.tickSpacing = 1;
             else if (tier == 1) metadata.tickSpacing = 10;
             else if (tier == 2) metadata.tickSpacing = 60;
@@ -312,6 +305,17 @@ contract VolatilityTest is Test {
             oracleLookback,
             tickLiquidity
         );
+
+        Volatility.FeeGrowthGlobals memory a;
+        Volatility.FeeGrowthGlobals memory b;
+        unchecked {
+            a.feeGrowthGlobal0X128 = feeGrowthGlobalA0X128;
+            a.feeGrowthGlobal1X128 = feeGrowthGlobalA1X128;
+            a.timestamp = 0;
+            b.feeGrowthGlobal0X128 = feeGrowthGlobalA0X128 + feeGrowthGlobalDelta0X128;
+            b.feeGrowthGlobal1X128 = feeGrowthGlobalA1X128 + feeGrowthGlobalDelta1X128;
+            b.timestamp = feeGrowthSampleAge;
+        }
 
         Volatility.estimate(metadata, data, a, b, scale);
     }
