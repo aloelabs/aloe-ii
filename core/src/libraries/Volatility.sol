@@ -26,9 +26,9 @@ library Volatility {
         uint160 sqrtPriceX96;
         // the current tick (from pool.slot0())
         int24 currentTick;
-        // the mean tick over some period (from OracleLibrary.consult(...))
-        int24 arithmeticMeanTick;
-        // the mean liquidity over some period (from OracleLibrary.consult(...))
+        // the mean sqrt(price) over some period (OracleLibrary.consult() to get arithmeticMeanTick, then use TickMath)
+        uint160 sqrtMeanPriceX96;
+        // the mean liquidity over some period (OracleLibrary.consult())
         uint160 secondsPerLiquidityX128;
         // the number of seconds to look back when getting mean tick & mean liquidity
         uint32 oracleLookback;
@@ -81,7 +81,7 @@ library Volatility {
             // This is an approximation. Ideally the fees earned during each swap would be multiplied by the price
             // *at that swap*. But for prices simulated with GBM and swap sizes either normally or uniformly distributed,
             // the error you get from using geometric mean price is <1% even with high drift and volatility.
-            uint256 volumeGamma0Gamma1 = revenue1Gamma0 + amount0ToAmount1(revenue0Gamma1, data.arithmeticMeanTick);
+            uint256 volumeGamma0Gamma1 = revenue1Gamma0 + amount0ToAmount1(revenue0Gamma1, data.sqrtMeanPriceX96);
 
             // Fits in uint128
             uint256 sqrtTickTVLX32 = FixedPointMathLib.sqrt(
@@ -98,13 +98,11 @@ library Volatility {
     /**
      * @notice Computes an `amount1` that (at `tick`) is equivalent in worth to the provided `amount0`
      * @param amount0 The amount of token0 to convert
-     * @param tick The tick at which the conversion should hold true
+     * @param sqrtPriceX96 The sqrt(price) at which the conversion should hold true
      * @return amount1 An equivalent amount of token1
      */
-    function amount0ToAmount1(uint128 amount0, int24 tick) internal pure returns (uint256 amount1) {
-        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
+    function amount0ToAmount1(uint128 amount0, uint160 sqrtPriceX96) internal pure returns (uint256 amount1) {
         uint224 priceX96 = uint224(Math.mulDiv(sqrtPriceX96, sqrtPriceX96, Q96));
-
         amount1 = Math.mulDiv(amount0, priceX96, Q96);
     }
 
