@@ -40,7 +40,7 @@ contract Borrower is IUniswapV3MintCallback {
 
     event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX96);
 
-    uint8 public constant B = 3;
+    uint8 public constant B = 5;
 
     uint256 public constant ANTE = 0.001 ether;
 

@@ -151,13 +151,14 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        // borrow 1689.12 DAI
-        bytes memory data = abi.encode(Action.BORROW, 1689.12e18, 0);
+        uint256 debt = 1617.23e18;
+        // borrow `debt` DAI
+        bytes memory data = abi.encode(Action.BORROW, debt, 0);
         bool[2] memory allowances;
         account.modify(this, data, allowances);
 
-        // withdraw 1689.12 DAI
-        data = abi.encode(Action.WITHDRAW, 1689.12e18, 0);
+        // withdraw `debt` DAI
+        data = abi.encode(Action.WITHDRAW, debt, 0);
         allowances[0] = true;
         account.modify(this, data, allowances);
 
@@ -187,13 +188,14 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        // borrow 1689.12 DAI
-        bytes memory data = abi.encode(Action.BORROW, 1689.12e18, 0);
+        uint256 debt = 1617.23e18;
+        // borrow `debt` DAI
+        bytes memory data = abi.encode(Action.BORROW, debt, 0);
         bool[2] memory allowances;
         account.modify(this, data, allowances);
 
-        // withdraw 1689.12 DAI
-        data = abi.encode(Action.WITHDRAW, 1689.12e18, 0);
+        // withdraw `debt` DAI
+        data = abi.encode(Action.WITHDRAW, debt, 0);
         allowances[0] = true;
         account.modify(this, data, allowances);
 

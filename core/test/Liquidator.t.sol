@@ -230,17 +230,19 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        // borrow 1689.12 DAI
-        bytes memory data = abi.encode(Action.BORROW, 1689.12e18, 0);
+        uint256 debt = 1617e18;
+
+        // borrow `debt` DAI
+        bytes memory data = abi.encode(Action.BORROW, debt, 0);
         bool[2] memory allowances;
         account.modify(this, data, allowances);
 
-        assertEq(lender0.borrowBalance(address(account)), 1689.12e18);
-        assertEq(asset0.balanceOf(address(account)), 1689.12e18);
+        assertEq(lender0.borrowBalance(address(account)), debt);
+        assertEq(asset0.balanceOf(address(account)), debt);
         assertEq(asset1.balanceOf(address(account)), 1e18);
 
-        // withdraw 1689.12 DAI
-        data = abi.encode(Action.WITHDRAW, 1689.12e18, 0);
+        // withdraw `debt` DAI
+        data = abi.encode(Action.WITHDRAW, debt, 0);
         allowances[0] = true;
         account.modify(this, data, allowances);
 
@@ -250,7 +252,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.liquidate(this, bytes(""), 1);
 
         setInterest(lender0, 10010);
-        assertEq(lender0.borrowBalance(address(account)), 1690809120000000000000);
+        debt = debt * 10010 / 10000;
+        assertEq(lender0.borrowBalance(address(account)), debt);
 
         // Disable warn() requirement by setting unleashLiquidationTime=1
         vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(
@@ -262,14 +265,14 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         Prices memory prices = account.getPrices();
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
-        uint256 incentive1 = Math.mulDiv(1690809120000000000000 / LIQUIDATION_INCENTIVE, price, Q96);
-        uint256 assets1 = Math.mulDiv(1690809120000000000000 / strain, price, Q96) + incentive1 / strain;
+        uint256 incentive1 = Math.mulDiv(debt / LIQUIDATION_INCENTIVE, price, Q96);
+        uint256 assets1 = Math.mulDiv(debt / strain, price, Q96) + incentive1 / strain;
 
         // MARK: actual command
         data = abi.encode(assets1);
         account.liquidate(this, data, strain);
 
-        assertEq(lender0.borrowBalance(address(account)), 1690809120000000000000 - 1690809120000000000000 / strain);
+        assertEq(lender0.borrowBalance(address(account)), debt - debt / strain);
         assertGt(asset1.balanceOf(address(this)), 0);
     }
 
@@ -279,17 +282,20 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        // borrow 1689.12 DAI
-        bytes memory data = abi.encode(Action.BORROW, 1689.12e18, 0);
+        uint256 debt = 1617e18;
+
+        // borrow `debt` DAI
+        bytes memory data = abi.encode(Action.BORROW, debt, 0);
         bool[2] memory allowances;
         account.modify(this, data, allowances);
 
-        // withdraw 1689.12 DAI
-        data = abi.encode(Action.WITHDRAW, 1689.12e18, 0);
+        // withdraw `debt` DAI
+        data = abi.encode(Action.WITHDRAW, debt, 0);
         allowances[0] = true;
         account.modify(this, data, allowances);
 
         setInterest(lender0, 10010);
+        debt = debt * 10010 / 10000;
 
         // Disable warn() requirement by setting unleashLiquidationTime=1
         vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(
@@ -298,8 +304,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         Prices memory prices = account.getPrices();
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
-        uint256 incentive1 = Math.mulDiv(1690809120000000000000 / LIQUIDATION_INCENTIVE, price, Q96);
-        uint256 assets1 = Math.mulDiv(1690809120000000000000 / strain, price, Q96) + incentive1 / strain;
+        uint256 incentive1 = Math.mulDiv(debt / LIQUIDATION_INCENTIVE, price, Q96);
+        uint256 assets1 = Math.mulDiv(debt / strain, price, Q96) + incentive1 / strain;
 
         vm.expectRevert();
         data = abi.encode(type(uint256).max); // Special value that we're using to tell our test callback to try to re-enter
