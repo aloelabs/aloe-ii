@@ -25,11 +25,7 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
 
     /// @dev This is safe because though this contract will have many approvals, its assets are always transient.
     // As long as we do `safeTransfer` and not `safeTransferFrom`, we're fine.
-    function uniswapV3SwapCallback(
-        int256 amount0,
-        int256 amount1,
-        bytes calldata
-    ) external {
+    function uniswapV3SwapCallback(int256 amount0, int256 amount1, bytes calldata) external {
         if (amount0 > 0) ERC20(IUniswapV3Pool(msg.sender).token0()).safeTransfer(msg.sender, uint256(amount0));
         if (amount1 > 0) ERC20(IUniswapV3Pool(msg.sender).token1()).safeTransfer(msg.sender, uint256(amount1));
     }

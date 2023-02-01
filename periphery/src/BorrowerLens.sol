@@ -129,8 +129,6 @@ contract BorrowerLens {
                 Uniswap.Position memory position = Uniswap.Position(l, u);
                 Uniswap.PositionInfo memory info = position.info(pool, address(account));
 
-                // TODO: possibly need to skip fees check if `info.liquidity == 0`
-
                 (uint256 temp0, uint256 temp1) = position.fees(pool, info, c);
 
                 keys[i >> 1] = keccak256(abi.encodePacked(address(account), l, u));
