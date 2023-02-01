@@ -6,6 +6,7 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import {MIN_SIGMA, MAX_SIGMA, MAX_LEVERAGE, LIQUIDATION_INCENTIVE} from "./constants/Constants.sol";
 import {Q96} from "./constants/Q.sol";
+import {SafeCastLib} from "./SafeCastLib.sol";
 
 struct Assets {
     uint256 fixed0;
@@ -77,13 +78,13 @@ library BalanceSheet {
         uint256 n
     ) internal pure returns (uint160 a, uint160 b) {
         unchecked {
-            sigma *= n;
-
             if (sigma < MIN_SIGMA) sigma = MIN_SIGMA;
             else if (sigma > MAX_SIGMA) sigma = MAX_SIGMA;
 
+            sigma *= n;
+
             a = uint160((sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 - sigma)) / 1e9);
-            b = uint160((sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 + sigma)) / 1e9);
+            b = SafeCastLib.safeCastTo160((sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 + sigma)) / 1e9);
         }
     }
 
