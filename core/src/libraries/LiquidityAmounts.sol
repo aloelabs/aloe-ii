@@ -8,6 +8,8 @@ import {SafeCastLib} from "./SafeCastLib.sol";
 
 /// @title Liquidity amount functions
 /// @notice Provides functions for computing liquidity amounts from token amounts and prices
+/// @author Aloe Labs, Inc.
+/// @author Modified from Uniswap (https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/LiquidityAmounts.sol)
 library LiquidityAmounts {
     using SafeCastLib for uint256;
 

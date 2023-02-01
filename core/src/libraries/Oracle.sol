@@ -7,6 +7,7 @@ import {TickMath} from "./TickMath.sol";
 
 /// @title Oracle
 /// @notice Provides functions to integrate with V3 pool oracle
+/// @author Aloe Labs, Inc.
 /// @author Modified from Uniswap (https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/OracleLibrary.sol)
 library Oracle {
     /**

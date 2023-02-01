@@ -9,6 +9,7 @@ import {TickMath} from "./TickMath.sol";
 
 /// @title Volatility
 /// @notice Provides functions that use Uniswap v3 to compute price volatility
+/// @author Aloe Labs, Inc.
 library Volatility {
     struct PoolMetadata {
         // the oldest oracle observation that's been populated by the pool

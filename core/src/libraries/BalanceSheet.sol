@@ -23,6 +23,9 @@ struct Prices {
     uint160 c;
 }
 
+/// @title BalanceSheet
+/// @notice Provides functions for computing a `Borrower`'s health
+/// @author Aloe Labs, Inc.
 library BalanceSheet {
     function isHealthy(
         Prices memory prices,

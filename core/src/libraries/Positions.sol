@@ -74,6 +74,9 @@ function extract(uint256 zipped) pure returns (int24[] memory positionsOfNonZero
     }
 }
 
+/// @title Positions
+/// @notice Provides functions for handling Uniswap positions in `Borrower`'s storage
+/// @author Aloe Labs, Inc.
 library Positions {
     function write(int24[6] storage positions, uint256 update) internal returns (int24[] memory) {
         // `update == 0` implies that the caller *does not* want to modify their positions, so we
