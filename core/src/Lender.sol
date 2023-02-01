@@ -161,16 +161,6 @@ contract Lender is Ledger {
         emit Withdraw(msg.sender, recipient, owner, amount, shares);
     }
 
-    function mint(uint256 shares, address beneficiary) external returns (uint256 amount) {
-        amount = previewMint(shares);
-        require(shares == this.deposit(amount, beneficiary));
-    }
-
-    function withdraw(uint256 amount, address recipient, address owner) external returns (uint256 shares) {
-        shares = previewWithdraw(amount);
-        require(amount == this.redeem(shares, recipient, owner));
-    }
-
     /*//////////////////////////////////////////////////////////////
                            BORROW/REPAY LOGIC
     //////////////////////////////////////////////////////////////*/
@@ -218,23 +208,6 @@ contract Lender is Ledger {
         _save(cache, /* didChangeBorrowBase: */ true);
 
         emit Repay(msg.sender, beneficiary, amount, units);
-    }
-
-    /// @dev Reentrancy guard is critical here! Without it, one could use a flash loan to repay a normal loan.
-    function flash(uint256 amount, address to, bytes calldata data) external {
-        // Guard against reentrancy
-        uint32 _lastAccrualTime = lastAccrualTime;
-        require(_lastAccrualTime != 0, "Aloe: locked");
-        lastAccrualTime = 0;
-
-        ERC20 asset_ = asset();
-
-        uint256 balance = asset_.balanceOf(address(this));
-        asset_.safeTransfer(to, amount);
-        IFlashBorrower(to).onFlashLoan(msg.sender, amount, data);
-        require(balance <= asset_.balanceOf(address(this)), "Aloe: insufficient pre-pay");
-
-        lastAccrualTime = _lastAccrualTime;
     }
 
     function accrueInterest() external returns (uint72) {
