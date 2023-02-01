@@ -279,7 +279,7 @@ contract VolatilityTest is Test {
         uint128 tickLiquidity,
         uint32 scale
     ) public view {
-        scale = uint32(bound(scale, 1 minutes, 1 days));
+        scale = uint32(bound(scale, 1 minutes, 2 days));
         oracleLookback = uint32(bound(oracleLookback, 15 seconds, 1 days));
 
         Volatility.FeeGrowthGlobals memory a;
