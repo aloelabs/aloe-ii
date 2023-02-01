@@ -10,7 +10,7 @@ import {FrontendManager} from "src/FrontendManager.sol";
 import {LenderLens} from "src/LenderLens.sol";
 import {Router} from "src/Router.sol";
 
-Factory constant ALOE_II_FACTORY = Factory(0x315980E4a137633952917a656ECEBa74c8f39768);
+Factory constant ALOE_II_FACTORY = Factory(0x95110C9806833d3D3C250112fac73c5A6f631E80);
 bytes32 constant TAG = bytes32(uint256(0xA10EBE1A));
 
 contract DeployScript is Script {
