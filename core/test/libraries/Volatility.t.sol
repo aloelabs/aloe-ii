@@ -16,7 +16,7 @@ contract VolatilityTest is Test {
         Volatility.PoolData memory data = Volatility.PoolData(
             1278673744380353403099539498152303, // sqrtPriceX96
             193789, // currentTick
-            193730, // arithmeticMeanTick
+            TickMath.getSqrtRatioAtTick(193730), // arithmeticMeanTick
             44521837137365694357186, // _secondsPerLiquidityX128
             3600, // _oracleLookback
             19685271204911047580 // poolLiquidity
@@ -116,7 +116,7 @@ contract VolatilityTest is Test {
         Volatility.PoolData memory data = Volatility.PoolData(
             TickMath.getSqrtRatioAtTick(tick), // sqrtPriceX96
             tick, // currentTick
-            tick + int24(tickMeanOffset), // arithmeticMeanTick
+            TickMath.getSqrtRatioAtTick(tick + int24(tickMeanOffset)), // arithmeticMeanTick
             44521837137365694357186, // secondsPerLiquidityX128
             3600, // oracleLookback
             tickLiquidity // tickLiquidity
@@ -133,20 +133,20 @@ contract VolatilityTest is Test {
     function test_spec_amount0ToAmount1() public {
         uint256 amount1;
 
-        amount1 = Volatility.amount0ToAmount1(0, 1000);
+        amount1 = Volatility.amount0ToAmount1(0, TickMath.getSqrtRatioAtTick(1000));
         assertEq(amount1, 0);
-        amount1 = Volatility.amount0ToAmount1(0, -1000);
+        amount1 = Volatility.amount0ToAmount1(0, TickMath.getSqrtRatioAtTick(-1000));
         assertEq(amount1, 0);
-        amount1 = Volatility.amount0ToAmount1(type(uint128).max, 1000);
+        amount1 = Volatility.amount0ToAmount1(type(uint128).max, TickMath.getSqrtRatioAtTick(1000));
         assertEq(amount1, 376068295634136240002369832470443982846);
-        amount1 = Volatility.amount0ToAmount1(type(uint128).max, -1000);
+        amount1 = Volatility.amount0ToAmount1(type(uint128).max, TickMath.getSqrtRatioAtTick(-1000));
         assertEq(amount1, 307901757690220954445983032426008412159);
-        amount1 = Volatility.amount0ToAmount1(4000000000, 193325); // ~ 4000 USDC
+        amount1 = Volatility.amount0ToAmount1(4000000000, TickMath.getSqrtRatioAtTick(193325)); // ~ 4000 USDC
         assertEq(amount1, 994576722964113793); // ~ 1 ETH
     }
 
     function test_amount0ToAmount1(uint128 amount0, int16 tick) public {
-        uint256 amount1 = Volatility.amount0ToAmount1(amount0, tick);
+        uint256 amount1 = Volatility.amount0ToAmount1(amount0, TickMath.getSqrtRatioAtTick(tick));
 
         if (amount0 == 0) {
             assertEq(amount1, 0);
@@ -307,7 +307,7 @@ contract VolatilityTest is Test {
         Volatility.PoolData memory data = Volatility.PoolData(
             TickMath.getSqrtRatioAtTick(tick),
             tick,
-            arithmeticMeanTick,
+            TickMath.getSqrtRatioAtTick(arithmeticMeanTick),
             secondsPerLiquidityX128,
             oracleLookback,
             tickLiquidity
