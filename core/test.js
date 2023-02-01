@@ -1,6 +1,6 @@
 const fs = require("fs");
 
-const raw = fs.readFileSync("./build/core/Ledger.sol/Ledger.json");
+const raw = fs.readFileSync("./build/Ledger.sol/Ledger.json");
 const json = JSON.parse(raw);
 const abi = json.abi;
 const ast = json.ast;
