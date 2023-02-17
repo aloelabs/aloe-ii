@@ -19,11 +19,11 @@ contract DeployScript is Script {
     function run() external {
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
 
-        // new BorrowerLens{salt: TAG}();
-        // new LenderLens{salt: TAG}();
-        // new Router{salt: TAG}();
+        new BorrowerLens{salt: TAG}();
+        new LenderLens{salt: TAG}();
+        new Router{salt: TAG}();
 
-        // new FrontendManager{salt: TAG}(ALOE_II_FACTORY);
+        new FrontendManager{salt: TAG}(ALOE_II_FACTORY);
         new SimpleManager{salt: TAG}();
         new WithdrawManager{salt: TAG}();
 
