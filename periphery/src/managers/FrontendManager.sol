@@ -19,8 +19,8 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
 
     Factory public immutable FACTORY;
 
-    constructor(Factory _factory) {
-        FACTORY = _factory;
+    constructor(Factory factory) {
+        FACTORY = factory;
     }
 
     /// @dev This is safe because though this contract will have many approvals, its assets are always transient.
