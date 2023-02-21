@@ -9,4 +9,5 @@
 | LenderLens                       | fad036d4a34b95441beca1ed7ea36738111b6045 | bytes32(uint256(0xA10EBE1A))                                       | `0xAf8c1C2384c9de947eD2Fc93457AeB9cFca72286` |
 | Router                           | fad036d4a34b95441beca1ed7ea36738111b6045 | bytes32(uint256(0xA10EBE1A))                                       | `0x3E24f42f17436347e76121b5e9c632E0d3A66fCb` |
 | SimpleManager                    | 40863c0562cdfeee0a38e7eb5eb68bb7d33525cc | bytes32(uint256(0xA10EBE1A))                                       | `0x577bD39CEF1f3314457AfcD88f0B47DA401Ff70f` |
+| UniswapNFTManager                | 203442e3b3f825523f41542132057de962a5886e | bytes32(uint256(0xA10EBE1A))                                       | `0x176749EF0dB2F58077A0ad1e70876f790e7116F2` |
 | WithdrawManager                  | 40863c0562cdfeee0a38e7eb5eb68bb7d33525cc | bytes32(uint256(0xA10EBE1A))                                       | `0x8cf4e575b9b9bbf4a3bd84e4ed5af28b5e1865c8` |
