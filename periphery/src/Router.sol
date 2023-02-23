@@ -69,4 +69,29 @@ contract Router {
         lender.asset().safeTransferFrom(msg.sender, address(lender), amount);
         shares = lender.deposit(amount, msg.sender);
     }
+
+    function repay(Lender lender, uint256 amount, address beneficiary) external returns (uint256 units) {
+        lender.asset().safeTransferFrom(msg.sender, address(lender), amount);
+        units = lender.repay(amount, beneficiary);
+    }
+
+    function repayWithPermit(
+        Lender lender,
+        uint256 amount,
+        address beneficiary,
+        uint256 allowance,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external returns (uint256 units) {
+        ERC20 asset = lender.asset();
+
+        if (allowance != 0) {
+            asset.permit(msg.sender, address(this), allowance, deadline, v, r, s);
+        }
+
+        asset.safeTransferFrom(msg.sender, address(lender), amount);
+        units = lender.repay(amount, beneficiary);
+    }
 }
