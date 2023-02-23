@@ -15,7 +15,7 @@ import {Lender} from "aloe-ii-core/Lender.sol";
 contract FrontendManager is IManager, IUniswapV3SwapCallback {
     using SafeTransferLib for ERC20;
 
-    event Modify(address indexed owner, int24 tick);
+    event Modify(address indexed borrower, int24 tick);
 
     Factory public immutable FACTORY;
 
@@ -140,7 +140,7 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
         }
 
         (, int24 currentTick, , , , , ) = account.UNISWAP_POOL().slot0();
-        emit Modify(owner, currentTick);
+        emit Modify(msg.sender, currentTick);
     }
 
     /* solhint-enable code-complexity */
