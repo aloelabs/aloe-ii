@@ -70,7 +70,7 @@ contract Router {
         shares = lender.deposit(amount, msg.sender);
     }
 
-    function repay(Lender lender, uint256 amount, address beneficiary) external returns (uint256 units) {
+    function repayWithApprove(Lender lender, uint256 amount, address beneficiary) external returns (uint256 units) {
         lender.asset().safeTransferFrom(msg.sender, address(lender), amount);
         units = lender.repay(amount, beneficiary);
     }
