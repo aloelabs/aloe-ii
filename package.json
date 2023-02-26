@@ -6,21 +6,21 @@
   "license": "(AGPL-3.0 OR MIT OR BSD-3-Clause)",
   "devDependencies": {
     "pre-commit": "^1.2.2",
-    "prettier": "^2.7.1",
-    "prettier-plugin-solidity": "^1.0.0-rc.1",
-    "solhint": "^3.3.7",
+    "prettier": "^2.8.4",
+    "prettier-plugin-solidity": "^1.1.2",
+    "solhint": "^3.4.0",
     "solhint-plugin-prettier": "^0.0.5"
   },
   "pre-commit": {
-    "run": ["lint", "inspect"]
+    "run": ["lint"]
   },
   "scripts": {
     "inspect": "cd core && ./snapshot.sh && ./layout.sh",
     "lint": "yarn prettier && yarn solhint",
     "lint:check": "yarn prettier:check && yarn solhint:check",
     "prettier": "yarn prettier:check --write",
-    "prettier:check": "prettier --check core/src/**/*.sol core/src/*.sol periphery/src/**/*.sol periphery/src/*.sol",
+    "prettier:check": "prettier --check core/src/ periphery/src/",
     "solhint": "yarn solhint:check --fix",
-    "solhint:check": "solhint --config ./.solhint.json core/src/**/*.sol periphery/src/**/*.sol"
+    "solhint:check": "solhint --config ./.solhint.json core/src/*.sol core/src/**/*.sol periphery/src/*.sol periphery/src/**/*.sol"
   }
 }

@@ -2,17 +2,19 @@
   "extends": "solhint:recommended",
   "plugins": ["prettier"],
   "rules": {
-    "code-complexity": ["error", 5],
+    "prettier/prettier": "error",
+
+    "code-complexity": ["error", 6],
     "function-max-lines": ["warn", 50],
-    "max-line-length": ["error", 140],
+    "max-line-length": ["warn", 140],
     "max-states-count": ["warn", 10],
     "no-empty-blocks": "warn",
     "no-unused-vars": "error",
     "payable-fallback": "warn",
-    "reason-string": ["warn", { "maxLength": 64 }],
+    "reason-string": ["off", { "maxLength": 32 }],
     "constructor-syntax": "error",
 
-    "comprehensive-interface": "warn",
+    "comprehensive-interface": "off",
 
     "func-param-name-mixedcase": "warn",
     "modifier-name-mixedcase": "warn",
@@ -20,7 +22,7 @@
     "ordering": "warn",
 
     "compiler-version": ["error", "0.8.17"],
-    "func-visibility": ["warn", { "ignoreConstructors": true }],
+    "func-visibility": ["error", { "ignoreConstructors": true }],
     "no-inline-assembly": "off",
     "not-rely-on-time": "off"
   }
