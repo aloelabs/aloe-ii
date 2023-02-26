@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-import {InvariantTest} from "forge-std/InvariantTest.sol";
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
 
@@ -12,7 +11,7 @@ import "src/Lender.sol";
 
 import {LenderHarness, BORROWS_SCALER} from "./LenderHarness.sol";
 
-contract LenderInvariantsTest is Test, InvariantTest {
+contract LenderInvariantsTest is Test {
     ERC20 public asset;
 
     Lender public lender;
