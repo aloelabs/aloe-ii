@@ -3,6 +3,7 @@ name: update-oracle
 run-name: Poking the volatility oracle
 
 on:
+  workflow_dispatch:
   schedule:
   - cron: '30 0,1,6,7,12,13,18,19 * * *'
 
