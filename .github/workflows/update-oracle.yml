@@ -1,0 +1,27 @@
+name: update-oracle
+
+run-name: Poking the volatility oracle
+
+on:
+  schedule:
+  - cron: '30 0,1,6,7,12,13,18,19 * * *'
+
+jobs:
+  send-txn:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
+      - run: |
+          cd periphery
+          forge build
+      - env:
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        run: |
+          cd periphery
+          forge script script/UpdateOracle.s.sol:UpdateOracleScript --fork-url ${{ secrets.RPC_URL_OPTIMISM }} --broadcast

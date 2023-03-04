@@ -7,6 +7,7 @@ import {Factory} from "aloe-ii-core/Factory.sol";
 
 import {BorrowerLens} from "src/BorrowerLens.sol";
 import {LenderLens} from "src/LenderLens.sol";
+import {OracleUpdateHelper} from "src/OracleUpdateHelper.sol";
 import {Router} from "src/Router.sol";
 import {FrontendManager} from "src/managers/FrontendManager.sol";
 import {SimpleManager} from "src/managers/SimpleManager.sol";
@@ -23,6 +24,7 @@ contract DeployScript is Script {
 
         new BorrowerLens{salt: TAG}();
         new LenderLens{salt: TAG}();
+        new OracleUpdateHelper{salt: TAG}(ALOE_II_FACTORY.ORACLE());
         new Router{salt: TAG}();
 
         new FrontendManager{salt: TAG}(ALOE_II_FACTORY);
