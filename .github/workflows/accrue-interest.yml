@@ -5,7 +5,7 @@ run-name: Accruing interest
 on:
   workflow_dispatch:
   schedule:
-  - cron: '30 0 * * 0'
+  - cron: '45 0 * * 0'
 
 jobs:
   send-txn:
