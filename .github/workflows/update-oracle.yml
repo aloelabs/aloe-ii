@@ -18,10 +18,12 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
-      - run: |
+      - name: build
+        run: |
           cd periphery
           forge build
-      - env:
+      - name: run
+        env:
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
         run: |
           cd periphery
