@@ -4,11 +4,11 @@
 | **RateModel**                    | a4b9786d79e2e16fcf6612e8ce699bfb599e0c8d | bytes32(uint256(0xA10EBE1A))                                       | `0xBD477956Ad74329664f45978A3876B024E3da73d` |
 | **Factory**                      | a4b9786d79e2e16fcf6612e8ce699bfb599e0c8d | bytes32(uint256(0xA10EBE1A))                                       | `0x95110C9806833d3D3C250112fac73c5A6f631E80` |
 | **Lender**                       | a4b9786d79e2e16fcf6612e8ce699bfb599e0c8d | created by factory                                                 | `0x62eAa8b180faebfBb0627dBd07E23f27379c147e` |
-| BorrowerLens                     | fad036d4a34b95441beca1ed7ea36738111b6045 | bytes32(uint256(0xA10EBE1A))                                       | `0xFC3181dE393Eaa0F19e75761D11b7c2fB9ceF75A` |
-| FrontendManager                  | 3b6e3329654fcb809b597a3cc9518fd3a8874d1c | bytes32(uint256(0xA10EBE1A))                                       | `0x105a98a6823d2ce3A0D0932dDB2361560C592839` |
-| LenderLens                       | fad036d4a34b95441beca1ed7ea36738111b6045 | bytes32(uint256(0xA10EBE1A))                                       | `0xAf8c1C2384c9de947eD2Fc93457AeB9cFca72286` |
-| Router                           | e67ebdf3fb0507232370c5b0daa2d68b7c4d4813 | bytes32(uint256(0xA10EBE1A))                                       | `0x75331078Af5407bc81396c8be4723d6F04A626A4` |
-| OracleUpdateHelper               | b3864fc9c8b3299920fc2d73bedd7f906d64f999 | bytes32(uint256(0xA10EBE1A))                                       | `0x7dd9752f882d404717DaF52e9Ff3d1dE2aAccc4a` |
-| SimpleManager                    | 40863c0562cdfeee0a38e7eb5eb68bb7d33525cc | bytes32(uint256(0xA10EBE1A))                                       | `0x577bD39CEF1f3314457AfcD88f0B47DA401Ff70f` |
-| UniswapNFTManager                | 203442e3b3f825523f41542132057de962a5886e | bytes32(uint256(0xA10EBE1A))                                       | `0x176749EF0dB2F58077A0ad1e70876f790e7116F2` |
-| WithdrawManager                  | e67ebdf3fb0507232370c5b0daa2d68b7c4d4813 | bytes32(uint256(0xA10EBE1A))                                       | `0x11BBd1Ce943a95Ecf7EcDe41886ba765eEB32E74` |
+| BorrowerLens                     | fad036d4a34b95441beca1ed7ea36738111b6045 | bytes32(uint256(0xA10EBE1A2))                                      | `0x8A15bfEBff7BF9ffaBBeAe49112Dc2E6C4E73Eaf` |
+| LenderLens                       | fad036d4a34b95441beca1ed7ea36738111b6045 | bytes32(uint256(0xA10EBE1A2))                                      | `0x0d41292FCdF2569816a3b20d81765F1300f477E4` |
+| OracleUpdateHelper               | b3864fc9c8b3299920fc2d73bedd7f906d64f999 | bytes32(uint256(0xA10EBE1A2))                                      | `0xB93d750Cc6CA3d1F494DC25e7375860feef74870` |
+| Router                           | e67ebdf3fb0507232370c5b0daa2d68b7c4d4813 | bytes32(uint256(0xA10EBE1A2))                                      | `0x0447cf9a17CF6424C704e4feC7E088BC9E1af45D` |
+| FrontendManager                  | 3b6e3329654fcb809b597a3cc9518fd3a8874d1c | bytes32(uint256(0xA10EBE1A2))                                      | `0x2d3A430Bd0F36cdb3911431a5e487a59c349Ca4d` |
+| SimpleManager                    | 40863c0562cdfeee0a38e7eb5eb68bb7d33525cc | bytes32(uint256(0xA10EBE1A2))                                      | `0x760a9356dE7dfF4387a7f87A7563Be72b7F34Bb6` |
+| UniswapNFTManager                | 203442e3b3f825523f41542132057de962a5886e | bytes32(uint256(0xA10EBE1A2))                                      | `0xd6D4277bCCEEE3d9825D503dC23f0976992540e6` |
+| WithdrawManager                  | e67ebdf3fb0507232370c5b0daa2d68b7c4d4813 | bytes32(uint256(0xA10EBE1A2))                                      | `0xEEAFdacc266900107155298Da34e9b8264f2eCbA` |

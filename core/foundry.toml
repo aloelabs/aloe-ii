@@ -33,8 +33,10 @@ include_push_bytes = true  # Collect PUSH bytes from the contract code and add t
 mainnet = "${RPC_URL_MAINNET}"
 goerli = "${RPC_URL_GOERLI}"
 optimism = "${RPC_URL_OPTIMISM}"
+arbitrum = "${RPC_URL_ARBITRUM}"
 
 [etherscan]
 mainnet = { key = "${ETHERSCAN_API_KEY}" }
 goerli = { key = "${ETHERSCAN_API_KEY}" }
 optimism = { key = "${ETHERSCAN_API_KEY_OPTIMISM}" }
+arbitrum = { key = "${ETHERSCAN_API_KEY_ARBITRUM}" }
