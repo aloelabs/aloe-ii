@@ -7,8 +7,9 @@ import {Factory} from "aloe-ii-core/Factory.sol";
 
 import {BorrowerLens} from "src/BorrowerLens.sol";
 import {LenderLens} from "src/LenderLens.sol";
-import {OracleUpdateHelper} from "src/OracleUpdateHelper.sol";
 import {Router} from "src/Router.sol";
+import {LenderAccrualHelper} from "src/helpers/LenderAccrualHelper.sol";
+import {OracleUpdateHelper} from "src/helpers/OracleUpdateHelper.sol";
 import {FrontendManager} from "src/managers/FrontendManager.sol";
 import {SimpleManager} from "src/managers/SimpleManager.sol";
 import {UniswapNFTManager, INFTManager} from "src/managers/UniswapNFTManager.sol";
@@ -28,8 +29,10 @@ contract DeployScript is Script {
 
             new BorrowerLens{salt: TAG}();
             new LenderLens{salt: TAG}();
-            new OracleUpdateHelper{salt: TAG}(ALOE_II_FACTORY.ORACLE());
             new Router{salt: TAG}();
+
+            new LenderAccrualHelper{salt: TAG}();
+            new OracleUpdateHelper{salt: TAG}(ALOE_II_FACTORY.ORACLE());
 
             new FrontendManager{salt: TAG}(ALOE_II_FACTORY);
             new SimpleManager{salt: TAG}();
