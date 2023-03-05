@@ -8,7 +8,7 @@ import {OracleUpdateHelper} from "src/helpers/OracleUpdateHelper.sol";
 import {KeeperScript} from "./Keeper.s.sol";
 
 contract UpdateOracleScript is KeeperScript {
-    OracleUpdateHelper constant HELPER = OracleUpdateHelper(0x7dd9752f882d404717DaF52e9Ff3d1dE2aAccc4a);
+    OracleUpdateHelper constant HELPER = OracleUpdateHelper(0xB93d750Cc6CA3d1F494DC25e7375860feef74870);
 
     function run() external {
         vm.createSelectFork(vm.rpcUrl("optimism"));

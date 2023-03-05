@@ -1,11 +1,11 @@
-name: update-oracle
+name: accrue-interest
 
-run-name: Poking the volatility oracle
+run-name: Accruing interest
 
 on:
   workflow_dispatch:
   schedule:
-  - cron: '30 0,1,6,7,12,13,18,19 * * *'
+  - cron: '30 0 * * 0'
 
 jobs:
   send-txn:
@@ -29,4 +29,4 @@ jobs:
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
         run: |
           cd periphery
-          forge script script/UpdateOracle.s.sol:UpdateOracleScript --broadcast
+          forge script script/AccrueInterest.s.sol:AccrueInterestScript --broadcast

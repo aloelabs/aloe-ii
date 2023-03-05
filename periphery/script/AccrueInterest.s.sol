@@ -7,8 +7,8 @@ import {LenderAccrualHelper, Lender} from "src/helpers/LenderAccrualHelper.sol";
 
 import {KeeperScript} from "./Keeper.s.sol";
 
-contract UpdateOracleScript is KeeperScript {
-    LenderAccrualHelper constant HELPER = LenderAccrualHelper(0x7dd9752f882d404717DaF52e9Ff3d1dE2aAccc4a);
+contract AccrueInterestScript is KeeperScript {
+    LenderAccrualHelper constant HELPER = LenderAccrualHelper(0x49b7C197468b5E8Eb345768280B554B39Dc9F64b);
 
     function run() external {
         Lender[] memory lenders;
