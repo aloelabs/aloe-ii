@@ -27,9 +27,10 @@ abstract contract KeeperScript is Script {
     IUniswapV3Pool[] poolsArbitrum = [
         IUniswapV3Pool(0x80A9ae39310abf666A87C743d6ebBD0E8C42158E), // WETH/GMX
         IUniswapV3Pool(0xC31E54c7a869B9FcBEcc14363CF510d1c41fa443), // WETH/USDC
-        IUniswapV3Pool(0x27807dD7ADF218e1f4d885d54eD51C70eFb9dE50), // USDT/MIM
+        // IUniswapV3Pool(0x27807dD7ADF218e1f4d885d54eD51C70eFb9dE50), // USDT/MIM
         IUniswapV3Pool(0x2f5e87C9312fa29aed5c179E456625D79015299c), // WBTC/WETH
         IUniswapV3Pool(0x2039f8c9cd32Ba9cD2Ea7e575d5B1ABeA93f7527), // GMX/USDC
-        IUniswapV3Pool(0x7e7FB3CCEcA5F2ac952eDF221fd2a9f62E411980)  // MAGIC/WETH
+        IUniswapV3Pool(0x7e7FB3CCEcA5F2ac952eDF221fd2a9f62E411980), // MAGIC/WETH
+        IUniswapV3Pool(0x92c63d0e701CAAe670C9415d91C474F686298f00)  // WETH/ARB
     ];
 }
