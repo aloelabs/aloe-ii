@@ -32,7 +32,7 @@ if [ "$CHECK_CONSTANTS" = true ]; then
       fi
     done <<< "$constants"
 
-    echo "✅ Each [constant](core/src/libraries/constants/Constants.sol) is only defined once" >> $GITHUB_STEP_SUMMARY
+    echo "✅ Each constant is only defined once" >> $GITHUB_STEP_SUMMARY
 fi
 
 # Ensure that `Ledger` and `Lender` have the same storage layouts
