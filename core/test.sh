@@ -43,7 +43,13 @@ if [ "$CHECK_STORAGE_LAYOUTS" = true ]; then
     forge inspect --pretty "src/Ledger.sol:Ledger" storage-layout >> ${A}
     forge inspect --pretty "src/Lender.sol:Lender" storage-layout >> ${B}
 
-    sed -i '' 's/Lender/Ledger/g' ${B}
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS (Darwin) sed command
+        sed -i '' 's/Lender/Ledger/g' ${B}
+    else
+        # Linux (including Ubuntu) sed command
+        sed -i 's/Lender/Ledger/g' ${B}
+    fi
     (cmp -s ${A} ${B})
     are_equivalent=$?
     rm ${A}
