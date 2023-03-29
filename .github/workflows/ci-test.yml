@@ -62,10 +62,6 @@ jobs:
         run: |
           cd "${GITHUB_WORKSPACE}/periphery"
           forge build
-      - name: Summarize
-        run: |
-          echo "## Build result" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
 
   test:
     needs: ["build"]
@@ -78,20 +74,29 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
+      - name: "Install Node.js"
+        uses: "actions/setup-node@v3"
+        with:
+          cache: "yarn"
+          node-version: "lts/*"
       - name: "Generate a fuzz seed that changes weekly to avoid burning through RPC allowance"
         run: >
           echo "FOUNDRY_FUZZ_SEED=$(
             echo $(($EPOCHSECONDS - $EPOCHSECONDS % 604800))
           )" >> $GITHUB_ENV
       - name: Test core
+        env:
+          CHECK_CONSTANTS: true
+          CHECK_STORAGE_LAYOUTS: true
+          CHECK_LEDGER_PURITY: true
+          CHECK_FORGE_TESTS: true
+          CHECK_COVERAGE: true
         run: |
           cd "${GITHUB_WORKSPACE}/core"
-          forge test -vv --no-match-contract ".*Gas" --no-match-test "historical"
+          echo "## Testing `core`" >> $GITHUB_STEP_SUMMARY
+          ./test.sh
       - name: Test periphery
         run: |
           cd "${GITHUB_WORKSPACE}/periphery"
+          echo "## Testing `periphery`" >> $GITHUB_STEP_SUMMARY
           forge test
-      - name: Summarize
-        run: |
-          echo "## Tests result" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Passed" >> $GITHUB_STEP_SUMMARY
