@@ -8,7 +8,7 @@ import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUni
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
-import {Q96} from "./libraries/constants/Q.sol";
+import {Q8, Q96} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {Positions} from "./libraries/Positions.sol";
@@ -40,7 +40,7 @@ contract Borrower is IUniswapV3MintCallback {
 
     event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX96);
 
-    uint8 public constant B = 5;
+    uint256 private constant SLOT0_PROTECTED_BITS = 168;
 
     uint256 public constant ANTE = 0.001 ether;
 
@@ -70,7 +70,8 @@ contract Borrower is IUniswapV3MintCallback {
 
     struct Slot0 {
         address owner;
-        uint88 unleashLiquidationTime;
+        uint8 volatilityScalar;
+        uint80 unleashLiquidationTime;
         State state;
     }
 
@@ -95,9 +96,10 @@ contract Borrower is IUniswapV3MintCallback {
         require(pool.token1() == address(TOKEN1));
     }
 
-    function initialize(address owner_) external {
+    function initialize(address owner, uint8 volatilityScalar) external {
         require(slot0.owner == address(0));
-        slot0.owner = owner_;
+        slot0.owner = owner;
+        slot0.volatilityScalar = volatilityScalar;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -115,11 +117,11 @@ contract Borrower is IUniswapV3MintCallback {
             slot0_ := sload(slot0.slot)
         }
         // Equivalent to `slot0.state == State.Ready && slot0.unleashLiquidationTime == 0`
-        require(slot0_ >> 160 == 0);
+        require(slot0_ >> SLOT0_PROTECTED_BITS == 0);
 
         {
             // Fetch prices from oracle
-            Prices memory prices = getPrices();
+            Prices memory prices = getPrices((slot0_ >> 160) % Q8);
             // Withdraw Uniswap positions while tallying assets
             Assets memory assets = _getAssets(positions.read(), prices, false);
             // Fetch liabilities from lenders
@@ -129,7 +131,7 @@ contract Borrower is IUniswapV3MintCallback {
         }
 
         unchecked {
-            _saveSlot0(slot0_, (block.timestamp + LIQUIDATION_GRACE_PERIOD) << 160);
+            _saveSlot0(slot0_, (block.timestamp + LIQUIDATION_GRACE_PERIOD) << SLOT0_PROTECTED_BITS);
         }
         emit Warn();
     }
@@ -155,7 +157,7 @@ contract Borrower is IUniswapV3MintCallback {
         _saveSlot0(slot0_, _formatted(State.Locked));
 
         // Fetch prices from oracle
-        Prices memory prices = getPrices();
+        Prices memory prices = getPrices((slot0_ >> 160) % Q8);
 
         uint256 liabilities0;
         uint256 liabilities1;
@@ -199,7 +201,7 @@ contract Borrower is IUniswapV3MintCallback {
                 // Callbacks/swaps won't help.
                 incentive1 = 0;
             } else if (liabilities0 > 0) {
-                uint256 unleashTime = slot0_ >> 160;
+                uint256 unleashTime = slot0_ >> SLOT0_PROTECTED_BITS;
                 require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
 
                 liabilities0 /= strain;
@@ -215,7 +217,7 @@ contract Borrower is IUniswapV3MintCallback {
 
                 repayable0 += liabilities0;
             } else {
-                uint256 unleashTime = slot0_ >> 160;
+                uint256 unleashTime = slot0_ >> SLOT0_PROTECTED_BITS;
                 require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
 
                 liabilities1 /= strain;
@@ -235,7 +237,7 @@ contract Borrower is IUniswapV3MintCallback {
             _repay(repayable0, repayable1);
             payable(callee).transfer(address(this).balance / strain);
 
-            _saveSlot0(slot0_ % (1 << 160), _formatted(State.Ready));
+            _saveSlot0(slot0_ % (1 << SLOT0_PROTECTED_BITS), _formatted(State.Ready));
 
             emit Liquidate(repayable0, repayable1, incentive1, priceX96);
         }
@@ -252,19 +254,20 @@ contract Borrower is IUniswapV3MintCallback {
      * and the 2nd is for `TOKEN1`.
      */
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external payable {
-        require(_loadSlot0() % (1 << 160) == uint160(msg.sender), "Aloe: only owner");
+        uint256 ownerAndScalar = _loadSlot0() % (1 << SLOT0_PROTECTED_BITS);
+        require(ownerAndScalar % (1 << 160) == uint160(msg.sender), "Aloe: only owner");
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
 
-        _saveSlot0(uint160(msg.sender), _formatted(State.InModifyCallback));
+        _saveSlot0(ownerAndScalar, _formatted(State.InModifyCallback));
         int24[] memory positions_ = positions.write(callee.callback(data));
-        _saveSlot0(uint160(msg.sender), _formatted(State.Ready));
+        _saveSlot0(ownerAndScalar, _formatted(State.Ready));
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
-        Prices memory prices = getPrices();
+        Prices memory prices = getPrices(ownerAndScalar >> 160);
         Assets memory assets = _getAssets(positions_, prices, false);
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
@@ -371,11 +374,11 @@ contract Borrower is IUniswapV3MintCallback {
         return positions.read();
     }
 
-    function getPrices() public view returns (Prices memory prices) {
+    function getPrices(uint256 n) public view returns (Prices memory prices) {
         (uint160 sqrtMeanPriceX96, uint256 sigma) = ORACLE.consult(UNISWAP_POOL);
 
         // compute prices at which solvency will be checked
-        (uint160 a, uint160 b) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, sigma, B);
+        (uint160 a, uint160 b) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, sigma, n);
         prices = Prices(a, b, sqrtMeanPriceX96);
     }
 
