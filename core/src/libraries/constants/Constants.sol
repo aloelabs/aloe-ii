@@ -5,9 +5,11 @@ uint256 constant ONE = 1e12;
 
 uint256 constant BORROWS_SCALER = type(uint72).max * ONE; // uint72 is from the type of borrowIndex in `Ledger`
 
+uint8 constant B = 5;
+
 uint256 constant MIN_SIGMA = 0.01e18;
 
-// To avoid underflow in `BalanceSheet.computeProbePrices`, ensure that `MAX_SIGMA * Borrower.B <= 1e18`
+// To avoid underflow in `BalanceSheet.computeProbePrices`, ensure that `MAX_SIGMA * B <= 1e18`
 uint256 constant MAX_SIGMA = 0.18e18;
 
 uint256 constant MIN_RESERVE_FACTOR = 4; // Expressed as reciprocal, e.g. 4 --> 25%
