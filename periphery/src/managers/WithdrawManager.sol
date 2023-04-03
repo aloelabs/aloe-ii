@@ -8,7 +8,7 @@ import {Borrower, IManager} from "aloe-ii-core/Borrower.sol";
 contract WithdrawManager is IManager {
     using SafeTransferLib for ERC20;
 
-    function callback(bytes calldata data) external override returns (uint144) {
+    function callback(bytes calldata data, address) external override returns (uint144) {
         (uint256 amount0, uint256 amount1, address recipient) = abi.decode(data, (uint256, uint256, address));
 
         if (amount0 > 0) {
