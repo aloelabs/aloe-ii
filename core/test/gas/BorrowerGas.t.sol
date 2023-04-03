@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
+import {B} from "src/libraries/constants/Constants.sol";
 import {zip} from "src/libraries/Positions.sol";
 
 import "src/Borrower.sol";
@@ -26,7 +27,7 @@ contract BorrowerGasTest is Test, IManager {
         lender0 = deploySingleLender(asset0, address(this), new RateModel());
         lender1 = deploySingleLender(asset1, address(this), new RateModel());
         account = deploySingleBorrower(pool, lender0, lender1);
-        account.initialize(address(this));
+        account.initialize(address(this), B);
 
         lender0.whitelist(address(account));
         lender1.whitelist(address(account));

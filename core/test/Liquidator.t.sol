@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {LIQUIDATION_INCENTIVE} from "src/libraries/constants/Constants.sol";
+import {B, LIQUIDATION_INCENTIVE} from "src/libraries/constants/Constants.sol";
 import {zip} from "src/libraries/Positions.sol";
 
 import "src/Borrower.sol";
@@ -27,7 +27,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         lender0 = deploySingleLender(asset0, address(this), new RateModel());
         lender1 = deploySingleLender(asset1, address(this), new RateModel());
         account = deploySingleBorrower(pool, lender0, lender1);
-        account.initialize(address(this));
+        account.initialize(address(this), B);
 
         lender0.whitelist(address(account));
         lender1.whitelist(address(account));
@@ -74,7 +74,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         account.warn();
 
-        (, uint88 unleashLiquidationTime, ) = account.slot0();
+        (, , uint80 unleashLiquidationTime, ) = account.slot0();
         assertEq(unleashLiquidationTime, block.timestamp + LIQUIDATION_GRACE_PERIOD);
 
         vm.expectRevert(bytes(""));
@@ -263,7 +263,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         vm.expectRevert();
         account.liquidate(this, bytes(""), 0);
 
-        Prices memory prices = account.getPrices();
+        Prices memory prices = account.getPrices(B);
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 incentive1 = Math.mulDiv(debt / LIQUIDATION_INCENTIVE, price, Q96);
         uint256 assets1 = Math.mulDiv(debt / strain, price, Q96) + incentive1 / strain;
@@ -302,7 +302,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
             uint160(address(this)) + (1 << 160)
         )));
 
-        Prices memory prices = account.getPrices();
+        Prices memory prices = account.getPrices(B);
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 incentive1 = Math.mulDiv(debt / LIQUIDATION_INCENTIVE, price, Q96);
         uint256 assets1 = Math.mulDiv(debt / strain, price, Q96) + incentive1 / strain;
@@ -320,7 +320,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         // These tests are forked, so we don't want to spam the RPC with too many fuzzing values
         strain = (strain % 8) + 1;
 
-        Prices memory prices = account.getPrices();
+        Prices memory prices = account.getPrices(B);
         uint256 borrow1 = 1e18 * ((scale % 4) + 1); // Same concern here
         {
             uint256 effectiveLiabilities1 = borrow1 + borrow1 / 200 + borrow1 / 20;
@@ -374,7 +374,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     function test_spec_priceTriggerRepayDAIUsingSwap() public {
         uint256 strain = 1;
 
-        Prices memory prices = account.getPrices();
+        Prices memory prices = account.getPrices(B);
         uint256 borrow0 = 1000e18;
         {
             uint256 effectiveLiabilities0 = borrow0 + borrow0 / 200;
@@ -423,7 +423,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
             uint160(address(this)) + (1 << 160)
         )));
 
-        prices = account.getPrices();
+        prices = account.getPrices(B);
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 assets1 = Math.mulDiv(borrow0 / strain, price, Q96);
@@ -440,7 +440,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     function test_warnDoesProtect() public {
         uint256 strain = 1;
 
-        Prices memory prices = account.getPrices();
+        Prices memory prices = account.getPrices(B);
         uint256 borrow0 = 1000e18;
         {
             uint256 effectiveLiabilities0 = borrow0 + borrow0 / 200;
@@ -494,7 +494,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         skip(1);
 
-        prices = account.getPrices();
+        prices = account.getPrices(B);
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 assets1 = Math.mulDiv(borrow0 / strain, price, Q96);
@@ -504,7 +504,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         data = abi.encode(assets1);
         account.liquidate(this, data, strain);
 
-        (, uint88 unleashLiquidationTime, ) = account.slot0();
+        (, , uint80 unleashLiquidationTime, ) = account.slot0();
         assertEq(unleashLiquidationTime, 0);
     }
 

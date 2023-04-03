@@ -457,7 +457,6 @@ contract Borrower is IUniswapV3MintCallback {
         }
     }
 
-    /// @dev The name of this function impacts the optimizer's in-lining behavior. DO NOT CHANGE!
     function _saveSlot0(uint256 slot0_, uint256 addend) private {
         assembly ("memory-safe") {
             sstore(slot0.slot, add(slot0_, addend))
