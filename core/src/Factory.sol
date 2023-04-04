@@ -43,35 +43,35 @@ contract Factory {
         lenderImplementation = address(new Lender(address(this)));
     }
 
-    function createMarket(IUniswapV3Pool _pool) external {
-        ORACLE.prepare(_pool);
+    function createMarket(IUniswapV3Pool pool) external {
+        ORACLE.prepare(pool);
 
-        address asset0 = _pool.token0();
-        address asset1 = _pool.token1();
+        address asset0 = pool.token0();
+        address asset1 = pool.token1();
 
-        bytes32 salt = keccak256(abi.encode(_pool));
+        bytes32 salt = keccak256(abi.encode(pool));
         Lender lender0 = Lender(lenderImplementation.cloneDeterministic({salt: salt, data: abi.encodePacked(asset0)}));
         Lender lender1 = Lender(lenderImplementation.cloneDeterministic({salt: salt, data: abi.encodePacked(asset1)}));
 
         lender0.initialize(RATE_MODEL, 8);
         lender1.initialize(RATE_MODEL, 8);
 
-        Borrower borrowerImplementation = new Borrower(ORACLE, _pool, lender0, lender1);
+        Borrower borrowerImplementation = new Borrower(ORACLE, pool, lender0, lender1);
 
-        getMarket[_pool] = Market(lender0, lender1, borrowerImplementation);
-        emit CreateMarket(_pool, lender0, lender1);
+        getMarket[pool] = Market(lender0, lender1, borrowerImplementation);
+        emit CreateMarket(pool, lender0, lender1);
     }
 
-    function createBorrower(IUniswapV3Pool _pool, address _owner) external returns (address account) {
-        Market memory market = getMarket[_pool];
+    function createBorrower(IUniswapV3Pool pool, address owner) external returns (address account) {
+        Market memory market = getMarket[pool];
 
         account = Clones.clone(address(market.borrowerImplementation));
-        Borrower(account).initialize(_owner);
+        Borrower(account).initialize(owner);
         isBorrower[account] = true;
 
         market.lender0.whitelist(account);
         market.lender1.whitelist(account);
 
-        emit CreateBorrower(_pool, _owner, account);
+        emit CreateBorrower(pool, owner, account);
     }
 }

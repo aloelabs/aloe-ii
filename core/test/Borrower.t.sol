@@ -17,7 +17,7 @@ contract BorrowerTest is Test, IManager {
     Lender lender1;
     Borrower account;
 
-    function callback(bytes calldata data)
+    function callback(bytes calldata data, address)
         external
         returns (uint144)
     {

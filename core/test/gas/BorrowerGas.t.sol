@@ -124,7 +124,8 @@ contract BorrowerGasTest is Test, IManager {
     }
 
     function callback(
-        bytes calldata data
+        bytes calldata data,
+        address
     ) external returns (uint144 positions) {
         require(msg.sender == address(account));
 

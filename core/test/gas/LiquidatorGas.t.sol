@@ -216,7 +216,8 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
 
     // IManager
     function callback(
-        bytes calldata data
+        bytes calldata data,
+        address
     ) external returns (uint144 positions) {
         require(msg.sender == address(account));
 

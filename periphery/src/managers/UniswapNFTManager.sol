@@ -20,7 +20,7 @@ contract UniswapNFTManager is IManager {
         NFT_MANAGER = nftManager;
     }
 
-    function callback(bytes calldata data) external override returns (uint144 positions) {
+    function callback(bytes calldata data, address owner) external override returns (uint144 positions) {
         Borrower borrower = Borrower(msg.sender);
 
         // The ID of the NFT to which liquidity will be added/removed
@@ -38,7 +38,6 @@ contract UniswapNFTManager is IManager {
             // safety checks since this contract will be approved to manager users' positions
             {
                 require(FACTORY.isBorrower(msg.sender));
-                (address owner, , ) = borrower.slot0();
                 require(owner == NFT_MANAGER.ownerOf(tokenId));
             }
 

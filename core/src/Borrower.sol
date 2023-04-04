@@ -26,7 +26,7 @@ interface ILiquidator {
 }
 
 interface IManager {
-    function callback(bytes calldata data) external returns (uint144 positions);
+    function callback(bytes calldata data, address owner) external returns (uint144 positions);
 }
 
 /// @title Borrower
@@ -95,9 +95,9 @@ contract Borrower is IUniswapV3MintCallback {
         require(pool.token1() == address(TOKEN1));
     }
 
-    function initialize(address owner_) external {
+    function initialize(address owner) external {
         require(slot0.owner == address(0));
-        slot0.owner = owner_;
+        slot0.owner = owner;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -258,7 +258,7 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
 
         _saveSlot0(uint160(msg.sender), _formatted(State.InModifyCallback));
-        int24[] memory positions_ = positions.write(callee.callback(data));
+        int24[] memory positions_ = positions.write(callee.callback(data, msg.sender));
         _saveSlot0(uint160(msg.sender), _formatted(State.Ready));
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
@@ -454,7 +454,6 @@ contract Borrower is IUniswapV3MintCallback {
         }
     }
 
-    /// @dev The name of this function impacts the optimizer's in-lining behavior. DO NOT CHANGE!
     function _saveSlot0(uint256 slot0_, uint256 addend) private {
         assembly ("memory-safe") {
             sstore(slot0.slot, add(slot0_, addend))
