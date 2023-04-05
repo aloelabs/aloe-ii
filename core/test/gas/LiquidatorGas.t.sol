@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
+import {DEFAULT_ANTE, DEFAULT_N_SIGMA} from "src/libraries/constants/Constants.sol";
 import {zip} from "src/libraries/Positions.sol";
 
 import "src/Borrower.sol";
@@ -39,7 +40,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         lender0.deposit(10000e18, address(12345));
         lender1.deposit(10000e18, address(12345));
 
-        deal(address(account), account.ANTE() + 1);
+        deal(address(account), DEFAULT_ANTE + 1);
     }
 
     function test_noCallbackOneAsset() public {
@@ -261,5 +262,11 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
     ) external {
         if (amount0Delta > 0) asset0.transfer(msg.sender, uint256(amount0Delta));
         if (amount1Delta > 0) asset1.transfer(msg.sender, uint256(amount1Delta));
+    }
+
+    // Factory mock
+    function getParameters(IUniswapV3Pool) external pure returns (uint248 ante, uint8 nSigma) {
+        ante = DEFAULT_ANTE;
+        nSigma = DEFAULT_N_SIGMA;
     }
 }

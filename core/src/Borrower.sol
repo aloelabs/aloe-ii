@@ -14,6 +14,7 @@ import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {Positions} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 
+import {Factory} from "./Factory.sol";
 import {Lender} from "./Lender.sol";
 import {VolatilityOracle} from "./VolatilityOracle.sol";
 
@@ -40,9 +41,8 @@ contract Borrower is IUniswapV3MintCallback {
 
     event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX96);
 
-    uint8 public constant B = 5;
-
-    uint256 public constant ANTE = 0.001 ether;
+    /// @notice The factory that created this contract
+    Factory public immutable FACTORY;
 
     /// @notice The oracle to use for prices and implied volatility
     VolatilityOracle public immutable ORACLE;
@@ -83,6 +83,7 @@ contract Borrower is IUniswapV3MintCallback {
     //////////////////////////////////////////////////////////////*/
 
     constructor(VolatilityOracle oracle, IUniswapV3Pool pool, Lender lender0, Lender lender1) {
+        FACTORY = Factory(msg.sender);
         ORACLE = oracle;
         UNISWAP_POOL = pool;
         LENDER0 = lender0;
@@ -119,7 +120,8 @@ contract Borrower is IUniswapV3MintCallback {
 
         {
             // Fetch prices from oracle
-            Prices memory prices = getPrices();
+            (, uint256 nSigma) = FACTORY.getParameters(UNISWAP_POOL);
+            Prices memory prices = getPrices(nSigma);
             // Withdraw Uniswap positions while tallying assets
             Assets memory assets = _getAssets(positions.read(), prices, false);
             // Fetch liabilities from lenders
@@ -155,7 +157,8 @@ contract Borrower is IUniswapV3MintCallback {
         _saveSlot0(slot0_, _formatted(State.Locked));
 
         // Fetch prices from oracle
-        Prices memory prices = getPrices();
+        (, uint256 nSigma) = FACTORY.getParameters(UNISWAP_POOL);
+        Prices memory prices = getPrices(nSigma);
 
         uint256 liabilities0;
         uint256 liabilities1;
@@ -264,13 +267,15 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
-        Prices memory prices = getPrices();
+        (uint256 ante, uint256 nSigma) = FACTORY.getParameters(UNISWAP_POOL);
+
+        Prices memory prices = getPrices(nSigma);
         Assets memory assets = _getAssets(positions_, prices, false);
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
         require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
         unchecked {
-            if (liabilities0 + liabilities1 > 0) require(address(this).balance > ANTE, "Aloe: missing ante");
+            if (liabilities0 + liabilities1 > 0) require(address(this).balance > ante, "Aloe: missing ante");
         }
     }
 
@@ -371,11 +376,11 @@ contract Borrower is IUniswapV3MintCallback {
         return positions.read();
     }
 
-    function getPrices() public view returns (Prices memory prices) {
+    function getPrices(uint256 n) public view returns (Prices memory prices) {
         (uint160 sqrtMeanPriceX96, uint256 sigma) = ORACLE.consult(UNISWAP_POOL);
 
         // compute prices at which solvency will be checked
-        (uint160 a, uint160 b) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, sigma, B);
+        (uint160 a, uint160 b) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, sigma, n);
         prices = Prices(a, b, sqrtMeanPriceX96);
     }
 

@@ -3,6 +3,8 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
+import {DEFAULT_ANTE, DEFAULT_N_SIGMA} from "src/libraries/constants/Constants.sol";
+
 import "src/Borrower.sol";
 import "src/Lender.sol";
 
@@ -52,7 +54,7 @@ contract BorrowerTest is Test, IManager {
         lender0.whitelist(address(account));
         lender1.whitelist(address(account));
 
-        deal(address(account), account.ANTE() + 1);
+        deal(address(account), DEFAULT_ANTE + 1);
     }
 
     // TODO: Test missing ante
@@ -186,5 +188,10 @@ contract BorrowerTest is Test, IManager {
 
         deal(address(asset1), address(lender1), 3e18);
         lender1.deposit(3e18, alice);
+    }
+
+    function getParameters(IUniswapV3Pool) external pure returns (uint248 ante, uint8 nSigma) {
+        ante = DEFAULT_ANTE;
+        nSigma = DEFAULT_N_SIGMA;
     }
 }

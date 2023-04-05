@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {LIQUIDATION_INCENTIVE} from "src/libraries/constants/Constants.sol";
+import {DEFAULT_ANTE, DEFAULT_N_SIGMA, LIQUIDATION_INCENTIVE} from "src/libraries/constants/Constants.sol";
 import {zip} from "src/libraries/Positions.sol";
 
 import "src/Borrower.sol";
@@ -40,7 +40,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         lender0.deposit(10000e18, address(12345));
         lender1.deposit(10000e18, address(12345));
 
-        deal(address(account), account.ANTE() + 1);
+        deal(address(account), DEFAULT_ANTE + 1);
     }
 
     function test_warn(uint8 seed0, uint8 seed1) public {
@@ -263,7 +263,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         vm.expectRevert();
         account.liquidate(this, bytes(""), 0);
 
-        Prices memory prices = account.getPrices();
+        Prices memory prices = account.getPrices(DEFAULT_N_SIGMA);
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 incentive1 = Math.mulDiv(debt / LIQUIDATION_INCENTIVE, price, Q96);
         uint256 assets1 = Math.mulDiv(debt / strain, price, Q96) + incentive1 / strain;
@@ -302,7 +302,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
             uint160(address(this)) + (1 << 160)
         )));
 
-        Prices memory prices = account.getPrices();
+        Prices memory prices = account.getPrices(DEFAULT_N_SIGMA);
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 incentive1 = Math.mulDiv(debt / LIQUIDATION_INCENTIVE, price, Q96);
         uint256 assets1 = Math.mulDiv(debt / strain, price, Q96) + incentive1 / strain;
@@ -320,7 +320,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         // These tests are forked, so we don't want to spam the RPC with too many fuzzing values
         strain = (strain % 8) + 1;
 
-        Prices memory prices = account.getPrices();
+        Prices memory prices = account.getPrices(DEFAULT_N_SIGMA);
         uint256 borrow1 = 1e18 * ((scale % 4) + 1); // Same concern here
         {
             uint256 effectiveLiabilities1 = borrow1 + borrow1 / 200 + borrow1 / 20;
@@ -374,7 +374,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     function test_spec_priceTriggerRepayDAIUsingSwap() public {
         uint256 strain = 1;
 
-        Prices memory prices = account.getPrices();
+        Prices memory prices = account.getPrices(DEFAULT_N_SIGMA);
         uint256 borrow0 = 1000e18;
         {
             uint256 effectiveLiabilities0 = borrow0 + borrow0 / 200;
@@ -423,7 +423,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
             uint160(address(this)) + (1 << 160)
         )));
 
-        prices = account.getPrices();
+        prices = account.getPrices(DEFAULT_N_SIGMA);
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 assets1 = Math.mulDiv(borrow0 / strain, price, Q96);
@@ -440,7 +440,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     function test_warnDoesProtect() public {
         uint256 strain = 1;
 
-        Prices memory prices = account.getPrices();
+        Prices memory prices = account.getPrices(DEFAULT_N_SIGMA);
         uint256 borrow0 = 1000e18;
         {
             uint256 effectiveLiabilities0 = borrow0 + borrow0 / 200;
@@ -494,7 +494,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         skip(1);
 
-        prices = account.getPrices();
+        prices = account.getPrices(DEFAULT_N_SIGMA);
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 assets1 = Math.mulDiv(borrow0 / strain, price, Q96);
@@ -573,6 +573,13 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         if (amount1Delta > 0) asset1.transfer(msg.sender, uint256(amount1Delta));
     }
 
+    // Factory mock
+    function getParameters(IUniswapV3Pool) external pure returns (uint248 ante, uint8 nSigma) {
+        ante = DEFAULT_ANTE;
+        nSigma = DEFAULT_N_SIGMA;
+    }
+
+    // (helpers)
     function setInterest(Lender lender, uint256 amount) private {
         bytes32 ID = bytes32(uint256(1));
         uint256 slot1 = uint256(vm.load(address(lender), ID));

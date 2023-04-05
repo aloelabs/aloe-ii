@@ -6,6 +6,8 @@ import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmu
 import {ERC20} from "solmate/tokens/ERC20.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
+import {DEFAULT_ANTE, DEFAULT_N_SIGMA} from "./libraries/constants/Constants.sol";
+
 import {Borrower} from "./Borrower.sol";
 import {Lender} from "./Lender.sol";
 import {RateModel} from "./RateModel.sol";
@@ -27,6 +29,11 @@ contract Factory {
         Borrower borrowerImplementation;
     }
 
+    struct Parameters {
+        uint248 ante;
+        uint8 nSigma;
+    }
+
     VolatilityOracle public immutable ORACLE;
 
     RateModel public immutable RATE_MODEL;
@@ -34,6 +41,8 @@ contract Factory {
     address public immutable lenderImplementation;
 
     mapping(IUniswapV3Pool => Market) public getMarket;
+
+    mapping(IUniswapV3Pool => Parameters) public getParameters;
 
     mapping(address => bool) public isBorrower;
 
@@ -59,6 +68,7 @@ contract Factory {
         Borrower borrowerImplementation = new Borrower(ORACLE, pool, lender0, lender1);
 
         getMarket[pool] = Market(lender0, lender1, borrowerImplementation);
+        getParameters[pool] = Parameters(DEFAULT_ANTE, DEFAULT_N_SIGMA);
         emit CreateMarket(pool, lender0, lender1);
     }
 
