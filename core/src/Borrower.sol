@@ -120,8 +120,7 @@ contract Borrower is IUniswapV3MintCallback {
 
         {
             // Fetch prices from oracle
-            (, uint256 nSigma) = FACTORY.getParameters(UNISWAP_POOL);
-            Prices memory prices = getPrices(nSigma);
+            Prices memory prices = getPrices();
             // Withdraw Uniswap positions while tallying assets
             Assets memory assets = _getAssets(positions.read(), prices, false);
             // Fetch liabilities from lenders
@@ -157,8 +156,7 @@ contract Borrower is IUniswapV3MintCallback {
         _saveSlot0(slot0_, _formatted(State.Locked));
 
         // Fetch prices from oracle
-        (, uint256 nSigma) = FACTORY.getParameters(UNISWAP_POOL);
-        Prices memory prices = getPrices(nSigma);
+        Prices memory prices = getPrices();
 
         uint256 liabilities0;
         uint256 liabilities1;
@@ -269,7 +267,7 @@ contract Borrower is IUniswapV3MintCallback {
 
         (uint256 ante, uint256 nSigma) = FACTORY.getParameters(UNISWAP_POOL);
 
-        Prices memory prices = getPrices(nSigma);
+        Prices memory prices = _getPrices(nSigma);
         Assets memory assets = _getAssets(positions_, prices, false);
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
@@ -376,7 +374,12 @@ contract Borrower is IUniswapV3MintCallback {
         return positions.read();
     }
 
-    function getPrices(uint256 n) public view returns (Prices memory prices) {
+    function getPrices() public view returns (Prices memory prices) {
+        (, uint256 nSigma) = FACTORY.getParameters(UNISWAP_POOL);
+        prices = _getPrices(nSigma);
+    }
+
+    function _getPrices(uint256 n) private view returns (Prices memory prices) {
         (uint160 sqrtMeanPriceX96, uint256 sigma) = ORACLE.consult(UNISWAP_POOL);
 
         // compute prices at which solvency will be checked
@@ -418,7 +421,7 @@ contract Borrower is IUniswapV3MintCallback {
 
                 if (!withdraw) continue;
 
-                // Withdraw all `liquidity` from the position, adding earned fees as fixed assets
+                // Withdraw all `liquidity` from the position
                 _uniswapWithdraw(l, u, liquidity);
             }
         }
