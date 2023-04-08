@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {LIQUIDATION_INCENTIVE} from "src/libraries/constants/Constants.sol";
+import {DEFAULT_ANTE, DEFAULT_N_SIGMA, LIQUIDATION_INCENTIVE} from "src/libraries/constants/Constants.sol";
 import {zip} from "src/libraries/Positions.sol";
 
 import "src/Borrower.sol";
@@ -40,7 +40,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         lender0.deposit(10000e18, address(12345));
         lender1.deposit(10000e18, address(12345));
 
-        deal(address(account), account.ANTE() + 1);
+        deal(address(account), DEFAULT_ANTE + 1);
     }
 
     function test_warn(uint8 seed0, uint8 seed1) public {
@@ -573,6 +573,13 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         if (amount1Delta > 0) asset1.transfer(msg.sender, uint256(amount1Delta));
     }
 
+    // Factory mock
+    function getParameters(IUniswapV3Pool) external pure returns (uint248 ante, uint8 nSigma) {
+        ante = DEFAULT_ANTE;
+        nSigma = DEFAULT_N_SIGMA;
+    }
+
+    // (helpers)
     function setInterest(Lender lender, uint256 amount) private {
         bytes32 ID = bytes32(uint256(1));
         uint256 slot1 = uint256(vm.load(address(lender), ID));

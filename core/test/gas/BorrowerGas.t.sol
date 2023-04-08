@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
+import {DEFAULT_ANTE, DEFAULT_N_SIGMA} from "src/libraries/constants/Constants.sol";
 import {zip} from "src/libraries/Positions.sol";
 
 import "src/Borrower.sol";
@@ -33,7 +34,7 @@ contract BorrowerGasTest is Test, IManager {
     }
 
     function setUp() public {
-        deal(address(account), account.ANTE() + 1);
+        deal(address(account), DEFAULT_ANTE + 1);
 
         // deal to this contract (so we're able to test add margin)
         deal(address(asset0), address(this), 99e18); // DAI
@@ -149,5 +150,10 @@ contract BorrowerGasTest is Test, IManager {
     function uniswapV3MintCallback(uint256 _amount0, uint256 _amount1, bytes calldata) external {
         if (_amount0 != 0) asset0.transfer(msg.sender, _amount0);
         if (_amount1 != 0) asset1.transfer(msg.sender, _amount1);
+    }
+
+    function getParameters(IUniswapV3Pool) external pure returns (uint248 ante, uint8 nSigma) {
+        ante = DEFAULT_ANTE;
+        nSigma = DEFAULT_N_SIGMA;
     }
 }
