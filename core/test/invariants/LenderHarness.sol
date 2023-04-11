@@ -7,10 +7,21 @@ import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
 import "src/Lender.sol";
 
+contract FlashBorrower is IFlashBorrower {
+    function onFlashLoan(address, uint256, bytes calldata data) external {
+        Lender lender = Lender(msg.sender);
+
+        require(lender.lastAccrualTime() == 0, "flash: broken reentrancy lock");
+        lender.asset().transfer(msg.sender, abi.decode(data, (uint256)));
+    }
+}
+
 contract LenderHarness {
     Vm constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
     Lender immutable LENDER;
+
+    FlashBorrower immutable FLASH_BORROWER;
 
     address[] public holders;
 
@@ -28,6 +39,7 @@ contract LenderHarness {
 
     constructor(Lender lender) {
         LENDER = lender;
+        FLASH_BORROWER = new FlashBorrower();
 
         holders.push(lender.RESERVE());
         alreadyHolder[lender.RESERVE()] = true;
@@ -376,6 +388,24 @@ contract LenderHarness {
         );
 
         return units;
+    }
+
+    /// @notice Initiates a flash loan from `msg.sender`, requesting that `amountOut` tokens be sent to `FLASH_BORROWER`
+    function flash(uint256 amountOut, uint256 amountIn) public {
+        // Check that `LENDER` actually has `amount` available for borrowing
+        uint256 maxFlash = LENDER.asset().balanceOf(address(LENDER));
+        amountOut = amountOut % (maxFlash + 1);
+
+        // Expect revert if `to` doesn't repay enough
+        if (amountOut > 0) {
+            vm.prank(msg.sender);
+            vm.expectRevert(bytes("Aloe: insufficient pre-pay"));
+            LENDER.flash(amountOut, FLASH_BORROWER, abi.encode(amountIn % amountOut));
+        }
+
+        // Actual action
+        vm.prank(msg.sender);
+        LENDER.flash(amountOut, FLASH_BORROWER, abi.encode(amountOut));
     }
 
     /// @notice Sends `shares` from `msg.sender` to `to`
