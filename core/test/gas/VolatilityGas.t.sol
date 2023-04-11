@@ -6,8 +6,8 @@ import "forge-std/Test.sol";
 import "src/VolatilityOracle.sol";
 
 contract VolatilityGasTest is Test {
-    uint256 constant START_BLOCK = 60_533_513;
-    uint256 constant ONE_HOUR_LATER = 60_568_200;
+    uint256 constant START_BLOCK = 70_000_000;
+    uint256 constant SIX_HOURS_LATER = 70_045_000;
 
     IUniswapV3Pool constant pool = IUniswapV3Pool(0x03aF20bDAaFfB4cC0A521796a223f7D85e2aAc31);
 
@@ -21,7 +21,7 @@ contract VolatilityGasTest is Test {
         oracle.prepare(pool);
 
         vm.makePersistent(address(oracle));
-        vm.rollFork(ONE_HOUR_LATER);
+        vm.rollFork(SIX_HOURS_LATER);
     }
 
     function test_updateNoBinarySearch() public {
