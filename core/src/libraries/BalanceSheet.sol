@@ -3,10 +3,10 @@ pragma solidity 0.8.17;
 
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {MIN_SIGMA, MAX_SIGMA, MAX_LEVERAGE, LIQUIDATION_INCENTIVE} from "./constants/Constants.sol";
 import {Q96} from "./constants/Q.sol";
-import {SafeCastLib} from "./SafeCastLib.sol";
 
 struct Assets {
     uint256 fixed0;

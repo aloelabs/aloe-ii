@@ -3,10 +3,10 @@ pragma solidity 0.8.17;
 
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {BORROWS_SCALER, ONE, MIN_RESERVE_FACTOR, MAX_RESERVE_FACTOR} from "./libraries/constants/Constants.sol";
 import {Q112} from "./libraries/constants/Q.sol";
-import {SafeCastLib} from "./libraries/SafeCastLib.sol";
 
 import {Ledger} from "./Ledger.sol";
 import {RateModel} from "./RateModel.sol";

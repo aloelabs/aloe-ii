@@ -2,9 +2,9 @@
 pragma solidity 0.8.17;
 
 import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
+import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {Q96} from "./constants/Q.sol";
-import {SafeCastLib} from "./SafeCastLib.sol";
 
 /// @title Liquidity amount functions
 /// @notice Provides functions for computing liquidity amounts from token amounts and prices
