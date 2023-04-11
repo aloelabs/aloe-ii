@@ -211,7 +211,7 @@ contract Lender is Ledger {
     }
 
     /// @dev Reentrancy guard is critical here! Without it, one could use a flash loan to repay a normal loan.
-    function flash(uint256 amount, address to, bytes calldata data) external {
+    function flash(uint256 amount, IFlashBorrower to, bytes calldata data) external {
         // Guard against reentrancy
         uint32 lastAccrualTime_ = lastAccrualTime;
         require(lastAccrualTime_ != 0, "Aloe: locked");
@@ -220,8 +220,8 @@ contract Lender is Ledger {
         ERC20 asset_ = asset();
 
         uint256 balance = asset_.balanceOf(address(this));
-        asset_.safeTransfer(to, amount);
-        IFlashBorrower(to).onFlashLoan(msg.sender, amount, data);
+        asset_.safeTransfer(address(to), amount);
+        to.onFlashLoan(msg.sender, amount, data);
         require(balance <= asset_.balanceOf(address(this)), "Aloe: insufficient pre-pay");
 
         lastAccrualTime = lastAccrualTime_;
