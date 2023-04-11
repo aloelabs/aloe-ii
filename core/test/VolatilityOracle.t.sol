@@ -6,9 +6,9 @@ import "forge-std/Test.sol";
 import "src/VolatilityOracle.sol";
 
 contract VolatilityOracleTest is Test {
-    uint256 constant START_BLOCK = 60_533_513;
-    uint256 constant ONE_HOUR_LATER = 60_568_200;
-    uint256 constant TWO_HOURS_LATER = 60_611_517;
+    uint256 constant START_BLOCK = 70_000_000;
+    uint256 constant SIX_HOURS_LATER = 70_045_000;
+    uint256 constant TWELVE_HOURS_LATER = 70_090_000;
 
     uint256 constant BLOCKS_PER_MINUTE = 567;
 
@@ -25,10 +25,10 @@ contract VolatilityOracleTest is Test {
     ];
 
     function setUp() public {
-        oracle = new VolatilityOracle();
-
         vm.createSelectFork(vm.rpcUrl("optimism"));
         vm.rollFork(START_BLOCK);
+
+        oracle = new VolatilityOracle();
     }
 
     function test_spec_consultWithoutPreparation() public {
@@ -85,7 +85,7 @@ contract VolatilityOracleTest is Test {
         prepareAllPools();
 
         vm.makePersistent(address(oracle));
-        vm.rollFork(TWO_HOURS_LATER);
+        vm.rollFork(TWELVE_HOURS_LATER);
 
         uint256 count = pools.length;
         for (uint256 i = 0; i < count; i++) {
@@ -93,7 +93,7 @@ contract VolatilityOracleTest is Test {
 
             (uint256 index, uint256 time, uint256 ivOldExpected) = oracle.lastWrites(pool);
             assertEq(index, 0);
-            assertGe(block.timestamp, time + 1 hours + 5 minutes);
+            assertGe(block.timestamp, time + 6 hours + 15 minutes);
 
             (, uint256 ivOld) = oracle.consult(pool);
             (, uint256 ivNew) = oracle.update(pool);
@@ -121,7 +121,7 @@ contract VolatilityOracleTest is Test {
 
             (uint256 index, uint256 time, uint256 ivOld) = oracle.lastWrites(pool);
             assertEq(index, 0);
-            assertLt(block.timestamp, time + FEE_GROWTH_GLOBALS_SAMPLE_PERIOD);
+            assertLt(block.timestamp, time + FEE_GROWTH_SAMPLE_PERIOD);
 
             vm.record();
             (, uint256 ivNew) = oracle.update(pool);
@@ -137,7 +137,7 @@ contract VolatilityOracleTest is Test {
         prepareAllPools();
 
         vm.makePersistent(address(oracle));
-        vm.rollFork(ONE_HOUR_LATER);
+        vm.rollFork(SIX_HOURS_LATER);
 
         uint256 count = pools.length;
         for (uint256 i = 0; i < count; i++) {
@@ -172,14 +172,14 @@ contract VolatilityOracleTest is Test {
         for (uint256 i = 0; i < 100; i++) {
             console2.log(currentTime, currentIV);
 
-            currentBlock += (2 + uint256(blockhash(block.number)) % 10) * BLOCKS_PER_MINUTE;
+            currentBlock += (2 + uint256(blockhash(block.number)) % 10) * BLOCKS_PER_MINUTE * 5;
             vm.rollFork(currentBlock);
 
             (, uint256 ivWritten) = oracle.update(pool);
             (uint256 newIndex, uint256 newTime, uint256 ivStored) = oracle.lastWrites(pool);
 
             assertEqDecimal(ivStored, ivWritten, 18);
-            assertEq(newIndex, (currentIndex + 1) % 60);
+            assertEq(newIndex, (currentIndex + 1) % FEE_GROWTH_ARRAY_LENGTH);
 
             assertLe(ivWritten, currentIV + (newTime - currentTime) * IV_CHANGE_PER_SECOND);
             assertGe(ivWritten, currentIV - (newTime - currentTime) * IV_CHANGE_PER_SECOND);
@@ -201,7 +201,7 @@ contract VolatilityOracleTest is Test {
         uint256 totalGas = 0;
 
         for (uint256 i = 0; i < 600; i++) {
-            currentBlock += (1 + uint256(blockhash(block.number)) % 3) * BLOCKS_PER_MINUTE * 20;
+            currentBlock += (1 + uint256(blockhash(block.number)) % 3) * BLOCKS_PER_MINUTE * 60;
             vm.rollFork(currentBlock);
 
             uint256 g = gasleft();
