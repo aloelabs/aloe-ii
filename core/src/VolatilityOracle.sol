@@ -57,7 +57,7 @@ contract VolatilityOracle {
 
             // Default to using the existing IV
             uint256 iv = lastWrite.iv;
-            // Only update IV if the feeGrowthGlobals samples are approximately 1 hour apart
+            // Only update IV if the feeGrowthGlobals samples are approximately `FEE_GROWTH_AVG_WINDOW` hours apart
             if (
                 isInInterval({
                     min: FEE_GROWTH_AVG_WINDOW - 3 * FEE_GROWTH_SAMPLE_PERIOD,
