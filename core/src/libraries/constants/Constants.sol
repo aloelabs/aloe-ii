@@ -29,6 +29,20 @@ uint256 constant IV_SCALE = 24 hours;
 
 uint256 constant IV_CHANGE_PER_SECOND = 5e12;
 
-uint256 constant FEE_GROWTH_GLOBALS_SAMPLE_PERIOD = 1 minutes;
+/// @dev To estimate volume, we need 2 samples. One is always at the current block, the other is from
+/// `FEE_GROWTH_AVG_WINDOW` seconds ago, +/- `3 * FEE_GROWTH_SAMPLE_PERIOD`. Larger values make the resulting volume
+/// estimate more robust, but may cause the oracle to miss brief spikes in activity.
+uint256 constant FEE_GROWTH_AVG_WINDOW = 6 hours;
 
-uint32 constant ORACLE_LOOKBACK = 20 minutes;
+/// @dev The length of the circular buffer that stores feeGrowthGlobals samples.
+/// Must have be in interval [ FEE_GROWTH_AVG_WINDOW / FEE_GROWTH_SAMPLE_PERIOD, 256 )
+uint256 constant FEE_GROWTH_ARRAY_LENGTH = 72;
+
+/// @dev The minimum number of seconds that must elapse before a new feeGrowthGlobals sample will be stored. This also
+/// controls how often the oracle can update IV.
+uint256 constant FEE_GROWTH_SAMPLE_PERIOD = 5 minutes;
+
+/// @dev To compute Uniswap mean price & liquidity, we need 2 samples. One is always at the current block, the other is
+/// from `UNISWAP_AVG_WINDOW` seconds ago. Larger values make the resulting price/liquidity values harder to
+/// manipulate, but also make the oracle slower to respond to changes.
+uint32 constant UNISWAP_AVG_WINDOW = 30 minutes;
