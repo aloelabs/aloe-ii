@@ -7,13 +7,15 @@ import {Factory} from "aloe-ii-core/Factory.sol";
 
 import {BorrowerLens} from "src/BorrowerLens.sol";
 import {LenderLens} from "src/LenderLens.sol";
-import {Router} from "src/Router.sol";
+import {Router, IPermit2} from "src/Router.sol";
 import {LenderAccrualHelper} from "src/helpers/LenderAccrualHelper.sol";
 import {OracleUpdateHelper} from "src/helpers/OracleUpdateHelper.sol";
 import {FrontendManager} from "src/managers/FrontendManager.sol";
 import {SimpleManager} from "src/managers/SimpleManager.sol";
 import {UniswapNFTManager, INFTManager} from "src/managers/UniswapNFTManager.sol";
 import {WithdrawManager} from "src/managers/WithdrawManager.sol";
+
+IPermit2 constant PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
 Factory constant ALOE_II_FACTORY = Factory(0x95110C9806833d3D3C250112fac73c5A6f631E80);
 INFTManager constant UNISWAP_NFT_MANAGER = INFTManager(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
@@ -29,7 +31,7 @@ contract DeployScript is Script {
 
             new BorrowerLens{salt: TAG}();
             new LenderLens{salt: TAG}();
-            new Router{salt: TAG}();
+            new Router{salt: TAG}(PERMIT2);
 
             new LenderAccrualHelper{salt: TAG}();
             new OracleUpdateHelper{salt: TAG}(ALOE_II_FACTORY.ORACLE());
