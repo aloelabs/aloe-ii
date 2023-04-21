@@ -1,22 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
+/// @dev The initial value of `Lender`'s `borrowIndex`
 uint256 constant ONE = 1e12;
 
-uint256 constant BORROWS_SCALER = type(uint72).max * ONE; // uint72 is from the type of borrowIndex in `Ledger`
+/// @dev An additional scaling factor applied to borrowed amounts before dividing by `borrowIndex` and storing.
+/// uint72 matches the type of `borrowIndex` in `Ledger` to guarantee that the stored borrow units fit in uint256.
+uint256 constant BORROWS_SCALER = type(uint72).max * ONE;
 
+/// @dev The default amount of Ether required to take on debt in a `Borrower`. The `Factory` can override this value
+/// on a per-market basis.
 uint248 constant DEFAULT_ANTE = 0.1 ether;
 
+/// @dev The default number of standard deviations of price movement used to determine probe prices for `Borrower`
+/// solvency. The `Factory` can override this value on a per-market basis.
 uint8 constant DEFAULT_N_SIGMA = 5;
 
+/// @dev The minimum implied volatility. Clamped to this *before* multiplying by `DEFAULT_N_SIGMA`
 uint256 constant MIN_SIGMA = 0.01e18;
 
-// To avoid underflow in `BalanceSheet.computeProbePrices`, ensure that `MAX_SIGMA * Borrower.B <= 1e18`
+/// @dev The maximum implied volatility. Clamped to this *before* multiplying by `DEFAULT_N_SIGMA`
+/// To avoid underflow in `BalanceSheet.computeProbePrices`, ensure that `MAX_SIGMA * DEFAULT_N_SIGMA <= 1e18`
 uint256 constant MAX_SIGMA = 0.18e18;
 
-uint256 constant MIN_RESERVE_FACTOR = 4; // Expressed as reciprocal, e.g. 4 --> 25%
+/// @dev The lower bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 4 --> 25%
+uint256 constant MIN_RESERVE_FACTOR = 4;
 
-uint256 constant MAX_RESERVE_FACTOR = 20; // Expressed as reciprocal, e.g. 20 --> 5%
+/// @dev The upper bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 20 --> 5%
+uint256 constant MAX_RESERVE_FACTOR = 20;
 
 // 1 + 1 / MAX_LEVERAGE should correspond to the maximum feasible single-block accrualFactor so that liquidators have time to respond to interest updates
 uint256 constant MAX_LEVERAGE = 200;

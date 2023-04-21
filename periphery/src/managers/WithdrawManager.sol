@@ -19,6 +19,7 @@ contract WithdrawManager is IManager {
             Borrower(msg.sender).TOKEN1().safeTransferFrom(msg.sender, recipient, amount1);
         }
 
+        // Return 0 to indicate we don't want to change Uniswap positions
         return 0;
     }
 }

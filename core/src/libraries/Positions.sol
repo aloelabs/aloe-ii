@@ -29,6 +29,7 @@ function zip(int24[6] memory positions) pure returns (uint144 zipped) {
  * positions like [-100, 100, -100, 100].
  * @param zipped Encoded Uniswap positions. Equivalent to the layout of `int24[6] storage yourPositions`
  * @return positionsOfNonZeroWidth Flattened array of Uniswap positions that may or may not hold liquidity
+ * TODO: consider simply checking whether ticks are strictly increasing. if they are, they must be unique and we can save gas elsewhere
  */
 function extract(uint256 zipped) pure returns (int24[] memory positionsOfNonZeroWidth) {
     assembly ("memory-safe") {

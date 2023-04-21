@@ -93,10 +93,10 @@ jobs:
           CHECK_COVERAGE: true
         run: |
           cd "${GITHUB_WORKSPACE}/core"
-          echo "## Testing `core`" >> $GITHUB_STEP_SUMMARY
+          echo "## Testing core" >> $GITHUB_STEP_SUMMARY
           ./test.sh
       - name: Test periphery
         run: |
           cd "${GITHUB_WORKSPACE}/periphery"
-          echo "## Testing `periphery`" >> $GITHUB_STEP_SUMMARY
+          echo "## Testing periphery" >> $GITHUB_STEP_SUMMARY
           forge test
