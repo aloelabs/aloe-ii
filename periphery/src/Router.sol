@@ -96,6 +96,27 @@ contract Router {
 
         units = lender.repay(amount, beneficiary);
     }
+
+    function isMaxRedeemDynamic(Lender lender, address owner) external view returns (bool) {
+        // NOTE: If the first statement is true, the second statement will also be true (unless this is the block in which
+        // they deposited for the first time). We include the first statement only to reduce computation.
+        return lender.courierOf(owner) > 0 || lender.balanceOf(owner) != lender.maxRedeem(owner);
+    }
+
+    function redeemWithChecks(
+        Lender lender,
+        uint256 shares,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external returns (uint256 amount) {
+        uint256 maxRedeem = lender.maxRedeem(msg.sender);
+        if (shares > maxRedeem) shares = maxRedeem;
+
+        lender.permit(msg.sender, address(this), shares, deadline, v, r, s);
+        amount = lender.redeem(shares, msg.sender, msg.sender);
+    }
 }
 
 // Minimal Permit2 interface, derived from
