@@ -14,44 +14,6 @@ contract Router {
         PERMIT2 = permit2;
     }
 
-    function depositWithApprove(Lender lender, uint256 amount) external returns (uint256 shares) {
-        lender.asset().safeTransferFrom(msg.sender, address(lender), amount);
-        shares = lender.deposit(amount, msg.sender);
-    }
-
-    function depositWithApprove(
-        Lender lender,
-        uint256 amount,
-        uint32 courierId,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external returns (uint256 shares) {
-        lender.permit(msg.sender, address(this), 1, deadline, v, r, s);
-        lender.creditCourier(courierId, msg.sender);
-
-        lender.asset().safeTransferFrom(msg.sender, address(lender), amount);
-        shares = lender.deposit(amount, msg.sender);
-    }
-
-    function depositWithPermit(
-        Lender lender,
-        uint256 amount,
-        uint256 allowance,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external returns (uint256 shares) {
-        if (allowance != 0) {
-            lender.asset().permit(msg.sender, address(this), allowance, deadline, v, r, s);
-        }
-
-        lender.asset().safeTransferFrom(msg.sender, address(lender), amount);
-        shares = lender.deposit(amount, msg.sender);
-    }
-
     function depositWithPermit(
         Lender lender,
         uint256 amount,
@@ -105,28 +67,33 @@ contract Router {
         shares = lender.deposit(amount, msg.sender);
     }
 
-    function repayWithApprove(Lender lender, uint256 amount, address beneficiary) external returns (uint256 units) {
-        lender.asset().safeTransferFrom(msg.sender, address(lender), amount);
-        units = lender.repay(amount, beneficiary);
-    }
-
-    function repayWithPermit(
+    function repayWithPermit2(
         Lender lender,
         uint256 amount,
         address beneficiary,
-        uint256 allowance,
+        uint256 nonce,
         uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
+        bytes calldata signature
     ) external returns (uint256 units) {
-        ERC20 asset = lender.asset();
+        // Transfer tokens from the caller to the lender.
+        PERMIT2.permitTransferFrom(
+            // The permit message.
+            IPermit2.PermitTransferFrom({
+                permitted: IPermit2.TokenPermissions({token: lender.asset(), amount: amount}),
+                nonce: nonce,
+                deadline: deadline
+            }),
+            // The transfer recipient and amount.
+            IPermit2.SignatureTransferDetails({to: address(lender), requestedAmount: amount}),
+            // The owner of the tokens, which must also be
+            // the signer of the message, otherwise this call
+            // will fail.
+            msg.sender,
+            // The packed signature that was the result of signing
+            // the EIP712 hash of `permit`.
+            signature
+        );
 
-        if (allowance != 0) {
-            asset.permit(msg.sender, address(this), allowance, deadline, v, r, s);
-        }
-
-        asset.safeTransferFrom(msg.sender, address(lender), amount);
         units = lender.repay(amount, beneficiary);
     }
 }
