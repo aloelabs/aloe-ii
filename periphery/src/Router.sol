@@ -111,10 +111,11 @@ contract Router {
         bytes32 r,
         bytes32 s
     ) external returns (uint256 amount) {
+        lender.permit(msg.sender, address(this), shares, deadline, v, r, s);
+
         uint256 maxRedeem = lender.maxRedeem(msg.sender);
         if (shares > maxRedeem) shares = maxRedeem;
 
-        lender.permit(msg.sender, address(this), shares, deadline, v, r, s);
         amount = lender.redeem(shares, msg.sender, msg.sender);
     }
 }
