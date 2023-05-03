@@ -119,7 +119,7 @@ contract Lender is Ledger {
         shares = _convertToShares(amount, inventory, cache.totalSupply, /* roundUp: */ false);
         require(shares != 0, "Aloe: zero impact");
 
-        // Ensure tokens were transferred
+        // Ensure tokens are transferred
         ERC20 asset_ = asset();
         cache.lastBalance += amount;
         bool didPrepay = cache.lastBalance <= asset_.balanceOf(address(this));
