@@ -119,9 +119,13 @@ contract Lender is Ledger {
         shares = _convertToShares(amount, inventory, cache.totalSupply, /* roundUp: */ false);
         require(shares != 0, "Aloe: zero impact");
 
-        // Ensure tokens were transferred
+        // Ensure tokens are transferred
+        ERC20 asset_ = asset();
         cache.lastBalance += amount;
-        require(cache.lastBalance <= asset().balanceOf(address(this)), "Aloe: insufficient pre-pay");
+        bool didPrepay = cache.lastBalance <= asset_.balanceOf(address(this));
+        if (!didPrepay) {
+            asset_.safeTransferFrom(msg.sender, address(this), amount);
+        }
 
         // Mint shares and (if applicable) handle courier accounting
         _unsafeMint(beneficiary, shares, amount);

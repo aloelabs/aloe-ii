@@ -6,7 +6,7 @@ import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {Q96} from "./constants/Q.sol";
 
-/// @title Liquidity amount functions
+/// @title LiquidityAmounts
 /// @notice Provides functions for computing liquidity amounts from token amounts and prices
 /// @author Aloe Labs, Inc.
 /// @author Modified from Uniswap (https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/LiquidityAmounts.sol)
