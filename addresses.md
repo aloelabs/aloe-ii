@@ -8,7 +8,7 @@
 | LenderLens                       | fad036d4a34b95441beca1ed7ea36738111b6045 | bytes32(uint256(0xA10EBE1A2))                                      | `0x0d41292FCdF2569816a3b20d81765F1300f477E4` |
 | LenderAccrualHelper              | ec45040adf10da901aaf9e6394d6ece2d8095e3b | bytes32(uint256(0xA10EBE1A2))                                      | `0x49b7C197468b5E8Eb345768280B554B39Dc9F64b` |
 | OracleUpdateHelper               | b3864fc9c8b3299920fc2d73bedd7f906d64f999 | bytes32(uint256(0xA10EBE1A2))                                      | `0xB93d750Cc6CA3d1F494DC25e7375860feef74870` |
-| Router                           | e67ebdf3fb0507232370c5b0daa2d68b7c4d4813 | bytes32(uint256(0xA10EBE1A2))                                      | `0x0447cf9a17CF6424C704e4feC7E088BC9E1af45D` |
+| Router                           | 50d81b55600d30ec2d18ffa4c83aad579b20a96a | bytes32(uint256(0xA10EBE1A2))                                      | `0x1E395864B96c3C04467153c1666d2AaA03a86fa8` |
 | FrontendManager                  | 3b6e3329654fcb809b597a3cc9518fd3a8874d1c | bytes32(uint256(0xA10EBE1A2))                                      | `0x2d3A430Bd0F36cdb3911431a5e487a59c349Ca4d` |
 | SimpleManager                    | 40863c0562cdfeee0a38e7eb5eb68bb7d33525cc | bytes32(uint256(0xA10EBE1A2))                                      | `0x760a9356dE7dfF4387a7f87A7563Be72b7F34Bb6` |
 | UniswapNFTManager                | 203442e3b3f825523f41542132057de962a5886e | bytes32(uint256(0xA10EBE1A2))                                      | `0xd6D4277bCCEEE3d9825D503dC23f0976992540e6` |
