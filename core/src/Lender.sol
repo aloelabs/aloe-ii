@@ -112,7 +112,7 @@ contract Lender is Ledger {
                         DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function deposit(uint256 amount, address beneficiary) external returns (uint256 shares) {
+    function deposit(uint256 amount, address beneficiary) public returns (uint256 shares) {
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, uint256 inventory) = _load();
 
@@ -137,7 +137,13 @@ contract Lender is Ledger {
         emit Deposit(msg.sender, beneficiary, amount, shares);
     }
 
-    function redeem(uint256 shares, address recipient, address owner) external returns (uint256 amount) {
+    // TODO: We aren't `require`ing that the return value of `deposit` == `shares`. Check it in fuzz tests.
+    function mint(uint256 shares, address beneficiary) external returns (uint256 amount) {
+        amount = previewMint(shares);
+        deposit(amount, beneficiary);
+    }
+
+    function redeem(uint256 shares, address recipient, address owner) public returns (uint256 amount) {
         // Guard against reentrancy, accrue interest, and update reserves
         (Cache memory cache, uint256 inventory) = _load();
 
@@ -163,6 +169,12 @@ contract Lender is Ledger {
         _save(cache, /* didChangeBorrowBase: */ false);
 
         emit Withdraw(msg.sender, recipient, owner, amount, shares);
+    }
+
+    // TODO: We aren't `require`ing that the return value of `redeem` == `amount`. Check it in fuzz tests.
+    function withdraw(uint256 amount, address recipient, address owner) external returns (uint256 shares) {
+        shares = previewWithdraw(amount);
+        redeem(shares, recipient, owner);
     }
 
     /*//////////////////////////////////////////////////////////////
