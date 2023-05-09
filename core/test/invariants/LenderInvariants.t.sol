@@ -102,7 +102,7 @@ contract LenderInvariantsTest is Test {
         assertEq(bytes(update.name), bytes(thingsThatShouldntChange.name));
         assertEq(bytes(update.symbol), bytes(thingsThatShouldntChange.symbol));
         assertEq(update.decimals, thingsThatShouldntChange.decimals);
-        assertEq(uint160(address(update.asset)), uint160(address(thingsThatShouldntChange.asset)));
+        assertEq(address(update.asset), address(thingsThatShouldntChange.asset));
         assertEq(update.domainSeparator, thingsThatShouldntChange.domainSeparator);
     }
 
