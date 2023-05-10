@@ -42,6 +42,25 @@ contract ERC4626Harness {
                                   MAIN
     //////////////////////////////////////////////////////////////*/
 
+    // I'd prefer for this to be in the invariant testing file, but currently invariants don't accept fuzzed args.
+    // Goal is just to make sure the `convertToXXXXXX` methods (a) don't revert and (b) don't depend on caller.
+    function testViewMethods(address callerA, address callerB, uint128 amount) external {
+        uint256 a;
+        uint256 b;
+
+        vm.prank(callerA);
+        a = VAULT.convertToAssets(amount);
+        vm.prank(callerB);
+        b = VAULT.convertToAssets(amount);
+        require(a == b, "convertToAssets varied with caller");
+
+        vm.prank(callerA);
+        a = VAULT.convertToShares(amount);
+        vm.prank(callerB);
+        b = VAULT.convertToShares(amount);
+        require(a == b, "convertToShares varied with caller");
+    }
+
     /// @dev Don't mess with the logic here, things get weird. See https://github.com/foundry-rs/foundry/issues/3806
     function warp(uint16 elapsedTime) external {
         uint256 t0 = block.timestamp;
