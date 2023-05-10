@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {Positions, zip} from "src/libraries/Positions.sol";
+import {Positions, extract, zip} from "src/libraries/Positions.sol";
 
 contract PositionsTest is Test {
     using Positions for int24[6];
@@ -17,6 +17,57 @@ contract PositionsTest is Test {
         positions[3] = 12;
         positions[4] = 345;
         positions[5] = 678;
+    }
+
+    function test_memoryZip(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu) public {
+        int24[6] memory arr = [xl, xu, yl, yu, zl, zu];
+        vm.expectSafeMemory(0x00, 0x60);
+        zip(arr);
+    }
+
+    function test_memoryExtract(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu) public {
+        uint64 count = 0;
+        if (xl != xu) count += 1;
+        if (yl != yu) count += 1;
+        if (zl != zu) count += 1;
+        uint256 zipped = zip([xl, xu, yl, yu, zl, zu]);
+
+        uint64 ptr;
+        assembly ("memory-safe") {
+            ptr := mload(0x40)
+        }
+
+        vm.expectSafeMemory(ptr, ptr + 32 * (1 + 2 * count));
+        extract(zipped);
+    }
+
+    function test_memoryExtractDirty(int24 xl, int24 xu, uint256 dirt) public {
+        uint256 zipped = zip([xl, xu, xl, xu, xl, xu]);
+
+        // Write data after the free memory pointer, without updating the pointer
+        // (make it dirty)
+        assembly ("memory-safe") {
+            let ptr := mload(0x40)
+            mstore(ptr, dirt)
+            mstore(add(ptr, 0x20), dirt)
+            mstore(add(ptr, 0x40), dirt)
+            mstore(add(ptr, 0x60), dirt)
+            mstore(add(ptr, 0x80), dirt)
+            // ...could add more, doesn't really matter
+        }
+
+        int24[] memory extracted = extract(zipped);
+        if (xl != xu) {
+            assertEq(extracted.length, 6);
+            assertEq(extracted[0], xl);
+            assertEq(extracted[1], xu);
+            assertEq(extracted[2], xl);
+            assertEq(extracted[3], xu);
+            assertEq(extracted[4], xl);
+            assertEq(extracted[5], xu);
+        } else {
+            assertEq(extracted.length, 0);
+        }
     }
 
     function test_zip(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu) public {
