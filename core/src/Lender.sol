@@ -137,7 +137,6 @@ contract Lender is Ledger {
         emit Deposit(msg.sender, beneficiary, amount, shares);
     }
 
-    // TODO: We aren't `require`ing that the return value of `deposit` == `shares`. Check it in fuzz tests.
     function mint(uint256 shares, address beneficiary) external returns (uint256 amount) {
         amount = previewMint(shares);
         deposit(amount, beneficiary);
@@ -171,7 +170,6 @@ contract Lender is Ledger {
         emit Withdraw(msg.sender, recipient, owner, amount, shares);
     }
 
-    // TODO: We aren't `require`ing that the return value of `redeem` == `amount`. Check it in fuzz tests.
     function withdraw(uint256 amount, address recipient, address owner) external returns (uint256 shares) {
         shares = previewWithdraw(amount);
         redeem(shares, recipient, owner);

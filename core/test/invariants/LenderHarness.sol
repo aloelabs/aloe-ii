@@ -16,6 +16,11 @@ contract FlashBorrower is IFlashBorrower {
     }
 }
 
+// TODO: Add expectEmit
+// TODO: test non-prepaying versions
+// TODO: combine with ERC4626 invariants
+// TODO: Add more assertions (especially surrounding totalSupply) to `accrueInterest`
+
 contract LenderHarness {
     Vm constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
 
@@ -161,7 +166,7 @@ contract LenderHarness {
         // Make sure `msg.sender` has enough assets to deposit
         if (amountToTransfer > 0) {
             vm.prank(msg.sender);
-            vm.expectRevert(bytes(shares > 0 ? "Aloe: insufficient pre-pay" : "Aloe: zero impact"));
+            vm.expectRevert(bytes(shares > 0 ? "TRANSFER_FROM_FAILED" : "Aloe: zero impact"));
             LENDER.deposit(amount, beneficiary);
 
             MockERC20 mock = MockERC20(address(asset));
