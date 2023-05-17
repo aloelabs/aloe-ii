@@ -19,7 +19,6 @@ contract FlashBorrower is IFlashBorrower {
 // TODO: Add expectEmit
 // TODO: test non-prepaying versions
 // TODO: combine with ERC4626 invariants
-// TODO: Add more assertions (especially surrounding totalSupply) to `accrueInterest`
 
 contract LenderHarness {
     Vm constant vm = Vm(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D);
@@ -113,7 +112,8 @@ contract LenderHarness {
 
         // Check for `RESERVE` involvement, courier existence, self-reference, and non-zero balance
         (address wallet, ) = LENDER.couriers(id);
-        if (account == LENDER.RESERVE() ||
+        if (
+            account == LENDER.RESERVE() ||
             !alreadyEnrolledCourier[id] ||
             wallet == account ||
             LENDER.balanceOf(account) > 0
@@ -143,14 +143,20 @@ contract LenderHarness {
         if (elapsedTime > 0) {
             vm.warp(block.timestamp + elapsedTime);
         }
+
+        uint256 borrowIndex = LENDER.borrowIndex();
+        uint256 totalSupply = LENDER.totalSupply();
+        uint256 reserves = LENDER.balanceOf(LENDER.RESERVE());
+
         vm.prank(msg.sender);
         LENDER.accrueInterest();
 
-        // TODO: Once we remove the second case on Ledger.sol:322 (if (cache.lastAccrualTime == block.timestamp || oldBorrows == 0))
-        // and address issue#42, we can pull this assertion out of the if statement
-        if (uint256(LENDER.borrowBase()) * uint256(LENDER.borrowIndex()) / BORROWS_SCALER > 0) {
-            require(LENDER.lastAccrualTime() == block.timestamp, "accrueInterest: bad time");
-        }
+        require(LENDER.lastAccrualTime() == block.timestamp, "accrueInterest: bad time");
+        require(LENDER.borrowIndex() >= borrowIndex, "accrueInterest: bad index");
+        require(
+            LENDER.totalSupply() - totalSupply == LENDER.balanceOf(LENDER.RESERVE()) - reserves,
+            "accrueInterest: bad mint"
+        );
     }
 
     /// @notice Deposits `amount` and sends new `shares` to `beneficiary`
@@ -377,7 +383,7 @@ contract LenderHarness {
         asset.transfer(address(LENDER), amountToTransfer);
         // --> Repay
         vm.prank(msg.sender);
-        uint256 units = LENDER.repay(amount, beneficiary);        
+        uint256 units = LENDER.repay(amount, beneficiary);
 
         // Assertions
         require(LENDER.lastBalance() == lastBalance + amount, "repay: lastBalance mismatch");
@@ -476,7 +482,7 @@ contract LenderHarness {
     function repayMax(uint16 i) external returns (uint256) {
         uint256 count = borrowers.length;
         if (count == 0) return 0;
-        
+
         address beneficiary = borrowers[i % count];
         // uint256 amount = LENDER.borrowBalance(beneficiary);
         // if (amount > type(uint112).max) amount = type(uint112).max;

@@ -440,21 +440,14 @@ contract Lender is Ledger {
     }
 
     function _save(Cache memory cache, bool didChangeBorrowBase) private {
-        if (cache.lastAccrualTime == 0) {
-            // `cache.lastAccrualTime == 0` implies that `cache.borrowIndex` was updated.
-            // `cache.borrowBase` MAY also have been updated, so we store both components of the slot.
+        // `cache.lastAccrualTime == 0` implies that `cache.borrowIndex` was updated
+        if (cache.lastAccrualTime == 0 || didChangeBorrowBase) {
             borrowBase = cache.borrowBase.safeCastTo184();
             borrowIndex = cache.borrowIndex.safeCastTo72();
-            // Now that we've read the flag, we can update `cache.lastAccrualTime` to the real, appropriate value
-            cache.lastAccrualTime = block.timestamp;
-        } else if (didChangeBorrowBase) {
-            // Here, `cache.lastAccrualTime` is a real timestamp (could be `block.timestamp` or older). We can infer
-            // that `cache.borrowIndex` was *not* updated. So we only have to store `cache.borrowBase`.
-            borrowBase = cache.borrowBase.safeCastTo184();
         }
 
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
-        lastAccrualTime = cache.lastAccrualTime.safeCastTo32(); // Disables reentrancy guard
+        lastAccrualTime = block.timestamp.safeCastTo32(); // Disables reentrancy guard
     }
 }
