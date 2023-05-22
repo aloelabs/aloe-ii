@@ -111,7 +111,7 @@ contract LenderTest is Test {
         if (amount == 0) amount++;
 
         deal(address(asset), address(lender), amount - 1);
-        vm.expectRevert(bytes("Aloe: insufficient pre-pay"));
+        vm.expectRevert(bytes("TRANSFER_FROM_FAILED"));
         lender.deposit(amount, to);
     }
 
