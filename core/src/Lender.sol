@@ -405,7 +405,7 @@ contract Lender is Ledger {
 
                     // Send `fee` from `from` to `courier.wallet`. NOTE: We skip principle
                     // update on courier, so if couriers credit each other, 100% of `fee`
-                    // is treated as profit.
+                    // is treated as profit and will pass through to the next courier.
                     data -= fee;
                     balances[courier.wallet] += fee;
                     emit Transfer(from, courier.wallet, fee);
@@ -448,6 +448,6 @@ contract Lender is Ledger {
 
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
-        lastAccrualTime = block.timestamp.safeCastTo32(); // Disables reentrancy guard
+        lastAccrualTime = uint32(block.timestamp); // Disables reentrancy guard
     }
 }

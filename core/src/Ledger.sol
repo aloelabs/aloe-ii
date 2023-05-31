@@ -32,6 +32,7 @@ contract Ledger {
                              LENDER STORAGE
     //////////////////////////////////////////////////////////////*/
 
+    /// @dev Doesn't include reserve inflation. If you want that, use `stats()`
     uint112 public totalSupply;
 
     uint112 public lastBalance;
