@@ -7,6 +7,7 @@ import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {BORROWS_SCALER, ONE, MIN_RESERVE_FACTOR, MAX_RESERVE_FACTOR} from "./libraries/constants/Constants.sol";
 import {Q112} from "./libraries/constants/Q.sol";
+import {Rewards} from "./libraries/Rewards.sol";
 
 import {Ledger} from "./Ledger.sol";
 import {RateModel} from "./RateModel.sol";
@@ -49,7 +50,7 @@ contract Lender is Ledger {
                        CONSTRUCTOR & INITIALIZER
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address reserve) Ledger(reserve) {}
+    constructor(address reserve, ERC20 rewardsToken) Ledger(reserve, rewardsToken) {}
 
     function initialize(RateModel rateModel_, uint8 reserveFactor_) external {
         require(borrowIndex == 0);
@@ -63,6 +64,11 @@ contract Lender is Ledger {
         require(MIN_RESERVE_FACTOR <= reserveFactor_ && reserveFactor_ <= MAX_RESERVE_FACTOR);
         reserveFactor = reserveFactor_;
     }
+
+    // TODO: governance-only functions for:
+    // - depositing/withdrawing the rewards token
+    // - setting the rewards rate
+    // - setting reserve factor and rate model
 
     function whitelist(address borrower) external {
         // Requirements:
@@ -329,6 +335,8 @@ contract Lender is Ledger {
     //////////////////////////////////////////////////////////////*/
 
     function _transfer(address from, address to, uint256 shares) private {
+        (Rewards.Storage storage s, uint168 a) = Rewards.beforeTransfer();
+
         unchecked {
             // From most to least significant...
             // -------------------------------
@@ -342,9 +350,13 @@ contract Lender is Ledger {
             require(data >> 224 == 0 && shares <= data % Q112);
             balances[from] = data - shares;
 
+            Rewards.updateUserState(s, a, from, data % Q112);
+
             data = balances[to];
             require(data >> 224 == 0);
             balances[to] = data + shares;
+
+            Rewards.updateUserState(s, a, to, data % Q112);
         }
 
         emit Transfer(from, to, shares);
