@@ -42,6 +42,16 @@ library Rewards {
         // TODO: emit RewardsSet(rate);
     }
 
+    /**
+     * @notice Since `poolState.rate` is specified in [token units per second per share], a change
+     * in `totalSupply` would result in a different overall [token units per second] for the pool.
+     * This function adjusts for that, updating the accumulator and the rate to keep things consistent.
+     * @dev Use `Rewards.pre()` to easily obtain the first two arguments
+     * @param store The rewards storage pointer
+     * @param accumulated Up-to-date `poolState.accumulated`, i.e. the output of `_accumulate`
+     * @param oldTotalSupply The `totalSupply` before mint/burn
+     * @param newTotalSupply The `totalSupply` after mint/burn
+     */
     function updatePoolState(
         Storage storage store,
         uint168 accumulated,
@@ -57,6 +67,15 @@ library Rewards {
         store.poolState = poolState;
     }
 
+    /**
+     * @notice Tracks how much reward a `user` earned while holding a particular `balance`. Should be
+     * called anytime their balance changes.
+     * @dev Use `Rewards.pre()` to easily obtain the first two arguments
+     * @param store The rewards storage pointer
+     * @param accumulated Up-to-date `poolState.accumulated`, i.e. the output of `_accumulate`
+     * @param user The user whose balance (# of shares) is about to change
+     * @param balance The user's balance (# of shares) -- before it changes
+     */
     function updateUserState(Storage storage store, uint168 accumulated, address user, uint256 balance) internal {
         unchecked {
             UserState memory userState = store.userStates[user];
@@ -68,11 +87,14 @@ library Rewards {
         }
     }
 
+    /// @dev Returns arguments to be used in `updatePoolState` and `updateUserState`. No good semantic
+    /// meaning here, just a coincidence that both functions need this information.
     function pre() internal view returns (Storage storage store, uint168 accumulator) {
         store = _getStorage();
         accumulator = _accumulate(store.poolState);
     }
 
+    /// @dev Accumulates rewards based on the current `rate` and time elapsed since last update
     function _accumulate(PoolState memory poolState) private view returns (uint168) {
         unchecked {
             uint256 deltaT = block.timestamp - poolState.lastUpdated;
@@ -80,6 +102,7 @@ library Rewards {
         }
     }
 
+    /// @dev Adjusts `rate` to account for changes in `totalSupply`
     function _rate(uint56 rate, uint256 oldTotalSupply, uint256 newTotalSupply) private pure returns (uint56) {
         unchecked {
             if (oldTotalSupply == 0) oldTotalSupply = 1;
@@ -89,6 +112,7 @@ library Rewards {
         }
     }
 
+    /// @dev Diamond-pattern-style storage getter
     function _getStorage() private pure returns (Storage storage store) {
         bytes32 position = REWARDS_SLOT;
         assembly ("memory-safe") {
