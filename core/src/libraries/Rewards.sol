@@ -11,12 +11,12 @@ library Rewards {
     struct PoolState {
         uint168 accumulated; // Accumulated rewards per token for the period, scaled up by 1e18
         uint32 lastUpdated; // Last time the rewards per token accumulator was updated
-        uint56 rate; // Wei rewarded per second among all token holders
+        uint56 rate; // Wei rewarded per second per share
     }
 
     struct UserState {
         uint88 earned; // Accumulated rewards for the user until the checkpoint
-        uint168 checkpoint; // RewardsPerToken the last time the user rewards were updated
+        uint168 checkpoint; // PoolState.accumulated the last time the user rewards were updated
     }
 
     struct Storage {
@@ -42,41 +42,33 @@ library Rewards {
         // TODO: emit RewardsSet(rate);
     }
 
-    function trackMintBurn(
-        address user,
-        uint256 userBalance,
+    function updatePoolState(
+        Storage storage store,
+        uint168 accumulated,
         uint256 oldTotalSupply,
         uint256 newTotalSupply
     ) internal {
-        Storage storage store = _getStorage();
         PoolState memory poolState = store.poolState;
 
-        poolState.accumulated = _accumulate(poolState);
+        poolState.accumulated = accumulated;
         poolState.lastUpdated = uint32(block.timestamp);
         poolState.rate = _rate(poolState.rate, oldTotalSupply, newTotalSupply);
 
         store.poolState = poolState;
-
-        updateUserState(store, poolState.accumulated, user, userBalance);
     }
 
-    function updateUserState(
-        Storage storage store,
-        uint168 accumulated,
-        address user,
-        uint256 balance
-    ) internal {
+    function updateUserState(Storage storage store, uint168 accumulated, address user, uint256 balance) internal {
         unchecked {
             UserState memory userState = store.userStates[user];
 
-            userState.earned += uint88(balance * (accumulated - userState.checkpoint) / 1e18);
+            userState.earned += uint88((balance * (accumulated - userState.checkpoint)) / 1e18);
             userState.checkpoint = accumulated;
 
             store.userStates[user] = userState;
         }
     }
 
-    function beforeTransfer() internal view returns (Storage storage store, uint168 accumulator) {
+    function pre() internal view returns (Storage storage store, uint168 accumulator) {
         store = _getStorage();
         accumulator = _accumulate(store.poolState);
     }
@@ -93,7 +85,7 @@ library Rewards {
             if (oldTotalSupply == 0) oldTotalSupply = 1;
             if (newTotalSupply == 0) newTotalSupply = 1;
 
-            return uint56(rate * oldTotalSupply / newTotalSupply);
+            return uint56((rate * oldTotalSupply) / newTotalSupply);
         }
     }
 

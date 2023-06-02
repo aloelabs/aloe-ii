@@ -133,9 +133,8 @@ contract Lender is Ledger {
             asset_.safeTransferFrom(msg.sender, address(this), amount);
         }
 
-        // Mint shares and (if applicable) handle courier accounting
-        _unsafeMint(beneficiary, shares, amount);
-        cache.totalSupply += shares;
+        // Mint shares, track rewards, and (if applicable) handle courier accounting
+        cache.totalSupply = _mint(beneficiary, shares, amount, cache.totalSupply);
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ false);
@@ -160,11 +159,8 @@ contract Lender is Ledger {
             if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
         }
 
-        // Burn shares and (if applicable) handle courier accounting
-        _unsafeBurn(owner, shares, inventory, cache.totalSupply);
-        unchecked {
-            cache.totalSupply -= shares;
-        }
+        // Burn shares, track rewards, and (if applicable) handle courier accounting
+        cache.totalSupply = _burn(owner, shares, inventory, cache.totalSupply);
 
         // Transfer tokens
         cache.lastBalance -= amount;
@@ -335,7 +331,7 @@ contract Lender is Ledger {
     //////////////////////////////////////////////////////////////*/
 
     function _transfer(address from, address to, uint256 shares) private {
-        (Rewards.Storage storage s, uint168 a) = Rewards.beforeTransfer();
+        (Rewards.Storage storage s, uint168 a) = Rewards.pre();
 
         unchecked {
             // From most to least significant...
@@ -363,7 +359,15 @@ contract Lender is Ledger {
     }
 
     /// @dev You must do `totalSupply += shares` separately. Do so in a checked context.
-    function _unsafeMint(address to, uint256 shares, uint256 amount) private {
+    function _mint(
+        address to,
+        uint256 shares,
+        uint256 amount,
+        uint256 totalSupply_
+    ) private returns (uint256 newTotalSupply) {
+        // Need to compute `newTotalSupply` with checked math to avoid overflow
+        newTotalSupply = totalSupply_ + shares;
+
         unchecked {
             // From most to least significant...
             // -------------------------------
@@ -373,8 +377,13 @@ contract Lender is Ledger {
             // -------------------------------
             uint256 data = balances[to];
 
+            // Get rewards accounting out of the way
+            (Rewards.Storage storage s, uint168 a) = Rewards.pre();
+            Rewards.updatePoolState(s, a, totalSupply_, newTotalSupply);
+            Rewards.updateUserState(s, a, to, data % Q112);
+
+            // Keep track of principle iff `to` has a courier
             if (data >> 224 != 0) {
-                // Keep track of principle iff courier deserves credit
                 require(amount + ((data >> 112) % Q112) < Q112);
                 data += amount << 112;
             }
@@ -388,8 +397,16 @@ contract Lender is Ledger {
     }
 
     /// @dev You must do `totalSupply -= shares` separately. Do so in an unchecked context.
-    function _unsafeBurn(address from, uint256 shares, uint256 inventory, uint256 totalSupply_) private {
+    function _burn(
+        address from,
+        uint256 shares,
+        uint256 inventory,
+        uint256 totalSupply_
+    ) private returns (uint256 newTotalSupply) {
         unchecked {
+            // Can compute `newTotalSupply` with unchecked math since other checks cover underflow
+            newTotalSupply = totalSupply_ - shares;
+
             // From most to least significant...
             // -------------------------------
             // | courier id       | 32 bits  |
@@ -398,6 +415,11 @@ contract Lender is Ledger {
             // -------------------------------
             uint256 data = balances[from];
             uint256 balance = data % Q112;
+
+            // Get rewards accounting out of the way
+            (Rewards.Storage storage s, uint168 a) = Rewards.pre();
+            Rewards.updatePoolState(s, a, totalSupply_, newTotalSupply);
+            Rewards.updateUserState(s, a, from, balance);
 
             uint32 id = uint32(data >> 224);
             if (id != 0) {
@@ -446,8 +468,7 @@ contract Lender is Ledger {
 
         // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
         if (newTotalSupply > cache.totalSupply) {
-            _unsafeMint(RESERVE, newTotalSupply - cache.totalSupply, 0);
-            cache.totalSupply = newTotalSupply;
+            cache.totalSupply = _mint(RESERVE, newTotalSupply - cache.totalSupply, 0, cache.totalSupply);
         }
     }
 
