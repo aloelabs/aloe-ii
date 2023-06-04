@@ -40,7 +40,7 @@ contract LenderInvariantsTest is Test {
     function setUp() public {
         {
             asset = new MockERC20("Token", "TKN", 18);
-            address lenderImplementation = address(new Lender(address(2)));
+            address lenderImplementation = address(new Lender(address(2), ERC20(address(0))));
             lender = Lender(ClonesWithImmutableArgs.clone(
                 lenderImplementation,
                 abi.encodePacked(address(asset))

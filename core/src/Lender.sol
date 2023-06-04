@@ -331,7 +331,7 @@ contract Lender is Ledger {
     //////////////////////////////////////////////////////////////*/
 
     function _transfer(address from, address to, uint256 shares) private {
-        (Rewards.Storage storage s, uint168 a) = Rewards.pre();
+        (Rewards.Storage storage s, uint112 a) = Rewards.load();
 
         unchecked {
             // From most to least significant...
@@ -378,7 +378,7 @@ contract Lender is Ledger {
             uint256 data = balances[to];
 
             // Get rewards accounting out of the way
-            (Rewards.Storage storage s, uint168 a) = Rewards.pre();
+            (Rewards.Storage storage s, uint112 a) = Rewards.load();
             Rewards.updatePoolState(s, a, totalSupply_, newTotalSupply);
             Rewards.updateUserState(s, a, to, data % Q112);
 
@@ -417,7 +417,7 @@ contract Lender is Ledger {
             uint256 balance = data % Q112;
 
             // Get rewards accounting out of the way
-            (Rewards.Storage storage s, uint168 a) = Rewards.pre();
+            (Rewards.Storage storage s, uint112 a) = Rewards.load();
             Rewards.updatePoolState(s, a, totalSupply_, newTotalSupply);
             Rewards.updateUserState(s, a, from, balance);
 

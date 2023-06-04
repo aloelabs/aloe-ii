@@ -14,7 +14,7 @@ import {RateModel} from "src/RateModel.sol";
 import {VolatilityOracle} from "src/VolatilityOracle.sol";
 
 function deploySingleLender(ERC20 asset, address treasury, RateModel rateModel) returns (Lender) {
-    address impl = address(new Lender(treasury));
+    address impl = address(new Lender(treasury, ERC20(address(0))));
     address proxy = ClonesWithImmutableArgs.clone(impl, abi.encodePacked(address(asset)));
 
     Lender(proxy).initialize(rateModel, 8);

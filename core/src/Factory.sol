@@ -46,10 +46,10 @@ contract Factory {
 
     mapping(address => bool) public isBorrower;
 
-    constructor(VolatilityOracle oracle, RateModel rateModel) {
+    constructor(VolatilityOracle oracle, RateModel rateModel, ERC20 rewardsToken) {
         ORACLE = oracle;
         RATE_MODEL = rateModel;
-        lenderImplementation = address(new Lender(address(this)));
+        lenderImplementation = address(new Lender(address(this), rewardsToken));
     }
 
     function createMarket(IUniswapV3Pool pool) external {
