@@ -59,10 +59,13 @@ contract MockERC20Rewards is MockERC20 {
         super.burn(from, value);
     }
 
-    // function claim() external { TODO: add this
-    //     (Rewards.Storage storage s, uint112 a) = Rewards.pre();
-    //     Rewards.updateUserState(s, a, msg.sender, balanceOf[msg.sender]);
-    // }
+    function claim() external {
+        (Rewards.Storage storage s, uint112 a) = Rewards.load();
+        REWARDS_TOKEN.transfer(
+            msg.sender,
+            Rewards.claim(s, a, msg.sender, balanceOf[msg.sender])
+        );
+    }
 
     function rewards(address user) external view returns (uint144) {
         (Rewards.Storage storage s, uint112 a) = Rewards.load();
@@ -219,5 +222,25 @@ contract RewardsTest is Test {
         assertEq(pool.rewards(a), 9333);
         assertEq(pool.rewards(b), 9715);
         assertEq(pool.rewards(c), 49);
+    }
+
+    function test_mock_claim() public {
+        pool.setRate(100 * 1e17);
+
+        address alice = address(12345);
+        pool.mint(alice, 4);
+
+        assertEq(pool.rewardsRate(), 25 * 1e17);
+        assertEq(pool.rewards(alice), 0);
+        skip(60);
+        assertEq(pool.rewards(alice), 6000);
+
+        rewardsToken.mint(address(pool), 6000);
+        
+        vm.prank(alice);
+        pool.claim();
+
+        assertEq(pool.REWARDS_TOKEN().balanceOf(alice), 6000);
+        assertEq(pool.rewards(alice), 0);
     }
 }

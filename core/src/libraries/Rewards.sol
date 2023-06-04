@@ -42,6 +42,21 @@ library Rewards {
         // TODO: emit RewardsSet(rate);
     }
 
+    function claim(
+        Storage storage store,
+        uint112 accumulated,
+        address user,
+        uint256 balance
+    ) internal returns (uint144 earned) {
+        UserState memory userState = previewUserState(store, accumulated, user, balance);
+
+        earned = userState.earned;
+        userState.earned = 0;
+
+        store.userStates[user] = userState;
+        // TODO: emit Claimed(from, to, claiming);
+    }
+
     /**
      * @notice Since `poolState.rate` is specified in [token units per second per share], a change
      * in `totalSupply` would result in a different overall [token units per second] for the pool.
@@ -112,7 +127,7 @@ library Rewards {
     function _accumulate(PoolState memory poolState) private view returns (uint112) {
         unchecked {
             uint256 deltaT = block.timestamp - poolState.lastUpdated;
-            return poolState.accumulated + uint112(poolState.rate * deltaT / 1e10);
+            return poolState.accumulated + uint112((poolState.rate * deltaT) / 1e10);
         }
     }
 

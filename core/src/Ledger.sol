@@ -10,6 +10,7 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import {BORROWS_SCALER, ONE} from "./libraries/constants/Constants.sol";
 import {Q112} from "./libraries/constants/Q.sol";
+import {Rewards} from "./libraries/Rewards.sol";
 
 import {RateModel} from "./RateModel.sol";
 
@@ -144,6 +145,16 @@ contract Ledger {
         }
     }
 
+    function rewardsRate() external view returns (uint112 rate) {
+        (Rewards.Storage storage s, ) = Rewards.load();
+        rate = s.poolState.rate;
+    }
+
+    function rewardsOf(address account) external view returns (uint144) {
+        (Rewards.Storage storage s, uint112 a) = Rewards.load();
+        return Rewards.previewUserState(s, a, account, balanceOf(account)).earned;
+    }
+
     function courierOf(address account) external view returns (uint32) {
         return uint32(balances[account] >> 224);
     }
@@ -153,7 +164,7 @@ contract Ledger {
     }
 
     /// @notice The number of shares held by `account`
-    function balanceOf(address account) external view returns (uint256) {
+    function balanceOf(address account) public view returns (uint256) {
         return balances[account] % Q112;
     }
 

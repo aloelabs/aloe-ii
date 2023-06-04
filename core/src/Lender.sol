@@ -108,7 +108,7 @@ contract Lender is Ledger {
 
         // Only set courier if account balance is 0. Otherwise a previous courier may
         // be cheated out of their fees.
-        require(balances[account] % Q112 == 0);
+        require(balanceOf(account) == 0);
         balances[account] = uint256(id) << 224;
 
         emit CreditCourier(id, account);
@@ -247,6 +247,17 @@ contract Lender is Ledger {
         (Cache memory cache, ) = _load();
         _save(cache, /* didChangeBorrowBase: */ false);
         return uint72(cache.borrowIndex);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                REWARDS
+    //////////////////////////////////////////////////////////////*/
+
+    function claimRewards(address beneficiary) external returns (uint256 earned) {
+        (Rewards.Storage storage s, uint112 a) = Rewards.load();
+        earned = Rewards.claim(s, a, msg.sender, balanceOf(msg.sender));
+
+        REWARDS_TOKEN.safeTransfer(beneficiary, earned);
     }
 
     /*//////////////////////////////////////////////////////////////
