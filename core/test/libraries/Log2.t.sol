@@ -98,6 +98,19 @@ contract Log2Test is Test {
         assertGe(recovered / 1e4, x / 1e4);
     }
 
+    function test_rewardsUsage(uint56 rate, uint112 totalSupply) public {
+        vm.assume(totalSupply > 0);
+
+        int24 log2TotalSupply;
+        unchecked {
+            int256 y = log2Up(uint256(totalSupply) * 1e18);
+            log2TotalSupply = int24(y);
+        }
+        uint256 recoveredTotalSupply = exp2(log2TotalSupply);
+
+        assertLe(1e34 * uint256(rate) / recoveredTotalSupply, 1e16 * uint256(rate) / totalSupply);
+    }
+
     function assertApproxEqRel(
         uint256 a,
         uint256 b,

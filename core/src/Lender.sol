@@ -253,8 +253,8 @@ contract Lender is Ledger {
                                 REWARDS
     //////////////////////////////////////////////////////////////*/
 
-    function claimRewards(address beneficiary) external returns (uint256 earned) {
-        (Rewards.Storage storage s, uint112 a) = Rewards.load();
+    function claimRewards(address beneficiary) external returns (uint144 earned) {
+        (Rewards.Storage storage s, uint144 a) = Rewards.load();
         earned = Rewards.claim(s, a, msg.sender, balanceOf(msg.sender));
 
         REWARDS_TOKEN.safeTransfer(beneficiary, earned);
@@ -342,7 +342,7 @@ contract Lender is Ledger {
     //////////////////////////////////////////////////////////////*/
 
     function _transfer(address from, address to, uint256 shares) private {
-        (Rewards.Storage storage s, uint112 a) = Rewards.load();
+        (Rewards.Storage storage s, uint144 a) = Rewards.load();
 
         unchecked {
             // From most to least significant...
@@ -389,8 +389,8 @@ contract Lender is Ledger {
             uint256 data = balances[to];
 
             // Get rewards accounting out of the way
-            (Rewards.Storage storage s, uint112 a) = Rewards.load();
-            Rewards.updatePoolState(s, a, totalSupply_, newTotalSupply);
+            (Rewards.Storage storage s, uint144 a) = Rewards.load();
+            Rewards.updatePoolState(s, a, newTotalSupply);
             Rewards.updateUserState(s, a, to, data % Q112);
 
             // Keep track of principle iff `to` has a courier
@@ -428,8 +428,8 @@ contract Lender is Ledger {
             uint256 balance = data % Q112;
 
             // Get rewards accounting out of the way
-            (Rewards.Storage storage s, uint112 a) = Rewards.load();
-            Rewards.updatePoolState(s, a, totalSupply_, newTotalSupply);
+            (Rewards.Storage storage s, uint144 a) = Rewards.load();
+            Rewards.updatePoolState(s, a, newTotalSupply);
             Rewards.updateUserState(s, a, from, balance);
 
             uint32 id = uint32(data >> 224);

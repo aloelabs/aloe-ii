@@ -151,7 +151,7 @@ contract Ledger {
     }
 
     function rewardsOf(address account) external view returns (uint144) {
-        (Rewards.Storage storage s, uint112 a) = Rewards.load();
+        (Rewards.Storage storage s, uint144 a) = Rewards.load();
         return Rewards.previewUserState(s, a, account, balanceOf(account)).earned;
     }
 
