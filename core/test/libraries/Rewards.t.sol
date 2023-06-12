@@ -228,17 +228,10 @@ contract RewardsTest is Test {
         skip(deltaT);
 
         uint256 actual = pool.rewardsAccumulator() - before;
-        uint256 expected = 1e16 * uint256(deltaT) * rate / (uint256(totalSupply) + 1);
+        uint256 expected = 1e16 * uint256(deltaT) * rate / totalSupply;
 
         assertLe(actual, expected);
-        if (actual / deltaT > 1e3) {
-            assertApproxEqRel(actual, expected, 0.002e18);
-
-            if (totalSupply > 1000) {
-                expected = 1e16 * uint256(deltaT) * rate / totalSupply;
-                assertApproxEqRel(actual, expected, 0.01e18);
-            }
-        }
+        if (actual / deltaT > 1e3) assertApproxEqRel(actual, expected, 0.002e18);
     }
 
     function test_mock_spec(address a, address b, address c) public {
@@ -250,7 +243,7 @@ contract RewardsTest is Test {
         skip(60);
         pool.burn(a, 4000);
 
-        assertEq(pool.rewards(a), 5994);
+        assertEq(pool.rewards(a), 6000);
         assertEq(pool.rewards(b), 0);
         assertEq(pool.rewards(c), 0);
 
@@ -260,15 +253,15 @@ contract RewardsTest is Test {
         pool.burn(a, 5000);
         pool.burn(b, 1000);
 
-        assertEq(pool.rewards(a), 8992);
-        assertEq(pool.rewards(b), 2998);
+        assertEq(pool.rewards(a), 8999);
+        assertEq(pool.rewards(b), 2999);
         assertEq(pool.rewards(c), 0);
 
         skip(60);
         pool.burn(b, 4000);
 
-        assertEq(pool.rewards(a), 8992);
-        assertEq(pool.rewards(b), 8992);
+        assertEq(pool.rewards(a), 8999);
+        assertEq(pool.rewards(b), 8999);
         assertEq(pool.rewards(c), 0);
 
         pool.mint(a, 2000);
@@ -278,17 +271,17 @@ contract RewardsTest is Test {
         pool.transfer(c, 2000);
         pool.burn(b, 2000);
 
-        assertEq(pool.rewards(a), 9325);
-        assertEq(pool.rewards(b), 9658);
+        assertEq(pool.rewards(a), 9332);
+        assertEq(pool.rewards(b), 9665);
         assertEq(pool.rewards(c), 0);
 
         skip(1);
         pool.burn(b, 2000);
         pool.burn(c, 2000);
 
-        assertEq(pool.rewards(a), 9325);
-        assertEq(pool.rewards(b), 9707);
-        assertEq(pool.rewards(c), 49);
+        assertEq(pool.rewards(a), 9332);
+        assertEq(pool.rewards(b), 9715);
+        assertEq(pool.rewards(c), 50);
     }
 
     function test_mock_claim() public {
@@ -299,14 +292,14 @@ contract RewardsTest is Test {
 
         assertEq(pool.rewards(alice), 0);
         skip(60);
-        assertEq(pool.rewards(alice), 5994);
+        assertEq(pool.rewards(alice), 6000);
 
-        rewardsToken.mint(address(pool), 5994);
+        rewardsToken.mint(address(pool), 6000);
         
         vm.prank(alice);
         pool.claim();
 
-        assertEq(pool.REWARDS_TOKEN().balanceOf(alice), 5994);
+        assertEq(pool.REWARDS_TOKEN().balanceOf(alice), 6000);
         assertEq(pool.rewards(alice), 0);
     }
 }

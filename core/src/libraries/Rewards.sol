@@ -17,7 +17,7 @@ library Rewards {
         uint32 lastUpdated;
         // The rewards rate, specified as [token units per second]
         uint56 rate;
-        // log2((totalSupply + 1) * 1e18)
+        // log2Up(totalSupply)
         int24 log2TotalSupply;
     }
 
@@ -100,7 +100,7 @@ library Rewards {
 
             poolState.accumulated = accumulated;
             poolState.lastUpdated = uint32(block.timestamp);
-            poolState.log2TotalSupply = int24(log2Up((totalSupply + 1) * 1e18));
+            poolState.log2TotalSupply = int24(log2Up(totalSupply));
             // poolState.rate is unchanged
         }
     }
@@ -130,7 +130,7 @@ library Rewards {
     function _accumulate(PoolState memory poolState) private view returns (uint144) {
         unchecked {
             uint256 deltaT = block.timestamp - poolState.lastUpdated;
-            return poolState.accumulated + uint144((1e34 * deltaT * poolState.rate) / exp2(poolState.log2TotalSupply));
+            return poolState.accumulated + uint144((1e16 * deltaT * poolState.rate) / exp2(poolState.log2TotalSupply));
         }
     }
 
