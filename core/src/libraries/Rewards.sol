@@ -8,6 +8,10 @@ import {log2Up, exp2} from "./Log2.sol";
 /// @author Aloe Labs, Inc.
 /// @author Inspired by Yield Protocol (https://github.com/yieldprotocol/yield-utils-v2/blob/main/src/token/ERC20Rewards.sol)
 library Rewards {
+    event RewardsRateSet(uint56 rate);
+
+    event RewardsClaimed(address user, uint112 amount);
+
     bytes32 private constant REWARDS_SLOT = keccak256("aloe.ii.rewards");
 
     struct PoolState {
@@ -46,7 +50,7 @@ library Rewards {
         // poolState.log2TotalSupply is unchanged
 
         store.poolState = poolState;
-        // TODO: emit RewardsSet(rate);
+        emit RewardsRateSet(rate);
     }
 
     function claim(
@@ -61,7 +65,7 @@ library Rewards {
         userState.earned = 0;
 
         store.userStates[user] = userState;
-        // TODO: emit Claimed(from, to, claiming);
+        emit RewardsClaimed(user, earned);
     }
 
     /**
