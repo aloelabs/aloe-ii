@@ -253,7 +253,7 @@ contract Lender is Ledger {
                                 REWARDS
     //////////////////////////////////////////////////////////////*/
 
-    function claimRewards(address beneficiary) external returns (uint144 earned) {
+    function claimRewards(address beneficiary) external returns (uint112 earned) {
         (Rewards.Storage storage s, uint144 a) = Rewards.load();
         earned = Rewards.claim(s, a, msg.sender, balanceOf(msg.sender));
 

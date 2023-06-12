@@ -54,7 +54,7 @@ library Rewards {
         uint144 accumulated,
         address user,
         uint256 balance
-    ) internal returns (uint144 earned) {
+    ) internal returns (uint112 earned) {
         UserState memory userState = previewUserState(store, accumulated, user, balance);
 
         earned = userState.earned;
@@ -129,9 +129,8 @@ library Rewards {
     /// @dev Accumulates rewards based on the current `rate` and time elapsed since last update
     function _accumulate(PoolState memory poolState) private view returns (uint144) {
         unchecked {
-            uint256 rate = (1e34 * uint256(poolState.rate)) / exp2(poolState.log2TotalSupply);
             uint256 deltaT = block.timestamp - poolState.lastUpdated;
-            return poolState.accumulated + uint144(rate * deltaT);
+            return poolState.accumulated + uint144((1e34 * deltaT * poolState.rate) / exp2(poolState.log2TotalSupply));
         }
     }
 

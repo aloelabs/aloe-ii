@@ -65,6 +65,7 @@ contract Log2Test is Test {
 
     function test_exp2_domain() public {
         assertEq(exp2(-131072), 1);
+        assertEq(exp2(0), 1 << 128);
         assertEq(exp2(131071), 115713735915118693734171220742359026900664100053272090015110578992986330234880);
         assertEq(exp2(131072), 0);
     }
@@ -108,7 +109,12 @@ contract Log2Test is Test {
         }
         uint256 recoveredTotalSupply = exp2(log2TotalSupply);
 
-        assertLe(1e34 * uint256(rate) / recoveredTotalSupply, 1e16 * uint256(rate) / totalSupply);
+        uint256 a = 1e34 * uint256(rate) / recoveredTotalSupply;
+        uint256 b = 1e16 * uint256(rate) / totalSupply;
+
+        assertLe(a, b);
+        if (a > 1e3) assertApproxEqRel(a, b, 0.002e18);
+        else assertApproxEqAbs(a, b, 1);
     }
 
     function assertApproxEqRel(
