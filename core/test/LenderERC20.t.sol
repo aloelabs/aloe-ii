@@ -7,7 +7,7 @@ import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
 import "src/Lender.sol";
 
-import {deploySingleLender} from "./Utils.sol";
+import {FactoryForLenderTests} from "./Utils.sol";
 
 contract LenderERC20Test is Test {
     using stdStorage for StdStorage;
@@ -24,8 +24,10 @@ contract LenderERC20Test is Test {
     Lender lender;
 
     function setUp() public {
+        FactoryForLenderTests factory = new FactoryForLenderTests(new RateModel(), ERC20(address(0)));
+
         asset = new MockERC20("Test Token", "TKN", 18);
-        lender = deploySingleLender(asset, address(2), new RateModel());
+        lender = factory.deploySingleLender(asset);
     }
 
     function test_name() public {

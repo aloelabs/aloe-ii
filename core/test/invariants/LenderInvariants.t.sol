@@ -9,6 +9,7 @@ import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
 import "src/Lender.sol";
 
+import {FactoryForLenderTests} from "../Utils.sol";
 import {LenderHarness, BORROWS_SCALER} from "./LenderHarness.sol";
 
 contract LenderInvariantsTest is Test {
@@ -39,14 +40,11 @@ contract LenderInvariantsTest is Test {
 
     function setUp() public {
         {
-            asset = new MockERC20("Token", "TKN", 18);
-            address lenderImplementation = address(new Lender(address(2), ERC20(address(0))));
-            lender = Lender(ClonesWithImmutableArgs.clone(
-                lenderImplementation,
-                abi.encodePacked(address(asset))
-            ));
             RateModel rateModel = new RateModel();
-            lender.initialize(rateModel, 8);
+            FactoryForLenderTests factory = new FactoryForLenderTests(rateModel, ERC20(address(0)));
+
+            asset = new MockERC20("Token", "TKN", 18);
+            lender = factory.deploySingleLender(asset);
             lenderHarness = new LenderHarness(lender);
 
             targetContract(address(lenderHarness));
@@ -55,10 +53,11 @@ contract LenderInvariantsTest is Test {
             excludeSender(address(0x7109709ECfa91a80626fF3989D68f67F5b1DD12D)); // vm
             excludeSender(address(0x4e59b44847b379578588920cA78FbF26c0B4956C)); // built-in create2 deployer
             excludeSender(address(this));
-            excludeSender(address(asset));
-            excludeSender(address(lenderImplementation));
-            excludeSender(address(lender));
             excludeSender(address(rateModel));
+            excludeSender(address(factory));
+            excludeSender(address(factory.lenderImplementation()));
+            excludeSender(address(asset));
+            excludeSender(address(lender));
             excludeSender(address(lenderHarness));
         }
 

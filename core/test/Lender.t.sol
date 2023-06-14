@@ -7,7 +7,7 @@ import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
 import "src/Lender.sol";
 
-import {deploySingleLender} from "./Utils.sol";
+import {FactoryForLenderTests} from "./Utils.sol";
 
 contract LenderTest is Test {
     using stdStorage for StdStorage;
@@ -17,12 +17,14 @@ contract LenderTest is Test {
     Lender lender;
 
     function setUp() public {
+        FactoryForLenderTests factory = new FactoryForLenderTests(new RateModel(), ERC20(address(0)));
+
         asset = new MockERC20("Token", "TKN", 18);
-        lender = deploySingleLender(asset, address(2), new RateModel());
+        lender = factory.deploySingleLender(asset);
     }
 
     function test_whitelist(address attacker, address borrower, uint256 value) public {
-        address factory = lender.FACTORY();
+        address factory = address(lender.FACTORY());
 
         if (attacker == factory) return;
 
@@ -53,7 +55,7 @@ contract LenderTest is Test {
         lender.deposit(2e18, address(this));
 
         // Borrow some tokens (so that interest will actually accrue)
-        hoax(lender.FACTORY());
+        hoax(address(lender.FACTORY()));
         lender.whitelist(address(this));
         lender.borrow(1e18, address(this));
 
@@ -208,6 +210,7 @@ contract LenderTest is Test {
         address alice = test_deposit();
 
         address jim = makeAddr("jim");
+        vm.prank(address(lender.FACTORY()));
         lender.whitelist(jim);
 
         hoax(jim, 1e18);
