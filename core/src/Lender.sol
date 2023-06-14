@@ -7,6 +7,7 @@ import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {BORROWS_SCALER, ONE, MIN_RESERVE_FACTOR, MAX_RESERVE_FACTOR} from "./libraries/constants/Constants.sol";
 import {Q112} from "./libraries/constants/Q.sol";
+import {Rewards} from "./libraries/Rewards.sol";
 
 import {Ledger} from "./Ledger.sol";
 import {RateModel} from "./RateModel.sol";
@@ -49,7 +50,7 @@ contract Lender is Ledger {
                        CONSTRUCTOR & INITIALIZER
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address reserve) Ledger(reserve) {}
+    constructor(address reserve, ERC20 rewardsToken) Ledger(reserve, rewardsToken) {}
 
     function initialize(RateModel rateModel_, uint8 reserveFactor_) external {
         require(borrowIndex == 0);
@@ -63,6 +64,11 @@ contract Lender is Ledger {
         require(MIN_RESERVE_FACTOR <= reserveFactor_ && reserveFactor_ <= MAX_RESERVE_FACTOR);
         reserveFactor = reserveFactor_;
     }
+
+    // TODO: governance-only functions for:
+    // - depositing/withdrawing the rewards token
+    // - setting the rewards rate
+    // - setting reserve factor and rate model
 
     function whitelist(address borrower) external {
         // Requirements:
@@ -102,7 +108,7 @@ contract Lender is Ledger {
 
         // Only set courier if account balance is 0. Otherwise a previous courier may
         // be cheated out of their fees.
-        require(balances[account] % Q112 == 0);
+        require(balanceOf(account) == 0);
         balances[account] = uint256(id) << 224;
 
         emit CreditCourier(id, account);
@@ -127,9 +133,8 @@ contract Lender is Ledger {
             asset_.safeTransferFrom(msg.sender, address(this), amount);
         }
 
-        // Mint shares and (if applicable) handle courier accounting
-        _unsafeMint(beneficiary, shares, amount);
-        cache.totalSupply += shares;
+        // Mint shares, track rewards, and (if applicable) handle courier accounting
+        cache.totalSupply = _mint(beneficiary, shares, amount, cache.totalSupply);
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ false);
@@ -154,11 +159,8 @@ contract Lender is Ledger {
             if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
         }
 
-        // Burn shares and (if applicable) handle courier accounting
-        _unsafeBurn(owner, shares, inventory, cache.totalSupply);
-        unchecked {
-            cache.totalSupply -= shares;
-        }
+        // Burn shares, track rewards, and (if applicable) handle courier accounting
+        cache.totalSupply = _burn(owner, shares, inventory, cache.totalSupply);
 
         // Transfer tokens
         cache.lastBalance -= amount;
@@ -248,6 +250,17 @@ contract Lender is Ledger {
     }
 
     /*//////////////////////////////////////////////////////////////
+                                REWARDS
+    //////////////////////////////////////////////////////////////*/
+
+    function claimRewards(address beneficiary) external returns (uint112 earned) {
+        (Rewards.Storage storage s, uint144 a) = Rewards.load();
+        earned = Rewards.claim(s, a, msg.sender, balanceOf(msg.sender));
+
+        REWARDS_TOKEN.safeTransfer(beneficiary, earned);
+    }
+
+    /*//////////////////////////////////////////////////////////////
                                ERC20 LOGIC
     //////////////////////////////////////////////////////////////*/
 
@@ -329,6 +342,8 @@ contract Lender is Ledger {
     //////////////////////////////////////////////////////////////*/
 
     function _transfer(address from, address to, uint256 shares) private {
+        (Rewards.Storage storage s, uint144 a) = Rewards.load();
+
         unchecked {
             // From most to least significant...
             // -------------------------------
@@ -342,16 +357,28 @@ contract Lender is Ledger {
             require(data >> 224 == 0 && shares <= data % Q112);
             balances[from] = data - shares;
 
+            Rewards.updateUserState(s, a, from, data % Q112);
+
             data = balances[to];
             require(data >> 224 == 0);
             balances[to] = data + shares;
+
+            Rewards.updateUserState(s, a, to, data % Q112);
         }
 
         emit Transfer(from, to, shares);
     }
 
-    /// @dev You must do `totalSupply += shares` separately. Do so in a checked context.
-    function _unsafeMint(address to, uint256 shares, uint256 amount) private {
+    /// @dev Make sure to do something with the return value, `newTotalSupply`!
+    function _mint(
+        address to,
+        uint256 shares,
+        uint256 amount,
+        uint256 totalSupply_
+    ) private returns (uint256 newTotalSupply) {
+        // Need to compute `newTotalSupply` with checked math to avoid overflow
+        newTotalSupply = totalSupply_ + shares;
+
         unchecked {
             // From most to least significant...
             // -------------------------------
@@ -361,8 +388,13 @@ contract Lender is Ledger {
             // -------------------------------
             uint256 data = balances[to];
 
+            // Get rewards accounting out of the way
+            (Rewards.Storage storage s, uint144 a) = Rewards.load();
+            Rewards.updatePoolState(s, a, newTotalSupply);
+            Rewards.updateUserState(s, a, to, data % Q112);
+
+            // Keep track of principle iff `to` has a courier
             if (data >> 224 != 0) {
-                // Keep track of principle iff courier deserves credit
                 require(amount + ((data >> 112) % Q112) < Q112);
                 data += amount << 112;
             }
@@ -375,9 +407,17 @@ contract Lender is Ledger {
         emit Transfer(address(0), to, shares);
     }
 
-    /// @dev You must do `totalSupply -= shares` separately. Do so in an unchecked context.
-    function _unsafeBurn(address from, uint256 shares, uint256 inventory, uint256 totalSupply_) private {
+    /// @dev Make sure to do something with the return value, `newTotalSupply`!
+    function _burn(
+        address from,
+        uint256 shares,
+        uint256 inventory,
+        uint256 totalSupply_
+    ) private returns (uint256 newTotalSupply) {
         unchecked {
+            // Can compute `newTotalSupply` with unchecked math since other checks cover underflow
+            newTotalSupply = totalSupply_ - shares;
+
             // From most to least significant...
             // -------------------------------
             // | courier id       | 32 bits  |
@@ -386,6 +426,11 @@ contract Lender is Ledger {
             // -------------------------------
             uint256 data = balances[from];
             uint256 balance = data % Q112;
+
+            // Get rewards accounting out of the way
+            (Rewards.Storage storage s, uint144 a) = Rewards.load();
+            Rewards.updatePoolState(s, a, newTotalSupply);
+            Rewards.updateUserState(s, a, from, balance);
 
             uint32 id = uint32(data >> 224);
             if (id != 0) {
@@ -405,7 +450,7 @@ contract Lender is Ledger {
 
                     // Send `fee` from `from` to `courier.wallet`. NOTE: We skip principle
                     // update on courier, so if couriers credit each other, 100% of `fee`
-                    // is treated as profit.
+                    // is treated as profit and will pass through to the next courier.
                     data -= fee;
                     balances[courier.wallet] += fee;
                     emit Transfer(from, courier.wallet, fee);
@@ -434,8 +479,7 @@ contract Lender is Ledger {
 
         // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
         if (newTotalSupply > cache.totalSupply) {
-            _unsafeMint(RESERVE, newTotalSupply - cache.totalSupply, 0);
-            cache.totalSupply = newTotalSupply;
+            cache.totalSupply = _mint(RESERVE, newTotalSupply - cache.totalSupply, 0, cache.totalSupply);
         }
     }
 
@@ -448,6 +492,6 @@ contract Lender is Ledger {
 
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
-        lastAccrualTime = block.timestamp.safeCastTo32(); // Disables reentrancy guard
+        lastAccrualTime = uint32(block.timestamp); // Disables reentrancy guard
     }
 }

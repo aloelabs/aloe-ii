@@ -121,6 +121,10 @@ contract LenderHarness {
             vm.prank(msg.sender);
             vm.expectRevert();
             LENDER.creditCourier(id, account);
+
+            // Undo side-effects
+            vm.prank(account);
+            LENDER.approve(msg.sender, 0);
             return;
         }
 

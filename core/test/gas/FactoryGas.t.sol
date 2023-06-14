@@ -16,7 +16,7 @@ contract FactoryGasTest is Test {
         vm.createSelectFork(vm.rpcUrl("mainnet"));
         vm.rollFork(15_348_451);
 
-        factory = new Factory(new VolatilityOracle(), new RateModel());
+        factory = new Factory(new VolatilityOracle(), new RateModel(), ERC20(address(0)));
     }
 
     function setUp() public {

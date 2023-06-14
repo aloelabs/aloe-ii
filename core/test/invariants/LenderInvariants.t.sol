@@ -40,7 +40,7 @@ contract LenderInvariantsTest is Test {
     function setUp() public {
         {
             asset = new MockERC20("Token", "TKN", 18);
-            address lenderImplementation = address(new Lender(address(2)));
+            address lenderImplementation = address(new Lender(address(2), ERC20(address(0))));
             lender = Lender(ClonesWithImmutableArgs.clone(
                 lenderImplementation,
                 abi.encodePacked(address(asset))
@@ -177,6 +177,14 @@ contract LenderInvariantsTest is Test {
             address user = lenderHarness.holders(i);
 
             assertLe(lender.maxWithdraw(user), lender.underlyingBalance(user));
+        }
+    }
+
+    function invariant_maxRedeemLessThanBalance() public {
+        uint256 count = lenderHarness.getHolderCount();
+        for (uint256 i = 0; i < count; i++) {
+            address user = lenderHarness.holders(i);
+
             assertLe(lender.maxRedeem(user), lender.balanceOf(user));
         }
     }
@@ -186,7 +194,10 @@ contract LenderInvariantsTest is Test {
         for (uint256 i = 0; i < count; i++) {
             address user = lenderHarness.holders(i);
 
-            assertLe(lender.principleOf(user), lender.underlyingBalance(user));
+            // NOTE: As price per share increases (i.e., each share converts to more and more underlying assets),
+            // this assertion may become flakey due to rounding. Allowing for rounding error of 1 seems sufficient
+            // in our testing. Just make sure the contract itself never assumes principle < underlyingBalance
+            assertLe(lender.principleOf(user), lender.underlyingBalance(user) + 1);
         }
     }
 

@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Script.sol";
 
-import {Factory} from "../src/Factory.sol";
+import {Factory, ERC20} from "../src/Factory.sol";
 import {RateModel} from "../src/RateModel.sol";
 import {VolatilityOracle} from "../src/VolatilityOracle.sol";
 
@@ -15,7 +15,7 @@ contract DeployScript is Script {
 
         VolatilityOracle oracle = new VolatilityOracle{salt: TAG}();
         RateModel rateModel = new RateModel{salt: TAG}();  
-        /*Factory factory =*/ new Factory{salt: TAG}(oracle, rateModel);
+        /*Factory factory =*/ new Factory{salt: TAG}(oracle, rateModel, ERC20(address(0)));
 
         vm.stopBroadcast();
     }

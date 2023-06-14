@@ -10,6 +10,7 @@ import {ERC20} from "solmate/tokens/ERC20.sol";
 
 import {BORROWS_SCALER, ONE} from "./libraries/constants/Constants.sol";
 import {Q112} from "./libraries/constants/Q.sol";
+import {Rewards} from "./libraries/Rewards.sol";
 
 import {RateModel} from "./RateModel.sol";
 
@@ -19,6 +20,8 @@ contract Ledger {
     address public immutable FACTORY;
 
     address public immutable RESERVE;
+
+    ERC20 public immutable REWARDS_TOKEN;
 
     struct Cache {
         uint256 totalSupply;
@@ -32,6 +35,7 @@ contract Ledger {
                              LENDER STORAGE
     //////////////////////////////////////////////////////////////*/
 
+    /// @dev Doesn't include reserve inflation. If you want that, use `stats()`
     uint112 public totalSupply;
 
     uint112 public lastBalance;
@@ -86,9 +90,10 @@ contract Ledger {
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address reserve) {
+    constructor(address reserve, ERC20 rewardsToken) {
         FACTORY = msg.sender;
         RESERVE = reserve;
+        REWARDS_TOKEN = rewardsToken;
     }
 
     /// @notice Returns true if this contract implements the interface defined by `interfaceId`
@@ -123,9 +128,9 @@ contract Ledger {
     /**
      * @notice Gets basic lending statistics as if `accrueInterest` were just called.
      * @return The updated `borrowIndex`
-     * @return The sum of all banknote balances, in underlying units
+     * @return The sum of all banknote balances, in underlying units (i.e. `totalAssets`)
      * @return The sum of all outstanding debts, in underlying units
-     * @return The sum of all banknote balances. Will differ from `totalSupply()` due to reserves inflation
+     * @return The sum of all banknote balances. Will differ from `totalSupply` due to reserves inflation
      */
     function stats() external view returns (uint72, uint256, uint256, uint256) {
         (Cache memory cache, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());
@@ -140,6 +145,16 @@ contract Ledger {
         }
     }
 
+    function rewardsRate() external view returns (uint112 rate) {
+        (Rewards.Storage storage s, ) = Rewards.load();
+        rate = s.poolState.rate;
+    }
+
+    function rewardsOf(address account) external view returns (uint144) {
+        (Rewards.Storage storage s, uint144 a) = Rewards.load();
+        return Rewards.previewUserState(s, a, account, balanceOf(account)).earned;
+    }
+
     function courierOf(address account) external view returns (uint32) {
         return uint32(balances[account] >> 224);
     }
@@ -149,7 +164,7 @@ contract Ledger {
     }
 
     /// @notice The number of shares held by `account`
-    function balanceOf(address account) external view returns (uint256) {
+    function balanceOf(address account) public view returns (uint256) {
         return balances[account] % Q112;
     }
 
