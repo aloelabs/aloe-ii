@@ -170,10 +170,10 @@ contract Ledger {
     }
 
     /**
-     * @notice The amount of `asset` owed to `account`, i.e. the value that `maxWithdraw` would
-     * return if outstanding borrows weren't a constraint. Fees owed to couriers are automatically
-     * subtracted from this value in real-time, but couriers themselves won't receive earnings
-     * until users `redeem` or `withdraw`.
+     * @notice The amount of `asset` owed to `account` after accruing the latest interest, i.e.
+     * the value that `maxWithdraw` would return if outstanding borrows weren't a constraint.
+     * Fees owed to couriers are automatically subtracted from this value in real-time, but couriers
+     * themselves won't receive earnings until users `redeem` or `withdraw`.
      * @dev Because of the fees, ∑underlyingBalances != totalAssets
      */
     function underlyingBalance(address account) external view returns (uint256) {
@@ -182,7 +182,7 @@ contract Ledger {
     }
 
     /**
-     * @notice The amount of `asset` owed to `account`, before accruing the latest interest.
+     * @notice The amount of `asset` owed to `account` before accruing the latest interest.
      * See `underlyingBalance` for details.
      * @dev An underestimate; more gas efficient than `underlyingBalance`
      */
