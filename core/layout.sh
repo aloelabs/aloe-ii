@@ -9,3 +9,4 @@ function inspect_and_print {
 rm .storage-layout.md
 inspect_and_print Lender
 inspect_and_print Borrower
+inspect_and_print Factory
