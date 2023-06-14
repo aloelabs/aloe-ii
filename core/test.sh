@@ -83,9 +83,11 @@ if [ "$CHECK_FORGE_TESTS" = true ]; then
     echo "✅ forge tests pass" >> $GITHUB_STEP_SUMMARY
 fi
 
-# Get coverage. `VolatilityTest` is excluded because it causes stack too deep when coverage instrumentation is added
+# Get coverage. Some files are excluded because they cause stack-too-deep when coverage instrumentation is added
 if [ "$CHECK_COVERAGE" = true ]; then
     mv "test/libraries/Volatility.t.sol" "test/libraries/Volatility.ignore"
+    mv "test/invariants/LenderHarness.sol" "test/invariants/LenderHarness.ignore"
+    mv "test/invariants/LenderInvariants.t.sol" "test/invariants/LenderInvariants.ignore"
 
     if [ "$CI" = true ]; then
         echo "" >> $GITHUB_STEP_SUMMARY
@@ -96,4 +98,6 @@ if [ "$CHECK_COVERAGE" = true ]; then
     fi
 
     mv "test/libraries/Volatility.ignore" "test/libraries/Volatility.t.sol"
+    mv "test/invariants/LenderHarness.ignore" "test/invariants/LenderHarness.sol"
+    mv "test/invariants/LenderInvariants.ignore" "test/invariants/LenderInvariants.t.sol"
 fi

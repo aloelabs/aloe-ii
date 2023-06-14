@@ -338,7 +338,7 @@ contract Ledger {
             uint8 rf = reserveFactor;
             uint256 accrualFactor = rateModel.getAccrualFactor({
                 elapsedTime: block.timestamp - cache.lastAccrualTime,
-                utilization: Math.mulDiv(1e18, oldBorrows, oldInventory)
+                utilization: (1e18 * oldBorrows) / oldInventory
             });
 
             cache.borrowIndex = (cache.borrowIndex * accrualFactor) / ONE;
