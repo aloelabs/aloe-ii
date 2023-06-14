@@ -121,6 +121,7 @@ contract Ledger {
         return ERC20(ImmutableArgs.addr());
     }
 
+    /// @notice The domain separator for EIP-2612
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
         return block.chainid == initialChainId ? initialDomainSeparator : _computeDomainSeparator();
     }
@@ -168,11 +169,23 @@ contract Ledger {
         return balances[account] % Q112;
     }
 
+    /**
+     * @notice The amount of `asset` owed to `account`, i.e. the value that `maxWithdraw` would
+     * return if outstanding borrows weren't a constraint. Fees owed to couriers are automatically
+     * subtracted from this value in real-time, but couriers themselves won't receive earnings
+     * until users `redeem` or `withdraw`.
+     * @dev Because of the fees, ∑underlyingBalances != totalAssets
+     */
     function underlyingBalance(address account) external view returns (uint256) {
         (, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());
         return _convertToAssets(_nominalShares(account, inventory, newTotalSupply), inventory, newTotalSupply, false);
     }
 
+    /**
+     * @notice The amount of `asset` owed to `account`, before accruing the latest interest.
+     * See `underlyingBalance` for details.
+     * @dev An underestimate; more gas efficient than `underlyingBalance`
+     */
     function underlyingBalanceStored(address account) external view returns (uint256) {
         unchecked {
             uint256 inventory = lastBalance + (uint256(borrowBase) * borrowIndex) / BORROWS_SCALER;
@@ -205,6 +218,11 @@ contract Ledger {
                            ERC4626 ACCOUNTING
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice The total amount of `asset` under management
+     * @dev `convertToShares(totalAssets()) != totalSupply()` due to reserves inflation. If you need
+     * the up-to-date supply, use `stats()`
+     */
     function totalAssets() external view returns (uint256) {
         (, uint256 inventory, ) = _previewInterest(_getCache());
         return inventory;
