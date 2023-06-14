@@ -26,8 +26,10 @@ library Rewards {
     }
 
     struct UserState {
-        uint112 earned; // Accumulated rewards for the user until the checkpoint
-        uint144 checkpoint; // PoolState.accumulated the last time the user rewards were updated
+        // Rewards earned by the user up until the checkpoint
+        uint112 earned;
+        // `poolState.accumulated` the last time `userState` was updated
+        uint144 checkpoint;
     }
 
     struct Storage {
@@ -69,9 +71,8 @@ library Rewards {
     }
 
     /**
-     * @notice Since `poolState.rate` is specified in [token units per second per share], a change
-     * in `totalSupply` would result in a different overall [token units per second] for the pool.
-     * This function adjusts for that, updating the accumulator and the rate to keep things consistent.
+     * @notice Ensures that changes in the pool's `totalSupply` don't mess up rewards accounting. Should
+     * be called anytime `totalSupply` changes.
      * @dev Use `Rewards.pre()` to easily obtain the first two arguments
      * @param store The rewards storage pointer
      * @param accumulated Up-to-date `poolState.accumulated`, i.e. the output of `_accumulate`

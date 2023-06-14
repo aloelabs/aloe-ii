@@ -369,7 +369,7 @@ contract Lender is Ledger {
         emit Transfer(from, to, shares);
     }
 
-    /// @dev You must do `totalSupply += shares` separately. Do so in a checked context.
+    /// @dev Make sure to do something with the return value, `newTotalSupply`!
     function _mint(
         address to,
         uint256 shares,
@@ -407,7 +407,7 @@ contract Lender is Ledger {
         emit Transfer(address(0), to, shares);
     }
 
-    /// @dev You must do `totalSupply -= shares` separately. Do so in an unchecked context.
+    /// @dev Make sure to do something with the return value, `newTotalSupply`!
     function _burn(
         address from,
         uint256 shares,
