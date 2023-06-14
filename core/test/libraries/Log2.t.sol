@@ -70,6 +70,12 @@ contract Log2Test is Test {
         assertEq(exp2(131072), 0);
     }
 
+    function test_log2OfExp2(int24 x) public {
+        x = int24(bound(x, -131072, 131071));
+        // Recovery isn't very precise in this direction!
+        assertApproxEqAbs(log2(exp2(x)), x, 1024);
+    }
+
     function test_recoveryPrecision(uint256 x) public {
         vm.assume(x > 0);
         x = bound(x, 1e4, type(uint256).max);
@@ -100,24 +106,6 @@ contract Log2Test is Test {
     }
 
     function test_rewardsUsage(uint56 rate, uint112 totalSupply) public {
-        vm.assume(totalSupply > 0);
-
-        int24 log2TotalSupply;
-        unchecked {
-            int256 y = log2Up(uint256(totalSupply) * 1e18);
-            log2TotalSupply = int24(y);
-        }
-        uint256 recoveredTotalSupply = exp2(log2TotalSupply);
-
-        uint256 a = 1e34 * uint256(rate) / recoveredTotalSupply;
-        uint256 b = 1e16 * uint256(rate) / totalSupply;
-
-        assertLe(a, b);
-        if (a > 1e3) assertApproxEqRel(a, b, 0.002e18);
-        else assertApproxEqAbs(a, b, 1);
-    }
-
-    function test_rewardsUsageAlt(uint56 rate, uint112 totalSupply) public {
         vm.assume(totalSupply > 0);
 
         int24 log2TotalSupply;

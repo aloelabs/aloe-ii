@@ -138,10 +138,6 @@ contract RewardsTest is Test {
         pool.mint(a, shares);
         skip(60);
 
-        console.log(pool.balanceOf(a));
-        console.log(pool.rewards(a));
-        console.log(shares, rate);
-
         assertLe(pool.rewards(a), 60 * uint256(rate));
         assertEq(pool.rewards(b), 0);
     }
