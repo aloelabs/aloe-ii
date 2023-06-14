@@ -441,7 +441,7 @@ contract Lender is Ledger {
                     Courier memory courier = couriers[id];
 
                     // Compute total fee owed to courier. Take it out of balance so that
-                    // comparison is correct (`shares <= balance`)
+                    // comparison is correct later on (`shares <= balance`)
                     uint256 fee = ((balance - principleShares) * courier.cut) / 10_000;
                     balance -= fee;
 
