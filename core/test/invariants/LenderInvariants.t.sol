@@ -210,7 +210,7 @@ contract LenderInvariantsTest is Test {
         for (uint256 i = 0; i < count; i++) {
             address user = lenderHarness.holders(i);
 
-            if (lender.courierOf(user) != 0) {
+            if (lender.courierOf(user) == 0) {
                 assertEq(lender.underlyingBalance(user), lender.convertToAssets(lender.balanceOf(user)));
             } else {
                 assertLe(lender.underlyingBalance(user), lender.convertToAssets(lender.balanceOf(user)));
