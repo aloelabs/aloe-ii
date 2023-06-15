@@ -232,13 +232,13 @@ contract Ledger {
         return convertToShares(assets);
     }
 
-    function previewRedeem(uint256 shares) public view returns (uint256) {
-        return convertToAssets(shares);
-    }
-
     function previewMint(uint256 shares) public view returns (uint256) {
         (, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());
         return _convertToAssets(shares, inventory, newTotalSupply, /* roundUp: */ true);
+    }
+
+    function previewRedeem(uint256 shares) public view returns (uint256) {
+        return convertToAssets(shares);
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
@@ -285,20 +285,6 @@ contract Ledger {
     }
 
     /**
-     * @notice Returns the maximum amount of `asset()` that can be withdrawn from the Vault by `owner`, through a
-     * withdraw call.
-     * @param owner The address that would burn Vault shares when withdrawing
-     * @return The maximum amount of `asset()` that can be withdrawn
-     *
-     * @dev
-     * - MUST return a limited value if owner is subject to some withdrawal limit or timelock.
-     * - MUST NOT revert.
-     */
-    function maxWithdraw(address owner) external view returns (uint256) {
-        return convertToAssets(this.maxRedeem(owner));
-    }
-
-    /**
      * @notice Returns the maximum number of Vault shares that can be redeemed in the Vault by `owner`, through a
      * redeem call.
      * @param owner The address that would burn Vault shares when redeeming
@@ -316,6 +302,20 @@ contract Ledger {
         uint256 b = _convertToShares(cache.lastBalance, inventory, newTotalSupply, false);
 
         return a < b ? a : b;
+    }
+
+    /**
+     * @notice Returns the maximum amount of `asset()` that can be withdrawn from the Vault by `owner`, through a
+     * withdraw call.
+     * @param owner The address that would burn Vault shares when withdrawing
+     * @return The maximum amount of `asset()` that can be withdrawn
+     *
+     * @dev
+     * - MUST return a limited value if owner is subject to some withdrawal limit or timelock.
+     * - MUST NOT revert.
+     */
+    function maxWithdraw(address owner) external view returns (uint256) {
+        return convertToAssets(this.maxRedeem(owner));
     }
 
     /*//////////////////////////////////////////////////////////////
