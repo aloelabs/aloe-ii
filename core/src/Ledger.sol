@@ -8,15 +8,16 @@ import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
-import {BORROWS_SCALER, MAX_RATE, ONE} from "./libraries/constants/Constants.sol";
+import {BORROWS_SCALER, ONE} from "./libraries/constants/Constants.sol";
 import {Q112} from "./libraries/constants/Q.sol";
 import {Rewards} from "./libraries/Rewards.sol";
 
 import {Factory} from "./Factory.sol";
-import {IRateModel} from "./RateModel.sol";
+import {IRateModel, SafeRateLib} from "./RateModel.sol";
 
 contract Ledger {
     using FixedPointMathLib for uint256;
+    using SafeRateLib for IRateModel;
 
     Factory public immutable FACTORY;
 
@@ -338,16 +339,15 @@ contract Ledger {
         unchecked {
             uint256 oldBorrows = (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
             uint256 oldInventory = cache.lastBalance + oldBorrows;
-            uint256 dt = block.timestamp - cache.lastAccrualTime;
 
-            if (dt == 0 || oldBorrows == 0) {
+            if (cache.lastAccrualTime == block.timestamp || oldBorrows == 0) {
                 return (cache, oldInventory, cache.totalSupply);
             }
 
             uint8 rf = reserveFactor;
-            uint256 accrualFactor = _accrualFactor({
-                rate: rateModel.getYieldPerSecond((1e18 * oldBorrows) / oldInventory, address(this)),
-                dt: dt
+            uint256 accrualFactor = rateModel.getAccrualFactor({
+                utilization: (1e18 * oldBorrows) / oldInventory,
+                dt: block.timestamp - cache.lastAccrualTime
             });
 
             cache.borrowIndex = (cache.borrowIndex * accrualFactor) / ONE;
@@ -409,11 +409,5 @@ contract Ledger {
 
     function _getCache() private view returns (Cache memory) {
         return Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
-    }
-
-    function _accrualFactor(uint256 rate, uint256 dt) private pure returns (uint256) {
-        if (rate > MAX_RATE) rate = MAX_RATE;
-        if (dt > 1 weeks) dt = 1 weeks;
-        return rate.rpow(dt, 1e12);
     }
 }

@@ -63,7 +63,7 @@ contract LenderTest is Test {
         lender.borrow(1e18, address(this));
 
         // Mock interest model
-        yieldPerSecond = 1e12 + yieldPerSecond % 706354;
+        yieldPerSecond = yieldPerSecond % MAX_RATE;
         vm.mockCall(
             address(lender.rateModel()),
             abi.encodeWithSelector(RateModel.getYieldPerSecond.selector, 0.5e18, address(lender)),
@@ -72,7 +72,7 @@ contract LenderTest is Test {
 
         uint256 newInventory = 1e18 + FixedPointMathLib.mulDivDown(
             1e18,
-            FixedPointMathLib.rpow(yieldPerSecond, 13, 1e12),
+            FixedPointMathLib.rpow(ONE + yieldPerSecond, 13, ONE),
             1e12
         );
         uint256 interest = newInventory - 2e18;
@@ -238,6 +238,6 @@ contract LenderTest is Test {
     }
 
     function test_rpowMax() public {
-        assertEq(FixedPointMathLib.rpow(MAX_RATE, 1 weeks, ONE), 1532963220989);
+        assertEq(FixedPointMathLib.rpow(ONE + MAX_RATE, 1 weeks, ONE), 1532963220989);
     }
 }

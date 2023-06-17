@@ -8,7 +8,7 @@ uint256 constant ONE = 1e12;
 /// uint72 matches the type of `borrowIndex` in `Ledger` to guarantee that the stored borrow units fit in uint256.
 uint256 constant BORROWS_SCALER = type(uint72).max * ONE;
 
-/// @dev The maximum percentage yield per second, scaled up by 1e12, plus 1e12. The current value is equivalent to
+/// @dev The maximum percentage yield per second, scaled up by 1e12. The current value is equivalent to
 /// (1 + 706354 / 1e12) ^ (24 * 60 * 60) - 1 ⇒ +6.3% per day or +53% per week. If the rate is consistently at this
 /// maximum value, the `Lender` will function for 1 year before `borrowIndex` overflows. Useful math:
 ///
@@ -18,8 +18,8 @@ uint256 constant BORROWS_SCALER = type(uint72).max * ONE;
 ///
 ///   maxAPR: ln(borrowIndexMax / borrowIndexInit) / T
 ///   maxAPY: exp(maxAPR) - 1
-///   MAX_RATE: exp(maxAPR / secondsPerYear) * 1e12
-uint256 constant MAX_RATE = ONE + 706354;
+///   MAX_RATE: (exp(maxAPR / secondsPerYear) - 1) * 1e12
+uint256 constant MAX_RATE = 706354;
 
 /// @dev The default amount of Ether required to take on debt in a `Borrower`. The `Factory` can override this value
 /// on a per-market basis.
