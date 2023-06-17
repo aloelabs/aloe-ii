@@ -5,7 +5,10 @@ import "forge-std/Test.sol";
 
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
+import {MAX_RATE} from "src/libraries/constants/Constants.sol";
+
 import "src/Lender.sol";
+import "src/RateModel.sol";
 
 import {FactoryForLenderTests} from "./Utils.sol";
 
@@ -49,7 +52,7 @@ contract LenderTest is Test {
         lender.whitelist(borrower);
     }
 
-    function test_accrueInterest(uint256 accrualFactor) public {
+    function test_accrueInterest(uint256 yieldPerSecond) public {
         // Give this test contract some shares
         deal(address(asset), address(lender), 2e18);
         lender.deposit(2e18, address(this));
@@ -60,14 +63,18 @@ contract LenderTest is Test {
         lender.borrow(1e18, address(this));
 
         // Mock interest model
-        accrualFactor = 1e12 + accrualFactor % 0.1e12;
+        yieldPerSecond = 1e12 + yieldPerSecond % 706354;
         vm.mockCall(
             address(lender.rateModel()),
-            abi.encodeWithSelector(RateModel.getAccrualFactor.selector, 13, 0.5e18),
-            abi.encode(accrualFactor)
+            abi.encodeWithSelector(RateModel.getYieldPerSecond.selector, 0.5e18, address(lender)),
+            abi.encode(yieldPerSecond)
         );
 
-        uint256 newInventory = 1e18 + FixedPointMathLib.mulDivDown(1e18, accrualFactor, 1e12);
+        uint256 newInventory = 1e18 + FixedPointMathLib.mulDivDown(
+            1e18,
+            FixedPointMathLib.rpow(yieldPerSecond, 13, 1e12),
+            1e12
+        );
         uint256 interest = newInventory - 2e18;
         uint256 reserves = interest / lender.reserveFactor();
 
@@ -91,7 +98,7 @@ contract LenderTest is Test {
             18
         );
         // Make sure `borrowIndex` is just as precise as `accrualFactor`
-        if (accrualFactor > 1e12) assertGt(lender.borrowIndex(), 1e12);
+        if (yieldPerSecond > 1e12) assertGt(lender.borrowIndex(), 1e12);
 
         assertEq(lender.lastAccrualTime(), block.timestamp);
         assertLeDecimal(stdMath.delta(lender.underlyingBalance(lender.RESERVE()), reserves), epsilon, 18);
@@ -228,5 +235,9 @@ contract LenderTest is Test {
 
         assertEq(lender.underlyingBalance(alice), 100000050);
         assertEq(lender.underlyingBalanceStored(alice), 100000050);
+    }
+
+    function test_rpowMax() public {
+        assertEq(FixedPointMathLib.rpow(MAX_RATE, 1 weeks, ONE), 1532963220989);
     }
 }

@@ -8,6 +8,7 @@ import {DEFAULT_ANTE, DEFAULT_N_SIGMA} from "src/libraries/constants/Constants.s
 import "src/Borrower.sol";
 import "src/Factory.sol";
 import "src/Lender.sol";
+import "src/RateModel.sol";
 
 import {VolatilityOracleMock} from "./Utils.sol";
 

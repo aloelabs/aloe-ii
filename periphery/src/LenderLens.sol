@@ -25,6 +25,6 @@ contract LenderLens {
         (, inventory, totalBorrows, totalSupply) = lender.stats();
 
         if (inventory != 0) utilization = Math.mulDiv(1e18, totalBorrows, inventory);
-        interestRate = lender.rateModel().computeYieldPerSecond(utilization);
+        interestRate = lender.rateModel().getYieldPerSecond(utilization, address(lender));
     }
 }

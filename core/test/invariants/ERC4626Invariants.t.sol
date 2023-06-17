@@ -9,6 +9,7 @@ import {ERC4626, ERC20} from "solmate/mixins/ERC4626.sol";
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
 import "src/Lender.sol";
+import "src/RateModel.sol";
 
 import {ERC4626Harness} from "./ERC4626Harness.sol";
 
