@@ -147,26 +147,30 @@ contract LenderInvariantsTest is Test {
     }
 
     function invariant_totalAssetsEqualsSumOfUnderlyingBalances() public {
-        uint256 totalAssetsExcludingNewReserves;
-        uint256 totalAssetsStored;
+        // Σ(lender.underlyingBalance) = totalAssets - valueOfCourierFees - valueOfNewReserves
+        uint256 sumUnderlyingBalances;
+        // Σ(lender.underlyingBalanceStored) = totalAssets - valueOfCourierFees - newInterest
+        uint256 sumUnderlyingBalancesStored;
+        // Σ(lender.convertToAssets(lender.balanceOf) = totalAssets - valueOfNewReserves
+        uint256 sumConvertedBalances;
+
         uint256 count = lenderHarness.getHolderCount();
         for (uint256 i = 0; i < count; i++) {
-            totalAssetsExcludingNewReserves += lender.underlyingBalance(lenderHarness.holders(i));
-            totalAssetsStored += lender.underlyingBalanceStored(lenderHarness.holders(i));
+            address holder = lenderHarness.holders(i);
+
+            sumUnderlyingBalances += lender.underlyingBalance(holder);
+            sumUnderlyingBalancesStored += lender.underlyingBalanceStored(holder);
+            sumConvertedBalances += lender.convertToAssets(lender.balanceOf(holder));
         }
 
-        (, uint256 totalAssetsIncludingNewReserves, , ) = lender.stats();
-        // NOTE: Σ(underlyingBalances) <= expected because `underlyingBalance` increases the denominator *as if*
-        // shares have been minted to reserves, but doesn't actually increase reserves' balance.
-        assertLe(totalAssetsExcludingNewReserves, totalAssetsIncludingNewReserves);
+        assertLe(sumUnderlyingBalancesStored, sumUnderlyingBalances);
+        assertLe(sumUnderlyingBalances, sumConvertedBalances);
 
-        uint256 totalBorrowsStored;
-        unchecked {
-            totalBorrowsStored = (uint256(lender.borrowBase()) * lender.borrowIndex()) / BORROWS_SCALER;
-        }
+        (, , , uint256 newTotalSupply) = lender.stats();
+        uint256 valueOfNewReserves = lender.convertToAssets(newTotalSupply - lender.totalSupply());
         assertApproxEqAbs(
-            totalAssetsStored,
-            lender.lastBalance() + totalBorrowsStored,
+            sumConvertedBalances + valueOfNewReserves,
+            lender.totalAssets(),
             1 * count // max error of 1 per user
         );
     }
@@ -206,7 +210,7 @@ contract LenderInvariantsTest is Test {
         for (uint256 i = 0; i < count; i++) {
             address user = lenderHarness.holders(i);
 
-            if (lender.courierOf(user) != 0) {
+            if (lender.courierOf(user) == 0) {
                 assertEq(lender.underlyingBalance(user), lender.convertToAssets(lender.balanceOf(user)));
             } else {
                 assertLe(lender.underlyingBalance(user), lender.convertToAssets(lender.balanceOf(user)));

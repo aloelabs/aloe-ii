@@ -55,7 +55,7 @@ contract LenderHarness {
 
     /// @notice Creates a new courier (referrer) with the given values
     /// @dev Does not bound inputs without first verifying that the unbounded ones revert
-    function enrollCourier(uint32 id, address wallet, uint16 cut) external {
+    function enrollCourier(uint32 id, address wallet, uint16 cut) public {
         // Check that inputs are properly formatted
         if (id == 0 || cut == 0 || cut >= 10_000) {
             vm.prank(msg.sender);
@@ -253,6 +253,9 @@ contract LenderHarness {
         uint256 sharesBefore = LENDER.balanceOf(owner);
         uint256 reservesBefore = LENDER.balanceOf(LENDER.RESERVE());
         uint256 assetsBefore = LENDER.asset().balanceOf(recipient);
+        uint32 courierId = LENDER.courierOf(owner);
+        (address courier, ) = LENDER.couriers(courierId);
+        uint256 courierSharesBefore = LENDER.balanceOf(courier);
 
         // Actual action
         if (amount == 0) {
@@ -268,6 +271,7 @@ contract LenderHarness {
         // Collect more data
         uint256 newReserves = LENDER.totalSupply() - (totalSupply - shares); // implicit assertion!
         uint256 reservesAfter = LENDER.balanceOf(LENDER.RESERVE());
+        uint256 fee = courierId == 0 ? 0 : LENDER.balanceOf(courier) - courierSharesBefore;
 
         // Assertions
         require(LENDER.lastBalance() == lastBalance - amount, "redeem: lastBalance mismatch");
@@ -277,12 +281,15 @@ contract LenderHarness {
             require(LENDER.asset().balanceOf(recipient) == assetsBefore, "redeem: bad self reference");
         }
         if (owner != LENDER.RESERVE()) {
-            require(LENDER.balanceOf(owner) == sharesBefore - shares, "redeem: burn issue");
-            require(reservesAfter == reservesBefore + newReserves, "redeem: reserves issue");
+            require(LENDER.balanceOf(owner) == sharesBefore - shares - fee, "redeem: burn issue");
+            if (courier != LENDER.RESERVE()) {
+                require(reservesAfter == reservesBefore + newReserves, "redeem: reserves issue");
+            } else {
+                require(reservesAfter == reservesBefore + newReserves + fee, "redeem: reserves issue as courier");
+            }
         } else {
-            require(reservesAfter == reservesBefore + newReserves - shares, "redeem: burn from RESERVE issue");
+            require(reservesAfter == reservesBefore + newReserves - shares - fee, "redeem: burn from RESERVE issue");
         }
-        /// TODO: could also make assertions regarding courier payouts
     }
 
     /// @notice Borrows `amount` from the `LENDER` and sends it to `recipient`
@@ -497,6 +504,10 @@ contract LenderHarness {
                              SPECIAL CASES
     //////////////////////////////////////////////////////////////*/
 
+    function enrollReserveAsCourier(uint32 i, uint16 cut) external {
+        enrollCourier(i, LENDER.RESERVE(), cut);
+    }
+
     function creditCourierForReserve(uint16 i) external {
         uint256 count = courierIds.length;
         if (count == 0) return;
@@ -515,7 +526,7 @@ contract LenderHarness {
         amount = redeem(shares, recipient, LENDER.RESERVE());
     }
 
-    function redeemWithLenderAsAssetReceiver(uint112 shares, address owner) public returns (uint256 amount) {
+    function redeemWithLenderAsAssetReceiver(uint112 shares, address owner) external returns (uint256 amount) {
         amount = redeem(shares, address(LENDER), owner);
     }
 
