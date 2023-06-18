@@ -170,17 +170,15 @@ contract Ledger {
 
     function underlyingBalance(address account) external view returns (uint256) {
         (, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());
-        return _nominalAssets(account, inventory, newTotalSupply);
+        return _convertToAssets(_nominalShares(account, inventory, newTotalSupply), inventory, newTotalSupply, false);
     }
 
     function underlyingBalanceStored(address account) external view returns (uint256) {
         unchecked {
-            return
-                _nominalAssets({
-                    account: account,
-                    inventory: lastBalance + (uint256(borrowBase) * borrowIndex) / BORROWS_SCALER,
-                    totalSupply_: totalSupply
-                });
+            uint256 inventory = lastBalance + (uint256(borrowBase) * borrowIndex) / BORROWS_SCALER;
+            uint256 totalSupply_ = totalSupply;
+
+            return _convertToAssets(_nominalShares(account, inventory, totalSupply_), inventory, totalSupply_, false);
         }
     }
 
@@ -289,12 +287,7 @@ contract Ledger {
      * - MUST NOT revert.
      */
     function maxWithdraw(address owner) external view returns (uint256) {
-        (Cache memory cache, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());
-
-        uint256 a = _nominalAssets(owner, inventory, newTotalSupply);
-        uint256 b = cache.lastBalance;
-
-        return a < b ? a : b;
+        return convertToAssets(this.maxRedeem(owner));
     }
 
     /**
@@ -385,37 +378,19 @@ contract Ledger {
         address account,
         uint256 inventory,
         uint256 totalSupply_
-    ) private view returns (uint256 shares) {
+    ) private view returns (uint256 balance) {
         unchecked {
             uint256 data = balances[account];
-            shares = data % Q112;
+            balance = data % Q112;
 
             uint32 id = uint32(data >> 224);
             if (id != 0) {
-                uint256 principle = _convertToShares((data >> 112) % Q112, inventory, totalSupply_, true);
+                uint256 principleAssets = (data >> 112) % Q112;
+                uint256 principleShares = _convertToShares(principleAssets, inventory, totalSupply_, true);
 
-                if (shares > principle) {
-                    shares -= ((shares - principle) * couriers[id].cut) / 10_000;
-                }
-            }
-        }
-    }
-
-    function _nominalAssets(
-        address account,
-        uint256 inventory,
-        uint256 totalSupply_
-    ) private view returns (uint256 assets) {
-        unchecked {
-            uint256 data = balances[account];
-            assets = _convertToAssets(data % Q112, inventory, totalSupply_, false);
-
-            uint32 id = uint32(data >> 224);
-            if (id != 0) {
-                uint256 principle = (data >> 112) % Q112;
-
-                if (assets > principle) {
-                    assets -= ((assets - principle) * couriers[id].cut) / 10_000;
+                if (balance > principleShares) {
+                    uint256 fee = ((balance - principleShares) * couriers[id].cut) / 10_000;
+                    balance -= fee;
                 }
             }
         }
