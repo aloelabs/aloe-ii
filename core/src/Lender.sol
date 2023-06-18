@@ -42,8 +42,6 @@ contract Lender is Ledger {
 
     event Repay(address indexed caller, address indexed beneficiary, uint256 amount, uint256 units);
 
-    event EnrollCourier(uint32 indexed id, address indexed wallet, uint16 cut);
-
     event CreditCourier(uint32 indexed id, address indexed account);
 
     /*//////////////////////////////////////////////////////////////
@@ -74,25 +72,12 @@ contract Lender is Ledger {
         // Requirements:
         // - `msg.sender == FACTORY` so that only the factory can whitelist borrowers
         // - `borrows[borrower] == 0` ensures we don't accidentally erase debt
-        require(msg.sender == FACTORY && borrows[borrower] == 0);
+        require(msg.sender == address(FACTORY) && borrows[borrower] == 0);
 
         // `borrow` and `repay` have to read the `borrows` mapping anyway, so setting this to 1
         // allows them to efficiently check whether a given borrower is whitelisted. This extra
         // unit of debt won't accrue interest or impact solvency calculations.
         borrows[borrower] = 1;
-    }
-
-    function enrollCourier(uint32 id, address wallet, uint16 cut) external {
-        // Requirements:
-        // - `id != 0` because 0 is reserved as the no-courier case
-        // - `cut != 0 && cut < 10_000` just means between 0 and 100%
-        require(id != 0 && cut != 0 && cut < 10_000);
-        // Once an `id` has been enrolled, its info can't be changed
-        require(couriers[id].cut == 0);
-
-        couriers[id] = Courier(wallet, cut);
-
-        emit EnrollCourier(id, wallet, cut);
     }
 
     function creditCourier(uint32 id, address account) external {
@@ -103,8 +88,8 @@ contract Lender is Ledger {
         require(account != RESERVE);
 
         // Payout logic can't handle self-reference, so don't let accounts credit themselves
-        Courier memory courier = couriers[id];
-        require(courier.cut != 0 && courier.wallet != account);
+        (address courier, uint16 cut) = FACTORY.couriers(id);
+        require(cut != 0 && courier != account);
 
         // Only set courier if account balance is 0. Otherwise a previous courier may
         // be cheated out of their fees.
@@ -438,11 +423,11 @@ contract Lender is Ledger {
                 uint256 principleShares = principleAssets.mulDivUp(totalSupply_, inventory);
 
                 if (balance > principleShares) {
-                    Courier memory courier = couriers[id];
+                    (address courier, uint16 cut) = FACTORY.couriers(id);
 
                     // Compute total fee owed to courier. Take it out of balance so that
                     // comparison is correct later on (`shares <= balance`)
-                    uint256 fee = ((balance - principleShares) * courier.cut) / 10_000;
+                    uint256 fee = ((balance - principleShares) * cut) / 10_000;
                     balance -= fee;
 
                     // Compute portion of fee to pay out during this burn.
@@ -452,8 +437,8 @@ contract Lender is Ledger {
                     // update on courier, so if couriers credit each other, 100% of `fee`
                     // is treated as profit and will pass through to the next courier.
                     data -= fee;
-                    balances[courier.wallet] += fee;
-                    emit Transfer(from, courier.wallet, fee);
+                    balances[courier] += fee;
+                    emit Transfer(from, courier, fee);
                 }
 
                 // Update principle

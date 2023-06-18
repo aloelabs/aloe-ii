@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import "src/Lender.sol";
 
-import {deploySingleLender} from "../Utils.sol";
+import {FactoryForLenderTests} from "../Utils.sol";
 
 contract LenderGasTest is Test {
     ERC20 constant asset = ERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
@@ -20,14 +20,17 @@ contract LenderGasTest is Test {
         vm.createSelectFork(vm.rpcUrl("mainnet"));
         vm.rollFork(15_348_451);
 
-        lender = deploySingleLender(asset, address(this), new RateModel());
+        FactoryForLenderTests factory = new FactoryForLenderTests(new RateModel(), ERC20(address(0)));
+        lender = factory.deploySingleLender(asset);
         bob = makeAddr("bob");
         alice = makeAddr("alice");
     }
 
     function setUp() public {
+        vm.startPrank(address(lender.FACTORY()));
         lender.whitelist(address(this));
         lender.whitelist(bob);
+        vm.stopPrank();
 
         // Give `bob` and `alice` 1 WETH each
         deal(address(asset), bob, 1e18);
@@ -59,7 +62,7 @@ contract LenderGasTest is Test {
         lender.approve(address(this), type(uint256).max);
 
         // Setup courier#1
-        lender.enrollCourier(1, address(12345), 1000);
+        lender.FACTORY().enrollCourier(1, address(12345), 1000);
 
         // `alice` credits courier#1
         lender.creditCourier(1, alice);

@@ -23,6 +23,8 @@ contract Factory {
 
     event CreateBorrower(IUniswapV3Pool indexed pool, address indexed owner, address account);
 
+    event EnrollCourier(uint32 indexed id, address indexed wallet, uint16 cut);
+
     struct Market {
         Lender lender0;
         Lender lender1;
@@ -40,17 +42,40 @@ contract Factory {
 
     address public immutable lenderImplementation;
 
+    /*//////////////////////////////////////////////////////////////
+                             WORLD STORAGE
+    //////////////////////////////////////////////////////////////*/
+
     mapping(IUniswapV3Pool => Market) public getMarket;
 
     mapping(IUniswapV3Pool => Parameters) public getParameters;
 
     mapping(address => bool) public isBorrower;
 
+    /*//////////////////////////////////////////////////////////////
+                           INCENTIVE STORAGE
+    //////////////////////////////////////////////////////////////*/
+
+    struct Courier {
+        address wallet;
+        uint16 cut;
+    }
+
+    mapping(uint32 => Courier) public couriers;
+
+    /*//////////////////////////////////////////////////////////////
+                              CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
+
     constructor(VolatilityOracle oracle, RateModel rateModel, ERC20 rewardsToken) {
         ORACLE = oracle;
         RATE_MODEL = rateModel;
         lenderImplementation = address(new Lender(address(this), rewardsToken));
     }
+
+    /*//////////////////////////////////////////////////////////////
+                             WORLD CREATION
+    //////////////////////////////////////////////////////////////*/
 
     function createMarket(IUniswapV3Pool pool) external {
         ORACLE.prepare(pool);
@@ -83,5 +108,22 @@ contract Factory {
         market.lender1.whitelist(account);
 
         emit CreateBorrower(pool, owner, account);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                               INCENTIVES
+    //////////////////////////////////////////////////////////////*/
+
+    function enrollCourier(uint32 id, address wallet, uint16 cut) external {
+        // Requirements:
+        // - `id != 0` because 0 is reserved as the no-courier case
+        // - `cut != 0 && cut < 10_000` just means between 0 and 100%
+        require(id != 0 && cut != 0 && cut < 10_000);
+        // Once an `id` has been enrolled, its info can't be changed
+        require(couriers[id].cut == 0);
+
+        couriers[id] = Courier(wallet, cut);
+
+        emit EnrollCourier(id, wallet, cut);
     }
 }

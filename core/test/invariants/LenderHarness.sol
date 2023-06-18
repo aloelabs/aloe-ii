@@ -5,6 +5,7 @@ import "forge-std/Vm.sol";
 
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
+import {Factory} from "src/Factory.sol";
 import "src/Lender.sol";
 
 contract FlashBorrower is IFlashBorrower {
@@ -56,21 +57,22 @@ contract LenderHarness {
     /// @notice Creates a new courier (referrer) with the given values
     /// @dev Does not bound inputs without first verifying that the unbounded ones revert
     function enrollCourier(uint32 id, address wallet, uint16 cut) public {
+        Factory factory = LENDER.FACTORY();
         // Check that inputs are properly formatted
         if (id == 0 || cut == 0 || cut >= 10_000) {
             vm.prank(msg.sender);
             vm.expectRevert();
-            LENDER.enrollCourier(id, wallet, cut);
+            factory.enrollCourier(id, wallet, cut);
         }
         if (id == 0) id = 1;
         cut = (cut % 9_999) + 1;
 
         // Check whether the given id is enrolled already
-        (, uint16 currentCut) = LENDER.couriers(id);
+        (, uint16 currentCut) = factory.couriers(id);
         if (currentCut != 0) {
             vm.prank(msg.sender);
             vm.expectRevert();
-            LENDER.enrollCourier(id, wallet, cut);
+            factory.enrollCourier(id, wallet, cut);
 
             assert(alreadyEnrolledCourier[id]);
             return;
@@ -78,10 +80,10 @@ contract LenderHarness {
 
         // Actual action
         vm.prank(msg.sender);
-        LENDER.enrollCourier(id, wallet, cut);
+        factory.enrollCourier(id, wallet, cut);
 
         // Assertions
-        (address actualWallet, uint16 actualCut) = LENDER.couriers(id);
+        (address actualWallet, uint16 actualCut) = factory.couriers(id);
         require(actualWallet == wallet, "enrollCourier: failed to set wallet");
         require(actualCut == cut, "enrollCourier: failed to set cut");
 
@@ -111,7 +113,7 @@ contract LenderHarness {
         }
 
         // Check for `RESERVE` involvement, courier existence, self-reference, and non-zero balance
-        (address wallet, ) = LENDER.couriers(id);
+        (address wallet, ) = LENDER.FACTORY().couriers(id);
         if (
             account == LENDER.RESERVE() ||
             !alreadyEnrolledCourier[id] ||
@@ -254,7 +256,7 @@ contract LenderHarness {
         uint256 reservesBefore = LENDER.balanceOf(LENDER.RESERVE());
         uint256 assetsBefore = LENDER.asset().balanceOf(recipient);
         uint32 courierId = LENDER.courierOf(owner);
-        (address courier, ) = LENDER.couriers(courierId);
+        (address courier, ) = LENDER.FACTORY().couriers(courierId);
         uint256 courierSharesBefore = LENDER.balanceOf(courier);
 
         // Actual action
@@ -299,7 +301,7 @@ contract LenderHarness {
             vm.expectRevert("Aloe: not a borrower");
             LENDER.borrow(amount, recipient);
 
-            vm.prank(LENDER.FACTORY());
+            vm.prank(address(LENDER.FACTORY()));
             LENDER.whitelist(msg.sender);
 
             // {HARNESS BOOKKEEPING} Keep borrowers up-to-date

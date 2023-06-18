@@ -12,12 +12,13 @@ import {BORROWS_SCALER, ONE} from "./libraries/constants/Constants.sol";
 import {Q112} from "./libraries/constants/Q.sol";
 import {Rewards} from "./libraries/Rewards.sol";
 
+import {Factory} from "./Factory.sol";
 import {RateModel} from "./RateModel.sol";
 
 contract Ledger {
     using FixedPointMathLib for uint256;
 
-    address public immutable FACTORY;
+    Factory public immutable FACTORY;
 
     address public immutable RESERVE;
 
@@ -68,17 +69,6 @@ contract Ledger {
     mapping(address => uint256) public nonces;
 
     /*//////////////////////////////////////////////////////////////
-                           INCENTIVE STORAGE
-    //////////////////////////////////////////////////////////////*/
-
-    struct Courier {
-        address wallet;
-        uint16 cut;
-    }
-
-    mapping(uint32 => Courier) public couriers;
-
-    /*//////////////////////////////////////////////////////////////
                          GOVERNABLE PARAMETERS
     //////////////////////////////////////////////////////////////*/
 
@@ -91,7 +81,7 @@ contract Ledger {
     //////////////////////////////////////////////////////////////*/
 
     constructor(address reserve, ERC20 rewardsToken) {
-        FACTORY = msg.sender;
+        FACTORY = Factory(msg.sender);
         RESERVE = reserve;
         REWARDS_TOKEN = rewardsToken;
     }
@@ -407,7 +397,9 @@ contract Ledger {
                 uint256 principleShares = _convertToShares(principleAssets, inventory, totalSupply_, true);
 
                 if (balance > principleShares) {
-                    uint256 fee = ((balance - principleShares) * couriers[id].cut) / 10_000;
+                    (, uint16 cut) = FACTORY.couriers(id);
+
+                    uint256 fee = ((balance - principleShares) * cut) / 10_000;
                     balance -= fee;
                 }
             }

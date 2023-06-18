@@ -7,7 +7,7 @@ import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
 import "src/Lender.sol";
 
-import {deploySingleLender} from "./Utils.sol";
+import {Factory, FactoryForLenderTests} from "./Utils.sol";
 
 contract LenderReferralsTest is Test {
     using stdStorage for StdStorage;
@@ -17,14 +17,16 @@ contract LenderReferralsTest is Test {
     Lender lender;
 
     function setUp() public {
+        FactoryForLenderTests factory = new FactoryForLenderTests(new RateModel(), ERC20(address(0)));
+
         asset = new MockERC20("Token", "TKN", 18);
-        lender = deploySingleLender(asset, address(2), new RateModel());
+        lender = factory.deploySingleLender(asset);
     }
 
     function test_canEnrollCourier(uint32 id, address wallet, uint16 cut) public {
         (id, wallet, cut) = _enroll(id, wallet, cut);
 
-        (address a, uint16 b) = lender.couriers(id);
+        (address a, uint16 b) = lender.FACTORY().couriers(id);
         assertEq(a, wallet);
         assertEq(b, cut);
     }
@@ -32,23 +34,26 @@ contract LenderReferralsTest is Test {
     function test_cannotSetCutTo0(uint32 id, address wallet) public {
         vm.assume(id != 0);
 
+        Factory factory = lender.FACTORY();
         vm.expectRevert(bytes(""));
-        lender.enrollCourier(id, wallet, 0);
+        factory.enrollCourier(id, wallet, 0);
     }
 
     function test_cannotSetCutAbove10000(uint32 id, address wallet, uint16 cut) public {
         vm.assume(id != 0);
         if (cut < 10_000) cut += 10_000;
 
+        Factory factory = lender.FACTORY();
         vm.expectRevert(bytes(""));
-        lender.enrollCourier(id, wallet, cut);
+        factory.enrollCourier(id, wallet, cut);
     }
 
     function test_cannotEnrollId0(address wallet, uint16 cut) public {
         vm.assume(cut != 0);
 
+        Factory factory = lender.FACTORY();
         vm.expectRevert(bytes(""));
-        lender.enrollCourier(0, wallet, cut);
+        factory.enrollCourier(0, wallet, cut);
     }
 
     function test_cannotEditCourierCut(uint32 id, address wallet, uint16 cutA, uint16 cutB) public {
@@ -59,10 +64,11 @@ contract LenderReferralsTest is Test {
         vm.assume(cutA != 0);
         vm.assume(cutB != 0);
 
-        lender.enrollCourier(id, wallet, cutA);
+        Factory factory = lender.FACTORY();
 
+        factory.enrollCourier(id, wallet, cutA);
         vm.expectRevert(bytes(""));
-        lender.enrollCourier(id, wallet, cutB);
+        factory.enrollCourier(id, wallet, cutB);
     }
 
     function test_cannotEditCourierWallet(uint32 id, address walletA, address walletB, uint16 cut) public {
@@ -70,10 +76,11 @@ contract LenderReferralsTest is Test {
         vm.assume(id != 0);
         vm.assume(cut != 0);
 
-        lender.enrollCourier(id, walletA, cut);
+        Factory factory = lender.FACTORY();
 
+        factory.enrollCourier(id, walletA, cut);
         vm.expectRevert(bytes(""));
-        lender.enrollCourier(id, walletB, cut);
+        factory.enrollCourier(id, walletB, cut);
     }
 
     function test_canCreditCourier(uint32 id, address wallet, uint16 cut) public {
@@ -173,11 +180,7 @@ contract LenderReferralsTest is Test {
         assertEq(lender.courierOf(to), id);
         assertEq(lender.principleOf(to), amount / 2);
         assertEq(lender.balanceOf(to), amount / 2);
-        assertApproxEqAbs(
-            lender.convertToAssets(lender.balanceOf(to)),
-            amount,
-            2
-        );
+        assertApproxEqAbs(lender.convertToAssets(lender.balanceOf(to)), amount, 2);
 
         vm.prank(caller);
         lender.deposit(amount / 2, to);
@@ -185,11 +188,7 @@ contract LenderReferralsTest is Test {
         assertEq(lender.courierOf(to), id);
         assertEq(lender.principleOf(to), amount / 2 + amount / 2);
         assertApproxEqAbs(lender.balanceOf(to), amount / 2 + amount / 4, 1);
-        assertApproxEqAbs(
-            lender.convertToAssets(lender.balanceOf(to)),
-            uint256(amount) + amount / 2,
-            2
-        );
+        assertApproxEqAbs(lender.convertToAssets(lender.balanceOf(to)), uint256(amount) + amount / 2, 2);
     }
 
     function test_withdrawDoesPayout(
@@ -271,7 +270,7 @@ contract LenderReferralsTest is Test {
         vm.assume(id != 0);
         vm.assume(cut != 0);
 
-        lender.enrollCourier(id, wallet, cut);
+        lender.FACTORY().enrollCourier(id, wallet, cut);
 
         return (id, wallet, cut);
     }

@@ -6,10 +6,11 @@ import "forge-std/Test.sol";
 import {DEFAULT_ANTE, DEFAULT_N_SIGMA} from "src/libraries/constants/Constants.sol";
 import {zip} from "src/libraries/Positions.sol";
 
+import "src/Factory.sol";
 import "src/Borrower.sol";
 import "src/Lender.sol";
 
-import {deploySingleBorrower, deploySingleLender} from "../Utils.sol";
+import {VolatilityOracleMock} from "../Utils.sol";
 
 contract BorrowerGasTest is Test, IManager {
     IUniswapV3Pool constant pool = IUniswapV3Pool(0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8);
@@ -24,13 +25,15 @@ contract BorrowerGasTest is Test, IManager {
         vm.createSelectFork(vm.rpcUrl("mainnet"));
         vm.rollFork(15_348_451);
 
-        lender0 = deploySingleLender(asset0, address(this), new RateModel());
-        lender1 = deploySingleLender(asset1, address(this), new RateModel());
-        account = deploySingleBorrower(pool, lender0, lender1);
-        account.initialize(address(this));
+        Factory factory = new Factory(
+            VolatilityOracle(address(new VolatilityOracleMock())),
+            new RateModel(),
+            ERC20(address(0))
+        );
 
-        lender0.whitelist(address(account));
-        lender1.whitelist(address(account));
+        factory.createMarket(pool);
+        (lender0, lender1, ) = factory.getMarket(pool);
+        account = Borrower(factory.createBorrower(pool, address(this)));
     }
 
     function setUp() public {
