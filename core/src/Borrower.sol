@@ -101,6 +101,11 @@ contract Borrower is IUniswapV3MintCallback {
         slot0.owner = owner;
     }
 
+    function rescue(ERC20 token) external {
+        require(token != TOKEN0 && token != TOKEN1);
+        token.safeTransfer(slot0.owner, token.balanceOf(address(this)));
+    }
+
     /*//////////////////////////////////////////////////////////////
                            MAIN ENTRY POINTS
     //////////////////////////////////////////////////////////////*/
