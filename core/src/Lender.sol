@@ -48,7 +48,7 @@ contract Lender is Ledger {
                        CONSTRUCTOR & INITIALIZER
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address reserve, ERC20 rewardsToken) Ledger(reserve, rewardsToken) {}
+    constructor(address reserve) Ledger(reserve) {}
 
     function initialize(IRateModel rateModel_, uint8 reserveFactor_) external {
         require(borrowIndex == 0);
@@ -80,6 +80,10 @@ contract Lender is Ledger {
         borrows[borrower] = 1;
     }
 
+    /*//////////////////////////////////////////////////////////////
+                               REFERRALS
+    //////////////////////////////////////////////////////////////*/
+
     function creditCourier(uint32 id, address account) external {
         // Callers are free to set their own courier, but they need permission to mess with others'
         require(msg.sender == account || allowance[account][msg.sender] != 0);
@@ -97,6 +101,18 @@ contract Lender is Ledger {
         balances[account] = uint256(id) << 224;
 
         emit CreditCourier(id, account);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                REWARDS
+    //////////////////////////////////////////////////////////////*/
+
+    function claimRewards(address owner) external returns (uint112 earned) {
+        // All claims are made through the `FACTORY`
+        require(msg.sender == address(FACTORY));
+
+        (Rewards.Storage storage s, uint144 a) = Rewards.load();
+        earned = Rewards.claim(s, a, owner, balanceOf(owner));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -243,17 +259,6 @@ contract Lender is Ledger {
         (Cache memory cache, ) = _load();
         _save(cache, /* didChangeBorrowBase: */ false);
         return uint72(cache.borrowIndex);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                                REWARDS
-    //////////////////////////////////////////////////////////////*/
-
-    function claimRewards(address beneficiary) external returns (uint112 earned) {
-        (Rewards.Storage storage s, uint144 a) = Rewards.load();
-        earned = Rewards.claim(s, a, msg.sender, balanceOf(msg.sender));
-
-        REWARDS_TOKEN.safeTransfer(beneficiary, earned);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -444,9 +449,13 @@ contract Lender is Ledger {
                     // Compute portion of fee to pay out during this burn.
                     fee = (fee * shares) / balance;
 
-                    // Send `fee` from `from` to `courier.wallet`. NOTE: We skip principle
-                    // update on courier, so if couriers credit each other, 100% of `fee`
-                    // is treated as profit and will pass through to the next courier.
+                    // Send `fee` from `from` to `courier.wallet`.
+                    // NOTE: We skip principle update on courier, so if couriers credit
+                    // each other, 100% of `fee` is treated as profit and will pass through
+                    // to the next courier.
+                    // NOTE: We skip rewards update on the courier. This means accounting isn't
+                    // accurate for them, so they *should not* be allowed to claim rewards. This
+                    // slightly reduces the effective overall rewards rate.
                     data -= fee;
                     balances[courier] += fee;
                     emit Transfer(from, courier, fee);

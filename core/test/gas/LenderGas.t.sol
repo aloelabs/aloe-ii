@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
+import "src/Factory.sol";
 import "src/Lender.sol";
 import "src/RateModel.sol";
 
@@ -63,7 +64,9 @@ contract LenderGasTest is Test {
         lender.approve(address(this), type(uint256).max);
 
         // Setup courier#1
-        lender.FACTORY().enrollCourier(1, address(12345), 1000);
+        Factory factory = lender.FACTORY();
+        vm.prank(address(12345));
+        factory.enrollCourier(1, 1000);
 
         // `alice` credits courier#1
         lender.creditCourier(1, alice);
