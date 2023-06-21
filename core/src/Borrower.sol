@@ -96,6 +96,8 @@ contract Borrower is IUniswapV3MintCallback {
         require(pool.token1() == address(TOKEN1));
     }
 
+    receive() external payable {}
+
     function initialize(address owner) external {
         require(slot0.owner == address(0));
         slot0.owner = owner;
@@ -369,6 +371,16 @@ contract Borrower is IUniswapV3MintCallback {
         require(slot0.state == State.InModifyCallback);
 
         _repay(amount0, amount1);
+    }
+
+    /**
+     * @notice Allows the account owner to withdraw their ante. Only works within the `modify` callback.
+     * @param recipient Receives the ante (as Ether)
+     */
+    function withdrawAnte(address payable recipient) external {
+        require(slot0.state == State.InModifyCallback);
+
+        recipient.transfer(address(this).balance);
     }
 
     /*//////////////////////////////////////////////////////////////

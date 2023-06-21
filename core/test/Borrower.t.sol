@@ -25,7 +25,7 @@ contract BorrowerTest is Test, IManager {
         external
         returns (uint144)
     {
-        Borrower _account = Borrower(msg.sender);
+        Borrower _account = Borrower(payable(msg.sender));
 
         (uint128 borrow0, uint128 borrow1, uint128 repay0, uint128 repay1, uint256 withdraw0, uint256 withdraw1) = abi
             .decode(data, (uint128, uint128, uint128, uint128, uint256, uint256));

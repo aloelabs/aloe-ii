@@ -104,10 +104,10 @@ contract Factory {
         emit CreateMarket(pool, lender0, lender1);
     }
 
-    function createBorrower(IUniswapV3Pool pool, address owner) external returns (address account) {
+    function createBorrower(IUniswapV3Pool pool, address owner) external returns (address payable account) {
         Market memory market = getMarket[pool];
 
-        account = Clones.clone(address(market.borrowerImplementation));
+        account = payable(Clones.clone(address(market.borrowerImplementation)));
         Borrower(account).initialize(owner);
         isBorrower[account] = true;
 

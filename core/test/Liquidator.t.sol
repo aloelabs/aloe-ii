@@ -548,7 +548,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     ) external {
         uint256 expected = abi.decode(data, (uint256));
         if (expected == type(uint256).max) {
-            Borrower(msg.sender).liquidate(this, data, 1);
+            Borrower(payable(msg.sender)).liquidate(this, data, 1);
         }
         assertEq(actual, expected);
         pool.swap(msg.sender, false, -int256(expected0), TickMath.MAX_SQRT_RATIO - 1, bytes(""));
@@ -561,7 +561,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     ) external {
         uint256 expected = abi.decode(data, (uint256));
         if (expected == type(uint256).max) {
-            Borrower(msg.sender).liquidate(this, data, 1);
+            Borrower(payable(msg.sender)).liquidate(this, data, 1);
         }
         assertEq(actual, expected);
         pool.swap(msg.sender, true, -int256(expected1), TickMath.MIN_SQRT_RATIO + 1, bytes(""));
