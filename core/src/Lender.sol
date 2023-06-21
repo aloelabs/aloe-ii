@@ -104,25 +104,27 @@ contract Lender is Ledger {
     //////////////////////////////////////////////////////////////*/
 
     function deposit(uint256 amount, address beneficiary) public returns (uint256 shares) {
-        // Guard against reentrancy, accrue interest, and update reserves
+        // Accrue interest and update reserves
         (Cache memory cache, uint256 inventory) = _load();
 
+        // Convert `amount` to `shares`
         shares = _convertToShares(amount, inventory, cache.totalSupply, /* roundUp: */ false);
         require(shares != 0, "Aloe: zero impact");
 
+        // Mint shares, track rewards, and (if applicable) handle courier accounting
+        cache.totalSupply = _mint(beneficiary, shares, amount, cache.totalSupply);
+        // Assume tokens are transferred
+        cache.lastBalance += amount;
+
+        // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
+        _save(cache, /* didChangeBorrowBase: */ false);
+
         // Ensure tokens are transferred
         ERC20 asset_ = asset();
-        cache.lastBalance += amount;
         bool didPrepay = cache.lastBalance <= asset_.balanceOf(address(this));
         if (!didPrepay) {
             asset_.safeTransferFrom(msg.sender, address(this), amount);
         }
-
-        // Mint shares, track rewards, and (if applicable) handle courier accounting
-        cache.totalSupply = _mint(beneficiary, shares, amount, cache.totalSupply);
-
-        // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
-        _save(cache, /* didChangeBorrowBase: */ false);
 
         emit Deposit(msg.sender, beneficiary, amount, shares);
     }
@@ -133,26 +135,28 @@ contract Lender is Ledger {
     }
 
     function redeem(uint256 shares, address recipient, address owner) public returns (uint256 amount) {
-        // Guard against reentrancy, accrue interest, and update reserves
-        (Cache memory cache, uint256 inventory) = _load();
-
-        amount = _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ false);
-        require(amount != 0, "Aloe: zero impact");
-
         if (msg.sender != owner) {
             uint256 allowed = allowance[owner][msg.sender];
             if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
         }
 
+        // Accrue interest and update reserves
+        (Cache memory cache, uint256 inventory) = _load();
+
+        // Convert `shares` to `amount`
+        amount = _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ false);
+        require(amount != 0, "Aloe: zero impact");
+
         // Burn shares, track rewards, and (if applicable) handle courier accounting
         cache.totalSupply = _burn(owner, shares, inventory, cache.totalSupply);
-
-        // Transfer tokens
+        // Assume tokens are transferred
         cache.lastBalance -= amount;
-        asset().safeTransfer(recipient, amount);
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ false);
+
+        // Transfer tokens
+        asset().safeTransfer(recipient, amount);
 
         emit Withdraw(msg.sender, recipient, owner, amount, shares);
     }
@@ -170,19 +174,23 @@ contract Lender is Ledger {
         uint256 b = borrows[msg.sender];
         require(b != 0, "Aloe: not a borrower");
 
-        // Guard against reentrancy, accrue interest, and update reserves
+        // Accrue interest and update reserves
         (Cache memory cache, ) = _load();
 
+        // Convert `amount` to `units`
         units = amount.mulDivUp(BORROWS_SCALER, cache.borrowIndex);
+
+        // Track borrows
         cache.borrowBase += units;
         borrows[msg.sender] = b + units;
-
-        // Transfer tokens
+        // Assume tokens are transferred
         cache.lastBalance -= amount;
-        asset().safeTransfer(recipient, amount);
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ true);
+
+        // Transfer tokens
+        asset().safeTransfer(recipient, amount);
 
         emit Borrow(msg.sender, recipient, amount, units);
     }
@@ -190,23 +198,26 @@ contract Lender is Ledger {
     function repay(uint256 amount, address beneficiary) external returns (uint256 units) {
         uint256 b = borrows[beneficiary];
 
-        // Guard against reentrancy, accrue interest, and update reserves
+        // Accrue interest and update reserves
         (Cache memory cache, ) = _load();
 
         unchecked {
+            // Convert `amount` to `units`
             units = (amount * BORROWS_SCALER) / cache.borrowIndex;
             require(units < b, "Aloe: repay too much");
 
+            // Track borrows
             borrows[beneficiary] = b - units;
             cache.borrowBase -= units;
         }
-
-        // Ensure tokens were transferred
+        // Assume tokens are transferred
         cache.lastBalance += amount;
-        require(cache.lastBalance <= asset().balanceOf(address(this)), "Aloe: insufficient pre-pay");
 
         // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
         _save(cache, /* didChangeBorrowBase: */ true);
+
+        // Ensure tokens are transferred
+        require(cache.lastBalance <= asset().balanceOf(address(this)), "Aloe: insufficient pre-pay");
 
         emit Repay(msg.sender, beneficiary, amount, units);
     }
@@ -456,7 +467,6 @@ contract Lender is Ledger {
         cache = Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
         // Guard against reentrancy
         require(cache.lastAccrualTime != 0, "Aloe: locked");
-        lastAccrualTime = 0;
 
         // Accrue interest (only in memory)
         uint256 newTotalSupply;
@@ -477,6 +487,6 @@ contract Lender is Ledger {
 
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
-        lastAccrualTime = uint32(block.timestamp); // Disables reentrancy guard
+        lastAccrualTime = uint32(block.timestamp); // Disables reentrancy guard if there was one
     }
 }
