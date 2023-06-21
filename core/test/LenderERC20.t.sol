@@ -6,6 +6,7 @@ import "forge-std/Test.sol";
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
 import "src/Lender.sol";
+import "src/RateModel.sol";
 
 import {FactoryForLenderTests} from "./Utils.sol";
 

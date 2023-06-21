@@ -10,7 +10,7 @@ import {DEFAULT_ANTE, DEFAULT_N_SIGMA} from "./libraries/constants/Constants.sol
 
 import {Borrower} from "./Borrower.sol";
 import {Lender} from "./Lender.sol";
-import {RateModel} from "./RateModel.sol";
+import {IRateModel} from "./RateModel.sol";
 import {VolatilityOracle} from "./VolatilityOracle.sol";
 
 /// @title Factory
@@ -38,7 +38,7 @@ contract Factory {
 
     VolatilityOracle public immutable ORACLE;
 
-    RateModel public immutable RATE_MODEL;
+    IRateModel public immutable RATE_MODEL;
 
     address public immutable lenderImplementation;
 
@@ -67,7 +67,7 @@ contract Factory {
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(VolatilityOracle oracle, RateModel rateModel, ERC20 rewardsToken) {
+    constructor(VolatilityOracle oracle, IRateModel rateModel, ERC20 rewardsToken) {
         ORACLE = oracle;
         RATE_MODEL = rateModel;
         lenderImplementation = address(new Lender(address(this), rewardsToken));

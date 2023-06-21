@@ -10,7 +10,7 @@ import {Q112} from "./libraries/constants/Q.sol";
 import {Rewards} from "./libraries/Rewards.sol";
 
 import {Ledger} from "./Ledger.sol";
-import {RateModel} from "./RateModel.sol";
+import {IRateModel} from "./RateModel.sol";
 
 interface IFlashBorrower {
     function onFlashLoan(address initiator, uint256 amount, bytes calldata data) external;
@@ -50,7 +50,7 @@ contract Lender is Ledger {
 
     constructor(address reserve, ERC20 rewardsToken) Ledger(reserve, rewardsToken) {}
 
-    function initialize(RateModel rateModel_, uint8 reserveFactor_) external {
+    function initialize(IRateModel rateModel_, uint8 reserveFactor_) external {
         require(borrowIndex == 0);
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);

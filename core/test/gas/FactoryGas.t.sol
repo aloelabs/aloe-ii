@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import "forge-std/Test.sol";
 
 import "src/Factory.sol";
+import "src/RateModel.sol";
 
 contract FactoryGasTest is Test {
     IUniswapV3Pool constant poolA = IUniswapV3Pool(0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8);

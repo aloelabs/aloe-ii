@@ -5,7 +5,10 @@ import "forge-std/Test.sol";
 
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
+import {MAX_RATE} from "src/libraries/constants/Constants.sol";
+
 import "src/Lender.sol";
+import "src/RateModel.sol";
 
 import {FactoryForLenderTests} from "./Utils.sol";
 
@@ -49,7 +52,42 @@ contract LenderTest is Test {
         lender.whitelist(borrower);
     }
 
-    function test_accrueInterest(uint256 accrualFactor) public {
+    function test_maxRateForOneYear() public {
+        vm.warp(1);
+
+        deal(address(asset), address(lender), 1e18);
+        lender.deposit(1e18, address(this));
+
+        vm.prank(address(lender.FACTORY()));
+        lender.whitelist(address(this));
+        lender.borrow(0.1e18, address(this));
+
+        // As interest accrues, utilization rate changes, so we mock _any_ call to getYieldPerSecond
+        vm.mockCall(
+            address(lender.rateModel()),
+            abi.encodeWithSelector(RateModel.getYieldPerSecond.selector),
+            abi.encode(type(uint256).max)
+        );
+
+        uint72 prevIndex = lender.borrowIndex();
+
+        for (uint256 i = 1; i < 53; i++) {
+            vm.warp(1 weeks * i);
+            lender.accrueInterest();
+
+            // At MAX_RATE, expect growth of +53% per week
+            uint72 currIndex = lender.borrowIndex();
+            assertApproxEqRel(uint256(currIndex) * 1e18 / prevIndex, 1.5329e18, 0.0001e18);
+            prevIndex = currIndex;
+        }
+
+        // 52 weeks per year, so at 53 weeks we expect failure
+        vm.warp(1 weeks * 53);
+        vm.expectRevert();
+        lender.accrueInterest();
+    }
+
+    function test_accrueInterest(uint256 yieldPerSecond) public {
         // Give this test contract some shares
         deal(address(asset), address(lender), 2e18);
         lender.deposit(2e18, address(this));
@@ -60,14 +98,18 @@ contract LenderTest is Test {
         lender.borrow(1e18, address(this));
 
         // Mock interest model
-        accrualFactor = 1e12 + accrualFactor % 0.1e12;
+        yieldPerSecond = yieldPerSecond % MAX_RATE;
         vm.mockCall(
             address(lender.rateModel()),
-            abi.encodeWithSelector(RateModel.getAccrualFactor.selector, 13, 0.5e18),
-            abi.encode(accrualFactor)
+            abi.encodeWithSelector(RateModel.getYieldPerSecond.selector, 0.5e18, address(lender)),
+            abi.encode(yieldPerSecond)
         );
 
-        uint256 newInventory = 1e18 + FixedPointMathLib.mulDivDown(1e18, accrualFactor, 1e12);
+        uint256 newInventory = 1e18 + FixedPointMathLib.mulDivDown(
+            1e18,
+            FixedPointMathLib.rpow(ONE + yieldPerSecond, 13, ONE),
+            1e12
+        );
         uint256 interest = newInventory - 2e18;
         uint256 reserves = interest / lender.reserveFactor();
 
@@ -90,8 +132,8 @@ contract LenderTest is Test {
             epsilon,
             18
         );
-        // Make sure `borrowIndex` is just as precise as `accrualFactor`
-        if (accrualFactor > 1e12) assertGt(lender.borrowIndex(), 1e12);
+        // Make sure `borrowIndex` is just as precise as `yieldPerSecond` and `accrualFactor`
+        if (yieldPerSecond > 0) assertGt(lender.borrowIndex(), 1e12);
 
         assertEq(lender.lastAccrualTime(), block.timestamp);
         assertLeDecimal(stdMath.delta(lender.underlyingBalance(lender.RESERVE()), reserves), epsilon, 18);
@@ -228,5 +270,9 @@ contract LenderTest is Test {
 
         assertEq(lender.underlyingBalance(alice), 100000050);
         assertEq(lender.underlyingBalanceStored(alice), 100000050);
+    }
+
+    function test_rpowMax() public {
+        assertEq(FixedPointMathLib.rpow(ONE + MAX_RATE, 1 weeks, ONE), 1532963220989);
     }
 }

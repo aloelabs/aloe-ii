@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import "forge-std/Test.sol";
 
 import "src/Lender.sol";
+import "src/RateModel.sol";
 
 import {FactoryForLenderTests} from "../Utils.sol";
 

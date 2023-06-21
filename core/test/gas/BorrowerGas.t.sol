@@ -9,6 +9,7 @@ import {zip} from "src/libraries/Positions.sol";
 import "src/Factory.sol";
 import "src/Borrower.sol";
 import "src/Lender.sol";
+import "src/RateModel.sol";
 
 import {VolatilityOracleMock} from "../Utils.sol";
 

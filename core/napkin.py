@@ -64,6 +64,7 @@ def check(
 
     apr_max = math.log(borrow_index_max / borrow_index_min) / DT_YEARS
     apy_max = math.exp(apr_max) - 1
+    spy_max = math.exp(apr_max / SECONDS_PER_YEAR) - 1
     # to fix: decrease borrow_index_timestamp_bits, increase borrow_index_bits, or decrease borrow_index_precision
     assert 100 * apy_max > 25.0, f'borrow_index should handle at least 25% APY over the protocol\'s lifetime --- current max is {100 * apy_max:0.2f}'
 
@@ -117,6 +118,7 @@ def check(
     return {
         'min APY': float(100 * apy_min),
         'max APY': float(100 * apy_max),
+        'max yield per second * 1e12': float(1e12 * spy_max),
         'max totalBorrows': f'10^{total_borrows_max_units_oom:.1f}',
         'max balance': f'10^{math.log10((2 ** balance_bits - 1) / 10 ** asset_decimals):.1f}',
         'max total supply': f'10^{math.log10((2 ** total_supply_bits - 1) / 10 ** (asset_decimals + total_supply_extra_precision)):.1f}',

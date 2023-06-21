@@ -8,6 +8,7 @@ import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmu
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
 import "src/Lender.sol";
+import "src/RateModel.sol";
 
 import {FactoryForLenderTests} from "../Utils.sol";
 import {LenderHarness, BORROWS_SCALER} from "./LenderHarness.sol";
@@ -20,7 +21,7 @@ contract LenderInvariantsTest is Test {
     LenderHarness public lenderHarness;
 
     struct ThingsThatShouldntChange {
-        RateModel rateModel;
+        IRateModel rateModel;
         uint8 reserveFactor;
         string name;
         string symbol;

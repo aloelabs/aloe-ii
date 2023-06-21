@@ -13,10 +13,11 @@ import {Q112} from "./libraries/constants/Q.sol";
 import {Rewards} from "./libraries/Rewards.sol";
 
 import {Factory} from "./Factory.sol";
-import {RateModel} from "./RateModel.sol";
+import {IRateModel, SafeRateLib} from "./RateModel.sol";
 
 contract Ledger {
     using FixedPointMathLib for uint256;
+    using SafeRateLib for IRateModel;
 
     Factory public immutable FACTORY;
 
@@ -72,7 +73,7 @@ contract Ledger {
                          GOVERNABLE PARAMETERS
     //////////////////////////////////////////////////////////////*/
 
-    RateModel public rateModel;
+    IRateModel public rateModel;
 
     uint8 public reserveFactor;
 
@@ -345,8 +346,8 @@ contract Ledger {
 
             uint8 rf = reserveFactor;
             uint256 accrualFactor = rateModel.getAccrualFactor({
-                elapsedTime: block.timestamp - cache.lastAccrualTime,
-                utilization: (1e18 * oldBorrows) / oldInventory
+                utilization: (1e18 * oldBorrows) / oldInventory,
+                dt: block.timestamp - cache.lastAccrualTime
             });
 
             cache.borrowIndex = (cache.borrowIndex * accrualFactor) / ONE;
