@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
-import {MAX_RATE, ONE} from "src/libraries/constants/Constants.sol";
+import {MAX_RATE, ONE} from "./libraries/constants/Constants.sol";
 
 interface IRateModel {
     /**
