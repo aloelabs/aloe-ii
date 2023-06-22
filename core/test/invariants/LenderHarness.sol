@@ -102,27 +102,28 @@ contract LenderHarness {
     /// @notice Credits a courier for an `account`'s deposits
     /// @dev Does not bound inputs without first verifying that the unbounded ones revert
     function creditCourier(uint32 id, address account) public {
+        if (id == 0 || LENDER.balanceOf(account) > 0) return;
+
         // Check that `msg.sender` has permission to assign a courier to `account`
         if (msg.sender != account) {
             vm.prank(msg.sender);
-            vm.expectRevert();
-            LENDER.creditCourier(id, account);
+            vm.expectRevert(bytes("Aloe: courier"));
+            LENDER.deposit(0, account, id);
 
             vm.prank(account);
             LENDER.approve(msg.sender, 1);
         }
 
-        // Check for `RESERVE` involvement, courier existence, self-reference, and non-zero balance
+        // Check for `RESERVE` involvement, courier existence and self-reference
         (address wallet, ) = LENDER.FACTORY().couriers(id);
         if (
             account == LENDER.RESERVE() ||
-            !alreadyEnrolledCourier[id] ||
-            wallet == account ||
-            LENDER.balanceOf(account) > 0
+            account == wallet ||
+            !alreadyEnrolledCourier[id]
         ) {
             vm.prank(msg.sender);
-            vm.expectRevert();
-            LENDER.creditCourier(id, account);
+            vm.expectRevert(bytes("Aloe: courier"));
+            LENDER.deposit(0, account, id);
 
             // Undo side-effects
             vm.prank(account);
@@ -130,13 +131,23 @@ contract LenderHarness {
             return;
         }
 
+        uint256 amount = LENDER.convertToAssets(1) + 1;
+        MockERC20 mock = MockERC20(address(LENDER.asset()));
+        mock.mint(address(LENDER), amount);
+
         // Actual action
         vm.prank(msg.sender);
-        LENDER.creditCourier(id, account);
+        LENDER.deposit(amount, account, id);
 
         // Assertions
         require(LENDER.courierOf(account) == id, "creditCourier: failed to set id");
-        require(LENDER.principleOf(account) == 0, "creditCourier: messed up principle");
+        require(LENDER.principleOf(account) == amount, "creditCourier: messed up principle");
+
+        // {HARNESS BOOKKEEPING} Keep holders up-to-date
+        if (!alreadyHolder[account]) {
+            holders.push(account);
+            alreadyHolder[account] = true;
+        }
 
         // Undo side-effects
         vm.prank(account);

@@ -95,7 +95,9 @@ contract LenderReferralsTest is Test {
         (id, wallet, cut) = _enroll(id, wallet, cut);
         vm.assume(wallet != address(this));
 
-        lender.creditCourier(id, address(this));
+        deal(address(asset), address(lender), 1);
+
+        lender.deposit(1, address(this), id);
         assertEq(lender.courierOf(address(this)), id);
     }
 
@@ -106,7 +108,9 @@ contract LenderReferralsTest is Test {
         vm.prank(account);
         lender.approve(address(this), 1);
 
-        lender.creditCourier(id, account);
+        deal(address(asset), address(lender), 1);
+
+        lender.deposit(1, account, id);
         assertEq(lender.courierOf(account), id);
     }
 
@@ -114,24 +118,24 @@ contract LenderReferralsTest is Test {
         (id, wallet, cut) = _enroll(id, wallet, cut);
 
         vm.prank(wallet);
-        vm.expectRevert(bytes(""));
-        lender.creditCourier(id, wallet);
+        vm.expectRevert(bytes("Aloe: courier"));
+        lender.deposit(0, wallet, id);
     }
 
     function test_cannotCreditCourierWithoutPermission(uint32 id, address wallet, uint16 cut, address account) public {
         (id, wallet, cut) = _enroll(id, wallet, cut);
         vm.assume(account != address(this));
 
-        vm.expectRevert(bytes(""));
-        lender.creditCourier(id, account);
+        vm.expectRevert(bytes("Aloe: courier"));
+        lender.deposit(0, account, id);
     }
 
     function test_cannotCreditCourierBeforeEnrollment(uint32 id, address account) public {
         vm.prank(account);
         lender.approve(address(this), 1);
 
-        vm.expectRevert(bytes(""));
-        lender.creditCourier(id, account);
+        vm.expectRevert(bytes("Aloe: courier"));
+        lender.deposit(0, account, id);
     }
 
     function test_cannotCreditCourierAfterAcquiringTokens(
@@ -147,8 +151,8 @@ contract LenderReferralsTest is Test {
 
         deal(address(lender), account, 1);
 
-        vm.expectRevert(bytes(""));
-        lender.creditCourier(id, account);
+        vm.expectRevert(bytes("Aloe: courier"));
+        lender.deposit(0, account, id);
     }
 
     function test_depositDoesIncreasePrinciple(
@@ -156,24 +160,22 @@ contract LenderReferralsTest is Test {
         address wallet,
         uint16 cut,
         address caller,
-        address to,
         uint112 amount
     ) public {
         vm.assume(amount > 1);
         (id, wallet, cut) = _enroll(id, wallet, cut);
+        address to = caller;
 
         if (to == wallet || to == lender.RESERVE()) {
             vm.prank(to);
-            vm.expectRevert(bytes(""));
-            lender.creditCourier(id, to);
+            vm.expectRevert(bytes("Aloe: courier"));
+            lender.deposit(amount, to, id);
             return;
         }
-        vm.prank(to);
-        lender.creditCourier(id, to);
 
         deal(address(asset), address(lender), amount);
         vm.prank(caller);
-        lender.deposit(amount / 2, to);
+        lender.deposit(amount / 2, to, id);
 
         assertEq(lender.courierOf(to), id);
         assertEq(lender.principleOf(to), amount / 2);
@@ -204,27 +206,26 @@ contract LenderReferralsTest is Test {
         address wallet,
         uint16 cut,
         address caller,
-        address to,
         uint104 amount
     ) public {
         // MARK: Start by doing everything that `test_depositDoesIncreasePrinciple` does
 
         vm.assume(amount > 1);
         (id, wallet, cut) = _enroll(id, wallet, cut);
+        address to = caller;
+
         if (to == wallet || to == address(lender)) return;
 
         if (to == wallet || to == lender.RESERVE()) {
             vm.prank(to);
             vm.expectRevert(bytes(""));
-            lender.creditCourier(id, to);
+            lender.deposit(amount, to, id);
             return;
         }
-        vm.prank(to);
-        lender.creditCourier(id, to);
 
         deal(address(asset), address(lender), amount);
         vm.prank(caller);
-        lender.deposit(amount / 2, to);
+        lender.deposit(amount / 2, to, id);
 
         uint256 val = uint256(vm.load(address(lender), bytes32(uint256(1))));
         val += ((amount / 4) * uint256(type(uint72).max));
