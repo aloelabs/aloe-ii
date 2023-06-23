@@ -34,7 +34,7 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
 
     function callback(bytes calldata data, address owner) external returns (uint144 positions) {
         // We cast `msg.sender` as a `Borrower`, but it could really be anything. DO NOT TRUST!
-        Borrower account = Borrower(msg.sender);
+        Borrower account = Borrower(payable(msg.sender));
 
         // Decoding `data` can't hurt
         uint8[] memory actions;

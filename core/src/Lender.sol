@@ -93,6 +93,18 @@ contract Lender is Ledger {
     }
 
     /*//////////////////////////////////////////////////////////////
+                                REWARDS
+    //////////////////////////////////////////////////////////////*/
+
+    function claimRewards(address owner) external returns (uint112 earned) {
+        // All claims are made through the `FACTORY`
+        require(msg.sender == address(FACTORY));
+
+        (Rewards.Storage storage s, uint144 a) = Rewards.load();
+        earned = Rewards.claim(s, a, owner, balanceOf(owner));
+    }
+
+    /*//////////////////////////////////////////////////////////////
                         DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
 
