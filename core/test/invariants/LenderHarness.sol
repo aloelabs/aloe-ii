@@ -56,13 +56,13 @@ contract LenderHarness {
 
     /// @notice Creates a new courier (referrer) with the given values
     /// @dev Does not bound inputs without first verifying that the unbounded ones revert
-    function enrollCourier(uint32 id, address wallet, uint16 cut) public {
+    function enrollCourier(uint32 id, uint16 cut) public {
         Factory factory = LENDER.FACTORY();
         // Check that inputs are properly formatted
         if (id == 0 || cut == 0 || cut >= 10_000) {
             vm.prank(msg.sender);
             vm.expectRevert();
-            factory.enrollCourier(id, wallet, cut);
+            factory.enrollCourier(id, cut);
         }
         if (id == 0) id = 1;
         cut = (cut % 9_999) + 1;
@@ -72,7 +72,7 @@ contract LenderHarness {
         if (currentCut != 0) {
             vm.prank(msg.sender);
             vm.expectRevert();
-            factory.enrollCourier(id, wallet, cut);
+            factory.enrollCourier(id, cut);
 
             assert(alreadyEnrolledCourier[id]);
             return;
@@ -80,11 +80,11 @@ contract LenderHarness {
 
         // Actual action
         vm.prank(msg.sender);
-        factory.enrollCourier(id, wallet, cut);
+        factory.enrollCourier(id, cut);
 
         // Assertions
         (address actualWallet, uint16 actualCut) = factory.couriers(id);
-        require(actualWallet == wallet, "enrollCourier: failed to set wallet");
+        require(actualWallet == msg.sender, "enrollCourier: failed to set wallet");
         require(actualCut == cut, "enrollCourier: failed to set cut");
 
         // {HARNESS BOOKKEEPING} Keep courierIds up-to-date
@@ -93,9 +93,9 @@ contract LenderHarness {
         alreadyEnrolledCourier[id] = true;
 
         // {HARNESS BOOKKEEPING} Keep holders up-to-date
-        if (!alreadyHolder[wallet]) {
-            holders.push(wallet);
-            alreadyHolder[wallet] = true;
+        if (!alreadyHolder[msg.sender]) {
+            holders.push(msg.sender);
+            alreadyHolder[msg.sender] = true;
         }
     }
 
@@ -510,7 +510,8 @@ contract LenderHarness {
     //////////////////////////////////////////////////////////////*/
 
     function enrollReserveAsCourier(uint32 i, uint16 cut) external {
-        enrollCourier(i, LENDER.RESERVE(), cut);
+        vm.prank(LENDER.RESERVE());
+        this.enrollCourier(i, cut);
     }
 
     function creditCourierForReserve(uint16 i) external {

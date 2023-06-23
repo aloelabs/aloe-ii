@@ -33,7 +33,7 @@ contract ERC4626InvariantsTest is Test {
     function setUp() public {
         {
             asset = new MockERC20("Token", "TKN", 18); // TODO: replace 18 with an env var
-            address lenderImplementation = address(new Lender(address(2), ERC20(address(0))));
+            address lenderImplementation = address(new Lender(address(2)));
             Lender lender = Lender(ClonesWithImmutableArgs.clone(
                 lenderImplementation,
                 abi.encodePacked(address(asset))

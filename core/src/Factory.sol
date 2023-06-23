@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import {Clones} from "clones-with-immutable-args/Clones.sol";
 import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
-import {ERC20} from "solmate/tokens/ERC20.sol";
+import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {DEFAULT_ANTE, DEFAULT_N_SIGMA} from "./libraries/constants/Constants.sol";
@@ -18,6 +18,7 @@ import {VolatilityOracle} from "./VolatilityOracle.sol";
 /// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract Factory {
     using ClonesWithImmutableArgs for address;
+    using SafeTransferLib for ERC20;
 
     event CreateMarket(IUniswapV3Pool indexed pool, Lender lender0, Lender lender1);
 
@@ -39,6 +40,8 @@ contract Factory {
     VolatilityOracle public immutable ORACLE;
 
     IRateModel public immutable RATE_MODEL;
+
+    ERC20 public immutable REWARDS_TOKEN;
 
     address public immutable lenderImplementation;
 
@@ -63,6 +66,8 @@ contract Factory {
 
     mapping(uint32 => Courier) public couriers;
 
+    mapping(address => bool) public isCourier;
+
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
@@ -70,7 +75,9 @@ contract Factory {
     constructor(VolatilityOracle oracle, IRateModel rateModel, ERC20 rewardsToken) {
         ORACLE = oracle;
         RATE_MODEL = rateModel;
-        lenderImplementation = address(new Lender(address(this), rewardsToken));
+        REWARDS_TOKEN = rewardsToken;
+
+        lenderImplementation = address(new Lender(address(this)));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -111,10 +118,19 @@ contract Factory {
     }
 
     /*//////////////////////////////////////////////////////////////
-                               INCENTIVES
+                               REFERRALS
     //////////////////////////////////////////////////////////////*/
 
-    function enrollCourier(uint32 id, address wallet, uint16 cut) external {
+    /**
+     * @notice Enrolls `msg.sender` in the referral program. This allows frontends/wallets/apps to
+     * credit themselves for a given user's deposit, and receive a portion of their interest. Note
+     * that after enrolling, `msg.sender` will not be eligible for `REWARDS_TOKEN` rewards.
+     * @dev See `Lender.creditCourier`
+     * @param id A unique identifier for the courier
+     * @param cut The portion of interest the courier will receive. Should be in the range [0, 10000),
+     * with 10000 being 100%.
+     */
+    function enrollCourier(uint32 id, uint16 cut) external {
         // Requirements:
         // - `id != 0` because 0 is reserved as the no-courier case
         // - `cut != 0 && cut < 10_000` just means between 0 and 100%
@@ -122,8 +138,28 @@ contract Factory {
         // Once an `id` has been enrolled, its info can't be changed
         require(couriers[id].cut == 0);
 
-        couriers[id] = Courier(wallet, cut);
+        couriers[id] = Courier(msg.sender, cut);
+        isCourier[msg.sender] = true;
 
-        emit EnrollCourier(id, wallet, cut);
+        emit EnrollCourier(id, msg.sender, cut);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                REWARDS
+    //////////////////////////////////////////////////////////////*/
+
+    function claimRewards(Lender[] calldata lenders, address beneficiary) external returns (uint256 earned) {
+        // Couriers cannot claim rewards because the accounting isn't quite correct for them -- we save gas
+        // by omitting a `Rewards.updateUserState` call for the courier in `Lender._burn`
+        require(!isCourier[msg.sender]);
+
+        unchecked {
+            uint256 count = lenders.length;
+            for (uint256 i = 0; i < count; i++) {
+                earned += lenders[i].claimRewards(msg.sender);
+            }
+        }
+
+        REWARDS_TOKEN.safeTransfer(beneficiary, earned);
     }
 }

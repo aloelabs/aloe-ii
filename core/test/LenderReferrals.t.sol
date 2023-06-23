@@ -36,8 +36,9 @@ contract LenderReferralsTest is Test {
         vm.assume(id != 0);
 
         Factory factory = lender.FACTORY();
+        vm.prank(wallet);
         vm.expectRevert(bytes(""));
-        factory.enrollCourier(id, wallet, 0);
+        factory.enrollCourier(id, 0);
     }
 
     function test_cannotSetCutAbove10000(uint32 id, address wallet, uint16 cut) public {
@@ -45,16 +46,18 @@ contract LenderReferralsTest is Test {
         if (cut < 10_000) cut += 10_000;
 
         Factory factory = lender.FACTORY();
+        vm.prank(wallet);
         vm.expectRevert(bytes(""));
-        factory.enrollCourier(id, wallet, cut);
+        factory.enrollCourier(id, cut);
     }
 
     function test_cannotEnrollId0(address wallet, uint16 cut) public {
         vm.assume(cut != 0);
 
         Factory factory = lender.FACTORY();
+        vm.prank(wallet);
         vm.expectRevert(bytes(""));
-        factory.enrollCourier(0, wallet, cut);
+        factory.enrollCourier(0, cut);
     }
 
     function test_cannotEditCourierCut(uint32 id, address wallet, uint16 cutA, uint16 cutB) public {
@@ -67,9 +70,11 @@ contract LenderReferralsTest is Test {
 
         Factory factory = lender.FACTORY();
 
-        factory.enrollCourier(id, wallet, cutA);
+        vm.prank(wallet);
+        factory.enrollCourier(id, cutA);
+        vm.prank(wallet);
         vm.expectRevert(bytes(""));
-        factory.enrollCourier(id, wallet, cutB);
+        factory.enrollCourier(id, cutB);
     }
 
     function test_cannotEditCourierWallet(uint32 id, address walletA, address walletB, uint16 cut) public {
@@ -79,9 +84,11 @@ contract LenderReferralsTest is Test {
 
         Factory factory = lender.FACTORY();
 
-        factory.enrollCourier(id, walletA, cut);
+        vm.prank(walletA);
+        factory.enrollCourier(id, cut);
+        vm.prank(walletB);
         vm.expectRevert(bytes(""));
-        factory.enrollCourier(id, walletB, cut);
+        factory.enrollCourier(id, cut);
     }
 
     function test_canCreditCourier(uint32 id, address wallet, uint16 cut) public {
@@ -271,7 +278,9 @@ contract LenderReferralsTest is Test {
         vm.assume(id != 0);
         vm.assume(cut != 0);
 
-        lender.FACTORY().enrollCourier(id, wallet, cut);
+        Factory factory = lender.FACTORY();
+        vm.prank(wallet);
+        factory.enrollCourier(id, cut);
 
         return (id, wallet, cut);
     }

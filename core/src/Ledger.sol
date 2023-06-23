@@ -23,8 +23,6 @@ contract Ledger {
 
     address public immutable RESERVE;
 
-    ERC20 public immutable REWARDS_TOKEN;
-
     struct Cache {
         uint256 totalSupply;
         uint256 lastBalance;
@@ -81,10 +79,9 @@ contract Ledger {
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address reserve, ERC20 rewardsToken) {
+    constructor(address reserve) {
         FACTORY = Factory(msg.sender);
         RESERVE = reserve;
-        REWARDS_TOKEN = rewardsToken;
     }
 
     /// @notice Returns true if this contract implements the interface defined by `interfaceId`
