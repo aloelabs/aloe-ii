@@ -258,6 +258,7 @@ contract LenderHarness {
         uint32 courierId = LENDER.courierOf(owner);
         (address courier, ) = LENDER.FACTORY().couriers(courierId);
         uint256 courierSharesBefore = LENDER.balanceOf(courier);
+        uint256 principleBefore = LENDER.principleOf(owner);
 
         // Actual action
         if (amount == 0) {
@@ -274,8 +275,10 @@ contract LenderHarness {
         uint256 newReserves = LENDER.totalSupply() - (totalSupply - shares); // implicit assertion!
         uint256 reservesAfter = LENDER.balanceOf(LENDER.RESERVE());
         uint256 fee = courierId == 0 ? 0 : LENDER.balanceOf(courier) - courierSharesBefore;
+        if (courier == LENDER.RESERVE()) fee -= newReserves;
 
         // Assertions
+        require(LENDER.principleOf(owner) <= principleBefore, "redeem: principle issue");
         require(LENDER.lastBalance() == lastBalance - amount, "redeem: lastBalance mismatch");
         if (recipient != address(LENDER)) {
             require(LENDER.asset().balanceOf(recipient) == assetsBefore + amount, "redeem: transfer issue");
@@ -530,6 +533,15 @@ contract LenderHarness {
 
     function redeemWithLenderAsAssetReceiver(uint112 shares, address owner) external returns (uint256 amount) {
         amount = redeem(shares, address(LENDER), owner);
+    }
+
+    function redeemWithLenderAsAssetReceiverAndCourier(uint112 shares, uint16 i) external returns (uint256 amount) {
+        if (LENDER.courierOf(address(0)) != 0) {
+            amount = redeem(shares, address(LENDER), address(0));
+        } else {
+            uint256 count = courierIds.length;
+            if (count != 0) creditCourier(courierIds[i % count], address(0));
+        }
     }
 
     function borrowWithLenderAsAssetReceiver(uint112 amount) external returns (uint256 units) {

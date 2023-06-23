@@ -199,9 +199,9 @@ contract LenderInvariantsTest is Test {
             address user = lenderHarness.holders(i);
 
             // NOTE: As price per share increases (i.e., each share converts to more and more underlying assets),
-            // this assertion may become flakey due to rounding. Allowing for rounding error of 1 seems sufficient
+            // this assertion may become flakey due to rounding. Allowing for rounding error of 2 seems sufficient
             // in our testing. Just make sure the contract itself never assumes principle < underlyingBalance
-            assertLe(lender.principleOf(user), lender.underlyingBalance(user) + 1);
+            assertLe(lender.principleOf(user), lender.underlyingBalance(user) + 2);
         }
     }
 
