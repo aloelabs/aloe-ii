@@ -12,11 +12,11 @@ contract WithdrawManager is IManager {
         (uint256 amount0, uint256 amount1, address recipient) = abi.decode(data, (uint256, uint256, address));
 
         if (amount0 > 0) {
-            Borrower(msg.sender).TOKEN0().safeTransferFrom(msg.sender, recipient, amount0);
+            Borrower(payable(msg.sender)).TOKEN0().safeTransferFrom(msg.sender, recipient, amount0);
         }
 
         if (amount1 > 0) {
-            Borrower(msg.sender).TOKEN1().safeTransferFrom(msg.sender, recipient, amount1);
+            Borrower(payable(msg.sender)).TOKEN1().safeTransferFrom(msg.sender, recipient, amount1);
         }
 
         // Return 0 to indicate we don't want to change Uniswap positions
