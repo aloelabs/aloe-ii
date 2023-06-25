@@ -131,11 +131,12 @@ contract LenderReferralsTest is Test {
     }
 
     function test_cannotCreditCourierBeforeEnrollment(uint32 id, address account) public {
+        vm.assume(id != 0);
         vm.prank(account);
         lender.approve(address(this), 1);
 
         vm.expectRevert(bytes("Aloe: courier"));
-        lender.deposit(0, account, id);
+        lender.deposit(1, account, id);
     }
 
     function test_cannotCreditCourierAfterAcquiringTokens(
@@ -144,15 +145,17 @@ contract LenderReferralsTest is Test {
         uint16 cut,
         address account
     ) public {
+        vm.assume(wallet != account);
         (id, wallet, cut) = _enroll(id, wallet, cut);
 
         vm.prank(account);
         lender.approve(address(this), 1);
 
         deal(address(lender), account, 1);
+        deal(address(asset), address(lender), 1);
 
-        vm.expectRevert(bytes("Aloe: courier"));
-        lender.deposit(0, account, id);
+        lender.deposit(1, account, id);
+        assertEq(lender.courierOf(account), 0);
     }
 
     function test_depositDoesIncreasePrinciple(

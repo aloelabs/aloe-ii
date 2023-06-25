@@ -29,10 +29,9 @@ contract Router {
         bytes32 s
     ) external returns (uint256 shares) {
         lender.permit(msg.sender, address(this), 1, deadline, v, r, s);
-        lender.creditCourier(courierId, msg.sender);
 
         lender.asset().safeTransferFrom(msg.sender, address(lender), amount);
-        shares = lender.deposit(amount, msg.sender);
+        shares = lender.deposit(amount, msg.sender, courierId);
     }
 
     function depositWithPermit(
@@ -70,10 +69,9 @@ contract Router {
         }
 
         lender.permit(msg.sender, address(this), 1, deadline, vL, rL, sL);
-        lender.creditCourier(courierId, msg.sender);
 
         lender.asset().safeTransferFrom(msg.sender, address(lender), amount);
-        shares = lender.deposit(amount, msg.sender);
+        shares = lender.deposit(amount, msg.sender, courierId);
     }
 
     function depositWithPermit2(
