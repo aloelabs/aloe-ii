@@ -52,6 +52,41 @@ contract LenderTest is Test {
         lender.whitelist(borrower);
     }
 
+    function test_maxRateForOneYear() public {
+        vm.warp(1);
+
+        deal(address(asset), address(lender), 1e18);
+        lender.deposit(1e18, address(this));
+
+        vm.prank(address(lender.FACTORY()));
+        lender.whitelist(address(this));
+        lender.borrow(0.1e18, address(this));
+
+        // As interest accrues, utilization rate changes, so we mock _any_ call to getYieldPerSecond
+        vm.mockCall(
+            address(lender.rateModel()),
+            abi.encodeWithSelector(RateModel.getYieldPerSecond.selector),
+            abi.encode(type(uint256).max)
+        );
+
+        uint72 prevIndex = lender.borrowIndex();
+
+        for (uint256 i = 1; i < 53; i++) {
+            vm.warp(1 weeks * i);
+            lender.accrueInterest();
+
+            // At MAX_RATE, expect growth of +53% per week
+            uint72 currIndex = lender.borrowIndex();
+            assertApproxEqRel(uint256(currIndex) * 1e18 / prevIndex, 1.5329e18, 0.0001e18);
+            prevIndex = currIndex;
+        }
+
+        // 52 weeks per year, so at 53 weeks we expect failure
+        vm.warp(1 weeks * 53);
+        vm.expectRevert();
+        lender.accrueInterest();
+    }
+
     function test_accrueInterest(uint256 yieldPerSecond) public {
         // Give this test contract some shares
         deal(address(asset), address(lender), 2e18);
@@ -97,8 +132,8 @@ contract LenderTest is Test {
             epsilon,
             18
         );
-        // Make sure `borrowIndex` is just as precise as `accrualFactor`
-        if (yieldPerSecond > 1e12) assertGt(lender.borrowIndex(), 1e12);
+        // Make sure `borrowIndex` is just as precise as `yieldPerSecond` and `accrualFactor`
+        if (yieldPerSecond > 0) assertGt(lender.borrowIndex(), 1e12);
 
         assertEq(lender.lastAccrualTime(), block.timestamp);
         assertLeDecimal(stdMath.delta(lender.underlyingBalance(lender.RESERVE()), reserves), epsilon, 18);

@@ -81,29 +81,6 @@ contract Lender is Ledger {
     }
 
     /*//////////////////////////////////////////////////////////////
-                               REFERRALS
-    //////////////////////////////////////////////////////////////*/
-
-    function creditCourier(uint32 id, address account) external {
-        // Callers are free to set their own courier, but they need permission to mess with others'
-        require(msg.sender == account || allowance[account][msg.sender] != 0);
-
-        // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
-        require(account != RESERVE);
-
-        // Payout logic can't handle self-reference, so don't let accounts credit themselves
-        (address courier, uint16 cut) = FACTORY.couriers(id);
-        require(cut != 0 && courier != account);
-
-        // Only set courier if account balance is 0. Otherwise a previous courier may
-        // be cheated out of their fees.
-        require(balanceOf(account) == 0);
-        balances[account] = uint256(id) << 224;
-
-        emit CreditCourier(id, account);
-    }
-
-    /*//////////////////////////////////////////////////////////////
                                 REWARDS
     //////////////////////////////////////////////////////////////*/
 
@@ -119,7 +96,23 @@ contract Lender is Ledger {
                         DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function deposit(uint256 amount, address beneficiary) public returns (uint256 shares) {
+    function deposit(uint256 amount, address beneficiary, uint32 courierId) public returns (uint256 shares) {
+        if (courierId != 0) {
+            (address courier, uint16 cut) = FACTORY.couriers(courierId);
+
+            require(
+                // Callers are free to set their own courier, but they need permission to mess with others'
+                (msg.sender == beneficiary || allowance[beneficiary][msg.sender] != 0) &&
+                    // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
+                    (beneficiary != RESERVE) &&
+                    // Payout logic can't handle self-reference, so don't let accounts credit themselves
+                    (beneficiary != courier) &&
+                    // Make sure `cut` has been set
+                    (cut != 0),
+                "Aloe: courier"
+            );
+        }
+
         // Accrue interest and update reserves
         (Cache memory cache, uint256 inventory) = _load();
 
@@ -128,7 +121,7 @@ contract Lender is Ledger {
         require(shares != 0, "Aloe: zero impact");
 
         // Mint shares, track rewards, and (if applicable) handle courier accounting
-        cache.totalSupply = _mint(beneficiary, shares, amount, cache.totalSupply);
+        cache.totalSupply = _mint(beneficiary, shares, amount, cache.totalSupply, courierId);
         // Assume tokens are transferred
         cache.lastBalance += amount;
 
@@ -145,9 +138,13 @@ contract Lender is Ledger {
         emit Deposit(msg.sender, beneficiary, amount, shares);
     }
 
+    function deposit(uint256 amount, address beneficiary) external returns (uint256 shares) {
+        shares = deposit(amount, beneficiary, 0);
+    }
+
     function mint(uint256 shares, address beneficiary) external returns (uint256 amount) {
         amount = previewMint(shares);
-        deposit(amount, beneficiary);
+        deposit(amount, beneficiary, 0);
     }
 
     function redeem(uint256 shares, address recipient, address owner) public returns (uint256 amount) {
@@ -375,7 +372,8 @@ contract Lender is Ledger {
         address to,
         uint256 shares,
         uint256 amount,
-        uint256 totalSupply_
+        uint256 totalSupply_,
+        uint32 courierId
     ) private returns (uint256 newTotalSupply) {
         // Need to compute `newTotalSupply` with checked math to avoid overflow
         newTotalSupply = totalSupply_ + shares;
@@ -393,6 +391,12 @@ contract Lender is Ledger {
             (Rewards.Storage storage s, uint144 a) = Rewards.load();
             Rewards.updatePoolState(s, a, newTotalSupply);
             Rewards.updateUserState(s, a, to, data % Q112);
+
+            // Only set courier if balance is 0. Otherwise previous courier may be cheated out of fees.
+            if (data % Q112 == 0) {
+                data = uint256(courierId) << 224;
+                emit CreditCourier(courierId, to);
+            }
 
             // Keep track of principle iff `to` has a courier
             if (data >> 224 != 0) {
@@ -483,7 +487,7 @@ contract Lender is Ledger {
 
         // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
         if (newTotalSupply > cache.totalSupply) {
-            cache.totalSupply = _mint(RESERVE, newTotalSupply - cache.totalSupply, 0, cache.totalSupply);
+            cache.totalSupply = _mint(RESERVE, newTotalSupply - cache.totalSupply, 0, cache.totalSupply, 0);
         }
     }
 

@@ -59,7 +59,7 @@ contract LenderGasTest is Test {
         vm.prank(alice);
         asset.approve(address(this), type(uint256).max);
 
-        // `alice` allows this test contract to manage his WETH+
+        // `alice` allows this test contract to manage her WETH+
         vm.prank(alice);
         lender.approve(address(this), type(uint256).max);
 
@@ -68,12 +68,9 @@ contract LenderGasTest is Test {
         vm.prank(address(12345));
         factory.enrollCourier(1, 1000);
 
-        // `alice` credits courier#1
-        lender.creditCourier(1, alice);
-
-        // `alice` deposits 0.5 WETH
+        // `alice` deposits 0.5 WETH, crediting courier#1
         asset.transferFrom(alice, address(lender), 0.5e18);
-        lender.deposit(0.5e18, alice);
+        lender.deposit(0.5e18, alice, 1);
 
         skip(3600); // seconds
         lender.accrueInterest();
