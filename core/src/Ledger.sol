@@ -134,6 +134,20 @@ contract Ledger {
         }
     }
 
+    function interestRate() external view returns (uint256 rate) {
+        unchecked {
+            Cache memory cache = _getCache();
+
+            uint256 oldBorrows = (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
+            uint256 oldInventory = cache.lastBalance + oldBorrows;
+
+            rate = rateModel.getYieldPerSecond({
+                utilization: (1e18 * oldBorrows) / oldInventory,
+                lender: address(this)
+            });
+        }
+    }
+
     function rewardsRate() external view returns (uint112 rate) {
         (Rewards.Storage storage s, ) = Rewards.load();
         rate = s.poolState.rate;
