@@ -6,5 +6,8 @@ cache/
 build/
 broadcast/
 
+# Gambit
+gambit_out/
+
 *.env
 lcov.info
