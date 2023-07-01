@@ -38,14 +38,19 @@ contract Ledger {
     /// @dev Doesn't include reserve inflation. If you want that, use `stats()`
     uint112 public totalSupply;
 
+    /// @dev Used in lieu of `asset.balanceOf` to prevent inflation attacks
     uint112 public lastBalance;
 
+    /// @dev The last `block.timestamp` at which interest accrued
     uint32 public lastAccrualTime;
 
+    /// @dev The principle of all outstanding loans as if they were taken out at `borrowIndex = ONE`
     uint184 public borrowBase;
 
+    /// @dev Tracks all-time growth of borrow interest. Starts at `ONE` and increases monotonically over time
     uint72 public borrowIndex;
 
+    /// @dev The principle of a given user's loan as if it was taken out at `borrowIndex = ONE`
     mapping(address => uint256) public borrows;
 
     /*//////////////////////////////////////////////////////////////
@@ -134,20 +139,23 @@ contract Ledger {
         }
     }
 
-    function rewardsRate() external view returns (uint112 rate) {
-        (Rewards.Storage storage s, ) = Rewards.load();
-        rate = s.poolState.rate;
+    /// @notice The rewards rate, specified as [token units per second]
+    function rewardsRate() external view returns (uint56 rate) {
+        rate = Rewards.getRate();
     }
 
-    function rewardsOf(address account) external view returns (uint144) {
+    /// @notice All rewards earned by `account` that have not yet been paid out
+    function rewardsOf(address account) external view returns (uint112) {
         (Rewards.Storage storage s, uint144 a) = Rewards.load();
         return Rewards.previewUserState(s, a, account, balanceOf(account)).earned;
     }
 
+    /// @notice The ID of the referrer associated with `account`'s deposit. If 0, they have no courier.
     function courierOf(address account) external view returns (uint32) {
         return uint32(balances[account] >> 224);
     }
 
+    /// @notice The lending principle of `account`. Only tracked if they have a courier
     function principleOf(address account) external view returns (uint256) {
         return (balances[account] >> 112) % Q112;
     }
