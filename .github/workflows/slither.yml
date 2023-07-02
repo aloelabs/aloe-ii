@@ -19,8 +19,8 @@ jobs:
         id: run-slither
         with:
           target: 'core/'
-          sarif: slither.results.sarif
           fail-on: none
+          slither-args: --config-file core/slither.config.json
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v2
