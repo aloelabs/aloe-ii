@@ -1,0 +1,13 @@
+{
+    "detectors_to_exclude": "assembly,weak-prng,unused-return,solc-version",
+    "exclude_informational": false,
+    "exclude_low": false,
+    "exclude_medium": false,
+    "exclude_high": false,
+    "sarif": "slither.results.sarif",
+    "disable_color": false,
+    "filter_paths": "(lib/|script/|test/)",
+    "legacy_ast": false,
+    "foundry_out_directory": "build",
+    "skip_clean": true
+}
