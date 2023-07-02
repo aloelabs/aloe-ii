@@ -131,6 +131,10 @@ library Rewards {
         accumulator = _accumulate(store.poolState);
     }
 
+    function getRate() internal view returns (uint56) {
+        return _getStorage().poolState.rate;
+    }
+
     /// @dev Accumulates rewards based on the current `rate` and time elapsed since last update
     function _accumulate(PoolState memory poolState) private view returns (uint144) {
         unchecked {

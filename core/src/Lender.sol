@@ -96,6 +96,15 @@ contract Lender is Ledger {
                         DEPOSIT/WITHDRAWAL LOGIC
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @notice Mints `shares` to `beneficiary` by depositing exactly `amount` of underlying tokens
+     * @dev `deposit` is more efficient than `mint` and is the recommended way of depositing. Also
+     * supports the additional flow where you prepay `amount` instead of relying on approve/transferFrom.
+     * @param amount The amount of underlying tokens to deposit
+     * @param beneficiary The receiver of `shares`
+     * @param courierId The identifier of the referrer to credit for this deposit. 0 indicates none.
+     * @return shares The number of shares (banknotes) minted to `beneficiary`
+     */
     function deposit(uint256 amount, address beneficiary, uint32 courierId) public returns (uint256 shares) {
         if (courierId != 0) {
             (address courier, uint16 cut) = FACTORY.couriers(courierId);
@@ -147,6 +156,15 @@ contract Lender is Ledger {
         deposit(amount, beneficiary, 0);
     }
 
+    /**
+     * @notice Burns `shares` from `owner` and sends `amount` of underlying tokens to `receiver`. If
+     * `owner` has a courier, additional shares will be transferred from `owner` to the courier as a fee.
+     * @dev `redeem` is more efficient than `withdraw` and is the recommended way of withdrawing
+     * @param shares The number of shares to burn in exchange for underlying tokens
+     * @param recipient The receiver of `amount` of underlying tokens
+     * @param owner The user from whom shares are taken (for both the burn and possible fee transfer)
+     * @return amount The number of underlying tokens transferred to `recipient`
+     */
     function redeem(uint256 shares, address recipient, address owner) public returns (uint256 amount) {
         if (msg.sender != owner) {
             uint256 allowed = allowance[owner][msg.sender];
