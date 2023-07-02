@@ -21,8 +21,9 @@ jobs:
           target: 'core/'
           fail-on: none
           slither-args: --config-file core/slither.config.json
+          sarif: slither.results.sarif
 
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v2
         with:
-          sarif_file: 'core/slither.results.sarif'
+          sarif_file: ${{ steps.run-slither.outputs.sarif }}
