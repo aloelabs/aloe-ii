@@ -9,5 +9,8 @@ broadcast/
 # Gambit
 gambit_out/
 
+# Slither
+slither.results.sarif
+
 *.env
 lcov.info

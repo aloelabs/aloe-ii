@@ -1,3 +1,5 @@
+#!/bin/bash
+
 gambit mutate --json gambit.json
 
 for OUTPUT in $(ls gambit_out/mutants)
