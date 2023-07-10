@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.17;
 
-import "openzeppelin-contracts/token/ERC721/extensions/IERC721Metadata.sol";
-import "openzeppelin-contracts/token/ERC721/extensions/IERC721Enumerable.sol";
+import "openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Metadata.sol";
+import "openzeppelin-contracts/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
 
 import {IERC721Permit} from "./IERC721Permit.sol";
 

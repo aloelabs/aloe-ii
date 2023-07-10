@@ -1,7 +1,2 @@
-clones-with-immutable-args/=core/lib/clones-with-immutable-args/src/
-openzeppelin-contracts/=core/lib/openzeppelin-contracts/contracts/
-solmate/=core/lib/solmate/src/
-v3-core/=core/lib/v3-core/
-
 aloe-ii-core/=core/src/
 aloe-ii-periphery/=periphery/src/

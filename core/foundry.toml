@@ -18,7 +18,7 @@ remappings = [
     'forge-std/=lib/forge-std/src/',
 
     'clones-with-immutable-args/=lib/clones-with-immutable-args/src/',
-    'openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/',
+    'openzeppelin-contracts/=lib/openzeppelin-contracts/',
     'solmate/=lib/solmate/src/',
     'v3-core/=lib/v3-core/'
 ]
