@@ -12,9 +12,15 @@ optimizer = true
 optimizer_runs = 4294967295
 gas_reports = []
 
-auto_detect_remappings = true
+auto_detect_remappings = false
 remappings = [
+    'ds-test/=lib/forge-std/lib/ds-test/src/',
+    'forge-std/=lib/forge-std/src/',
+
+    'clones-with-immutable-args/=lib/clones-with-immutable-args/src/',
     'openzeppelin-contracts/=lib/openzeppelin-contracts/contracts/',
+    'solmate/=lib/solmate/src/',
+    'v3-core/=lib/v3-core/'
 ]
 
 [fuzz]
