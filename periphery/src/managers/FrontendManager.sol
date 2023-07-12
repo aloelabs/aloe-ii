@@ -96,7 +96,7 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
             // remove liquidity
             if (action == 5) {
                 (int24 lower, int24 upper, uint128 liquidity) = abi.decode(args[i], (int24, int24, uint128));
-                account.uniswapWithdraw(lower, upper, liquidity);
+                account.uniswapWithdraw(lower, upper, liquidity, msg.sender);
                 continue;
             }
 
