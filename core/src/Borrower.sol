@@ -252,11 +252,11 @@ contract Borrower is IUniswapV3MintCallback {
     /**
      * @notice Allows the owner to manage their account by handing control to some `callee`. Inside the
      * callback `callee` has access to all sub-commands (`uniswapDeposit`, `uniswapWithdraw`, `borrow`,
-     * and `repay`) and if `allowances` are set, it also has permission to transfer ERC20s. Whatever
-     * `callee` does, the account MUST be healthy after the callback.
+     * `repay`, and `withdrawAnte`) and if `allowances` are set, it also has permission to transfer ERC20s.
+     * Whatever `callee` does, the account MUST be healthy after the callback.
      * @param callee The smart contract that will get temporary control of this account
      * @param data Encoded parameters that get forwarded to `callee`
-     * @param allowances Whether to approve `callee` to transfer ERC20s. The first entry is for `TOKEN0`,
+     * @param allowances Whether to approve `callee` to transfer ERC20s. The 1st entry is for `TOKEN0`,
      * and the 2nd is for `TOKEN1`.
      */
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external payable {
