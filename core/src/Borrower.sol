@@ -10,7 +10,7 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
 import {Q96} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
-import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
+import {LiquidityAmounts, mulDiv96} from "./libraries/LiquidityAmounts.sol";
 import {Positions} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 
@@ -216,7 +216,7 @@ contract Borrower is IUniswapV3MintCallback {
                 // NOTE: This value is not constrained to `TOKEN1.balanceOf(address(this))`, so liquidators
                 // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
                 // be an issue unless the borrower has already started accruing bad debt.
-                uint256 available1 = Math.mulDiv(liabilities0, priceX96, Q96) + incentive1;
+                uint256 available1 = mulDiv96(liabilities0, priceX96) + incentive1;
 
                 TOKEN1.safeTransfer(address(callee), available1);
                 callee.swap1For0(data, available1, liabilities0);
