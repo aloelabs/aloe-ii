@@ -7,11 +7,23 @@ function msb(uint256 x) pure returns (uint256 y) {
         y := shl(7, lt(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, x))
         y := or(y, shl(6, lt(0xFFFFFFFFFFFFFFFF, shr(y, x))))
         y := or(y, shl(5, lt(0xFFFFFFFF, shr(y, x))))
-        y := or(y, shl(4, lt(0xFFFF, shr(y, x))))
-        y := or(y, shl(3, lt(0xFF, shr(y, x))))
-        y := or(y, shl(2, lt(0xF, shr(y, x))))
-        y := or(y, shl(1, lt(0x3, shr(y, x))))
-        y := or(y, lt(0x1, shr(y, x)))
+
+        // For the remaining 32 bits, use a De Bruijn lookup.
+        // See: https://graphics.stanford.edu/~seander/bithacks.html
+        x := shr(y, x)
+        x := or(x, shr(1, x))
+        x := or(x, shr(2, x))
+        x := or(x, shr(4, x))
+        x := or(x, shr(8, x))
+        x := or(x, shr(16, x))
+
+        y := or(
+            y,
+            byte(
+                shr(251, mul(x, shl(224, 0x07c4acdd))),
+                0x0009010a0d15021d0b0e10121619031e080c141c0f111807131b17061a05041f
+            )
+        )
     }
 }
 

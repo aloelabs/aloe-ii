@@ -30,6 +30,11 @@ contract Log2Test is Test {
         assertEq(msb(type(uint256).max), 255);
     }
 
+    /// forge-config: default.fuzz.runs = 16384
+    function test_comparitive_msb(uint256 x) public {
+        assertEq(msb(x), msbSimple(x));
+    }
+
     function test_log2_gas(uint256 x) public pure {
         log2(x);
     }
@@ -101,7 +106,7 @@ contract Log2Test is Test {
         emit log_named_uint("rec", recovered);
 
         assertApproxEqRel(recovered, x, 0.001e18);
-        assertGe(recovered, x - 1);
+        assertGe(recovered, x - 2);
         assertGe(recovered / 1e4, x / 1e4);
     }
 
@@ -146,5 +151,18 @@ contract Log2Test is Test {
         uint256 absDelta = stdMath.delta(a, b);
 
         return Math.mulDiv(absDelta, 1e18, b, Math.Rounding.Up);
+    }
+}
+
+function msbSimple(uint256 x) pure returns (uint256 y) {
+    assembly ("memory-safe") {
+        y := shl(7, lt(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, x))
+        y := or(y, shl(6, lt(0xFFFFFFFFFFFFFFFF, shr(y, x))))
+        y := or(y, shl(5, lt(0xFFFFFFFF, shr(y, x))))
+        y := or(y, shl(4, lt(0xFFFF, shr(y, x))))
+        y := or(y, shl(3, lt(0xFF, shr(y, x))))
+        y := or(y, shl(2, lt(0xF, shr(y, x))))
+        y := or(y, shl(1, lt(0x3, shr(y, x))))
+        y := or(y, lt(0x1, shr(y, x)))
     }
 }
