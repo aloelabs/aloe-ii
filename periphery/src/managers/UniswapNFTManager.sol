@@ -36,10 +36,7 @@ contract UniswapNFTManager is IManager {
         // move position from NonfungiblePositionManager to Borrower
         if (liquidity < 0) {
             // safety checks since this contract will be approved to manager users' positions
-            {
-                require(FACTORY.isBorrower(msg.sender));
-                require(owner == NFT_MANAGER.ownerOf(tokenId));
-            }
+            require(FACTORY.isBorrower(msg.sender) && owner == NFT_MANAGER.ownerOf(tokenId));
 
             _withdrawFromNFT(tokenId, uint128(-liquidity), msg.sender);
             borrower.uniswapDeposit(lower, upper, uint128(-liquidity));
@@ -49,9 +46,12 @@ contract UniswapNFTManager is IManager {
             ERC20 token0 = borrower.TOKEN0();
             ERC20 token1 = borrower.TOKEN1();
 
-            (uint256 burned0, uint256 burned1, , ) = borrower.uniswapWithdraw(lower, upper, uint128(liquidity));
-            token0.safeTransferFrom(msg.sender, address(this), burned0);
-            token1.safeTransferFrom(msg.sender, address(this), burned1);
+            (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) = borrower.uniswapWithdraw(
+                lower,
+                upper,
+                uint128(liquidity),
+                address(this)
+            );
 
             token0.safeApprove(address(NFT_MANAGER), burned0);
             token1.safeApprove(address(NFT_MANAGER), burned1);
@@ -65,6 +65,9 @@ contract UniswapNFTManager is IManager {
                     deadline: block.timestamp
                 })
             );
+
+            token0.safeTransfer(owner, collected0 - burned0);
+            token1.safeTransfer(owner, collected1 - burned1);
         }
     }
 
