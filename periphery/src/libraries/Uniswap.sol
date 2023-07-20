@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
+import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 

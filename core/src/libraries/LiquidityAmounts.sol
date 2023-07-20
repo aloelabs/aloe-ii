@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.17;
 
-import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
+import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {Q96} from "./constants/Q.sol";
 

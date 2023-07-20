@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.17;
 
-import {IERC721} from "openzeppelin-contracts/token/ERC721/IERC721.sol";
+import {IERC721} from "openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
 
 /* solhint-disable */
 
