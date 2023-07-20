@@ -7,6 +7,7 @@ import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {MIN_SIGMA, MAX_SIGMA, MAX_LEVERAGE, LIQUIDATION_INCENTIVE} from "./constants/Constants.sol";
 import {Q96} from "./constants/Q.sol";
+import {mulDiv96} from "./LiquidityAmounts.sol";
 
 struct Assets {
     uint256 fixed0;
@@ -62,14 +63,14 @@ library BalanceSheet {
         uint256 liabilities;
         uint256 assets;
 
-        priceX96 = uint224(Math.mulDiv(prices.a, prices.a, Q96));
-        liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, Q96);
-        assets = mem.fluid1A + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, Q96);
+        priceX96 = uint224(mulDiv96(prices.a, prices.a));
+        liabilities = liabilities1 + mulDiv96(liabilities0, priceX96);
+        assets = mem.fluid1A + mem.fixed1 + mulDiv96(mem.fixed0, priceX96);
         if (liabilities > assets) return false;
 
-        priceX96 = uint224(Math.mulDiv(prices.b, prices.b, Q96));
-        liabilities = liabilities1 + Math.mulDiv(liabilities0, priceX96, Q96);
-        assets = mem.fluid1B + mem.fixed1 + Math.mulDiv(mem.fixed0, priceX96, Q96);
+        priceX96 = uint224(mulDiv96(prices.b, prices.b));
+        liabilities = liabilities1 + mulDiv96(liabilities0, priceX96);
+        assets = mem.fluid1B + mem.fixed1 + mulDiv96(mem.fixed0, priceX96);
         if (liabilities > assets) return false;
 
         return true;
@@ -99,14 +100,14 @@ library BalanceSheet {
         uint160 sqrtMeanPriceX96
     ) internal pure returns (uint256 incentive1, uint224 meanPriceX96) {
         unchecked {
-            meanPriceX96 = uint224(Math.mulDiv(sqrtMeanPriceX96, sqrtMeanPriceX96, Q96));
+            meanPriceX96 = uint224(mulDiv96(sqrtMeanPriceX96, sqrtMeanPriceX96));
 
             if (liabilities0 > assets0) {
                 // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
                 uint256 shortfall = liabilities0 - assets0;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                incentive1 += Math.mulDiv(shortfall / LIQUIDATION_INCENTIVE, meanPriceX96, Q96);
+                incentive1 += mulDiv96(shortfall / LIQUIDATION_INCENTIVE, meanPriceX96);
             }
 
             if (liabilities1 > assets1) {
