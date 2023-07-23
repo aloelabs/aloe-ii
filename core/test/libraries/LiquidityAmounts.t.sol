@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
+import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 import {TickMath} from "src/libraries/TickMath.sol";
 import {LiquidityAmounts, mulDiv96} from "src/libraries/LiquidityAmounts.sol";
