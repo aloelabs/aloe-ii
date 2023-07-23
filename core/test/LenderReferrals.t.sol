@@ -146,6 +146,7 @@ contract LenderReferralsTest is Test {
         address account
     ) public {
         vm.assume(wallet != account);
+        vm.assume(account != lender.RESERVE());
         (id, wallet, cut) = _enroll(id, wallet, cut);
 
         vm.prank(account);

@@ -39,10 +39,10 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
 
     function setUp() public {
         // deal to lender and deposit (so that there are assets to borrow)
-        deal(address(asset0), address(lender0), 10000e18); // DAI
-        deal(address(asset1), address(lender1), 10000e18); // WETH
-        lender0.deposit(10000e18, address(12345));
-        lender1.deposit(10000e18, address(12345));
+        deal(address(asset0), address(lender0), 1800e18); // DAI
+        deal(address(asset1), address(lender1), 100e18); // WETH
+        lender0.deposit(1800e18, address(12345));
+        lender1.deposit(100e18, address(12345));
 
         deal(address(account), DEFAULT_ANTE + 1);
     }
@@ -156,7 +156,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        uint256 debt = 1617.23e18;
+        uint256 debt = 1615.62695e18;
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
         bool[2] memory allowances;
@@ -167,7 +167,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         allowances[0] = true;
         account.modify(this, data, allowances);
 
-        skip(1 days); // seconds
+        skip(3 days); // seconds
         lender0.accrueInterest();
         lender1.accrueInterest();
 
@@ -193,7 +193,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        uint256 debt = 1617.23e18;
+        uint256 debt = 1615.62695e18;
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
         bool[2] memory allowances;
@@ -204,7 +204,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         allowances[0] = true;
         account.modify(this, data, allowances);
 
-        skip(1 days); // seconds
+        skip(3 days); // seconds
         lender0.accrueInterest();
         lender1.accrueInterest();
 

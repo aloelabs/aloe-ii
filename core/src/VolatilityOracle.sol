@@ -34,24 +34,30 @@ contract VolatilityOracle {
         }
     }
 
-    function update(IUniswapV3Pool pool) external returns (uint160, uint256) {
+    function update(IUniswapV3Pool pool) external returns (uint56, uint160, uint256) {
         unchecked {
             // Read `lastWrite` info from storage
             LastWrite memory lastWrite = lastWrites[pool];
+
+            // We need to call `Oracle.consult` even if we're going to return early, so go ahead and do it
+            uint56 metric;
+            Volatility.PoolData memory data;
+            (metric, data.sqrtMeanPriceX96, data.secondsPerLiquidityX128) = Oracle.consult(pool);
 
             // If fewer than `FEE_GROWTH_SAMPLE_PERIOD` seconds have elapsed, return early.
             // We still fetch the latest TWAP, but we do not sample feeGrowthGlobals or update IV.
             uint256 timeSinceLastWrite = block.timestamp - lastWrite.time;
             if (timeSinceLastWrite < FEE_GROWTH_SAMPLE_PERIOD) {
-                (uint160 sqrtMeanPriceX96, ) = Oracle.consult(pool, UNISWAP_AVG_WINDOW);
-                return (sqrtMeanPriceX96, lastWrite.iv);
+                return (metric, data.sqrtMeanPriceX96, lastWrite.iv);
             }
 
-            // Prepare to call all getters
-            Volatility.FeeGrowthGlobals[FEE_GROWTH_ARRAY_LENGTH] storage arr = feeGrowthGlobals[pool];
+            // Populate remaining `PoolData` fields
+            (data.sqrtPriceX96, data.currentTick, , , , , ) = pool.slot0();
+            data.oracleLookback = UNISWAP_AVG_WINDOW;
+            data.tickLiquidity = pool.liquidity();
 
-            // Call all getters
-            Volatility.PoolData memory data = _getPoolData(pool);
+            // Populate `FeeGrowthGlobals`
+            Volatility.FeeGrowthGlobals[FEE_GROWTH_ARRAY_LENGTH] storage arr = feeGrowthGlobals[pool];
             Volatility.FeeGrowthGlobals memory a = _getFeeGrowthGlobalsOld(arr, lastWrite.index);
             Volatility.FeeGrowthGlobals memory b = _getFeeGrowthGlobalsNow(pool);
 
@@ -59,7 +65,7 @@ contract VolatilityOracle {
             uint256 iv = lastWrite.iv;
             // Only update IV if the feeGrowthGlobals samples are approximately `FEE_GROWTH_AVG_WINDOW` hours apart
             if (
-                isInInterval({
+                _isInInterval({
                     min: FEE_GROWTH_AVG_WINDOW - 3 * FEE_GROWTH_SAMPLE_PERIOD,
                     x: b.timestamp - a.timestamp,
                     max: FEE_GROWTH_AVG_WINDOW + 3 * FEE_GROWTH_SAMPLE_PERIOD
@@ -79,13 +85,13 @@ contract VolatilityOracle {
             lastWrites[pool] = LastWrite(next, uint32(block.timestamp), uint216(iv));
 
             emit Update(pool, data.sqrtMeanPriceX96, iv);
-            return (data.sqrtMeanPriceX96, iv);
+            return (metric, data.sqrtMeanPriceX96, iv);
         }
     }
 
-    function consult(IUniswapV3Pool pool) external view returns (uint160, uint256) {
-        (uint160 sqrtMeanPriceX96, ) = Oracle.consult(pool, UNISWAP_AVG_WINDOW);
-        return (sqrtMeanPriceX96, lastWrites[pool].iv);
+    function consult(IUniswapV3Pool pool) external view returns (uint56, uint160, uint256) {
+        (uint56 metric, uint160 sqrtMeanPriceX96, ) = Oracle.consult(pool);
+        return (metric, sqrtMeanPriceX96, lastWrites[pool].iv);
     }
 
     function _getPoolMetadata(IUniswapV3Pool pool) private view returns (Volatility.PoolMetadata memory metadata) {
@@ -103,19 +109,6 @@ contract VolatilityOracle {
         }
 
         metadata.tickSpacing = pool.tickSpacing();
-    }
-
-    function _getPoolData(IUniswapV3Pool pool) private view returns (Volatility.PoolData memory data) {
-        (uint160 sqrtPriceX96, int24 currentTick, , , , , ) = pool.slot0();
-        (uint160 sqrtMeanPriceX96, uint160 secondsPerLiquidityX128) = Oracle.consult(pool, UNISWAP_AVG_WINDOW);
-        data = Volatility.PoolData(
-            sqrtPriceX96,
-            currentTick,
-            sqrtMeanPriceX96,
-            secondsPerLiquidityX128,
-            UNISWAP_AVG_WINDOW,
-            pool.liquidity()
-        );
     }
 
     function _getFeeGrowthGlobalsNow(IUniswapV3Pool pool) private view returns (Volatility.FeeGrowthGlobals memory) {
@@ -163,7 +156,7 @@ contract VolatilityOracle {
                 beforeOrAt = arr[i % FEE_GROWTH_ARRAY_LENGTH];
                 atOrAfter = arr[(i + 1) % FEE_GROWTH_ARRAY_LENGTH];
 
-                if (isInInterval(beforeOrAt.timestamp, target, atOrAfter.timestamp)) break;
+                if (_isInInterval(beforeOrAt.timestamp, target, atOrAfter.timestamp)) break;
                 if (beforeOrAt.timestamp <= target) {
                     l = i + 1;
                 } else {
@@ -178,7 +171,7 @@ contract VolatilityOracle {
         }
     }
 
-    function isInInterval(uint256 min, uint256 x, uint256 max) private pure returns (bool) {
+    function _isInInterval(uint256 min, uint256 x, uint256 max) private pure returns (bool) {
         return min <= x && x <= max;
     }
 }

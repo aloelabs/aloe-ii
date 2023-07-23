@@ -19,6 +19,7 @@ remappings = [
 
     'clones-with-immutable-args/=lib/clones-with-immutable-args/src/',
     'openzeppelin-contracts/=lib/openzeppelin-contracts/',
+    'solady/=lib/solady/src/',
     'solmate/=lib/solmate/src/',
     'v3-core/=lib/v3-core/'
 ]

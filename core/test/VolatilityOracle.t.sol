@@ -36,8 +36,9 @@ contract VolatilityOracleTest is Test {
         for (uint256 i = 0; i < count; i++) {
             IUniswapV3Pool pool = IUniswapV3Pool(pools[i]);
 
-            (uint160 price, uint256 iv) = oracle.consult(pool);
+            (uint56 metric, uint160 price, uint256 iv) = oracle.consult(pool);
 
+            assertGt(metric, 0);
             assertGt(price, 0);
             assertEqDecimal(iv, 0, 18);
         }
@@ -48,9 +49,10 @@ contract VolatilityOracleTest is Test {
         for (uint256 i = 0; i < count; i++) {
             IUniswapV3Pool pool = IUniswapV3Pool(pools[i]);
 
-            (uint160 priceConsult, uint256 ivConsult) = oracle.consult(pool);
-            (uint160 priceUpdate, uint256 ivUpdate) = oracle.update(pool);
+            (uint56 metricConsult, uint160 priceConsult, uint256 ivConsult) = oracle.consult(pool);
+            (uint56 metricUpdate, uint160 priceUpdate, uint256 ivUpdate) = oracle.update(pool);
 
+            assertEq(metricConsult, metricUpdate);
             assertEq(priceUpdate, priceConsult);
             assertEqDecimal(ivUpdate, ivConsult, 18);
         }
@@ -95,8 +97,8 @@ contract VolatilityOracleTest is Test {
             assertEq(index, 0);
             assertGe(block.timestamp, time + 6 hours + 15 minutes);
 
-            (, uint256 ivOld) = oracle.consult(pool);
-            (, uint256 ivNew) = oracle.update(pool);
+            (, , uint256 ivOld) = oracle.consult(pool);
+            (, , uint256 ivNew) = oracle.update(pool);
 
             assertEqDecimal(ivOld, ivOldExpected, 18);
             assertEqDecimal(ivNew, ivOld, 18);
@@ -124,7 +126,7 @@ contract VolatilityOracleTest is Test {
             assertLt(block.timestamp, time + FEE_GROWTH_SAMPLE_PERIOD);
 
             vm.record();
-            (, uint256 ivNew) = oracle.update(pool);
+            (, , uint256 ivNew) = oracle.update(pool);
             (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(address(oracle));
 
             assertEqDecimal(ivNew, ivOld, 18);
@@ -144,7 +146,7 @@ contract VolatilityOracleTest is Test {
             IUniswapV3Pool pool = IUniswapV3Pool(pools[i]);
 
             vm.record();
-            (, uint256 iv) = oracle.update(pool);
+            (, , uint256 iv) = oracle.update(pool);
             (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(address(oracle));
 
             // NOTE: When compiling without --via-ir, foundry doesn't count correctly
@@ -175,7 +177,7 @@ contract VolatilityOracleTest is Test {
             currentBlock += (2 + uint256(blockhash(block.number)) % 10) * BLOCKS_PER_MINUTE * 5;
             vm.rollFork(currentBlock);
 
-            (, uint256 ivWritten) = oracle.update(pool);
+            (, , uint256 ivWritten) = oracle.update(pool);
             (uint256 newIndex, uint256 newTime, uint256 ivStored) = oracle.lastWrites(pool);
 
             assertEqDecimal(ivStored, ivWritten, 18);
@@ -205,10 +207,10 @@ contract VolatilityOracleTest is Test {
             vm.rollFork(currentBlock);
 
             uint256 g = gasleft();
-            (uint160 sqrtPriceX96, uint256 iv) = oracle.update(pool);
+            (uint56 metric, uint160 sqrtPriceX96, uint256 iv) = oracle.update(pool);
             totalGas += g - gasleft();
 
-            console2.log(block.timestamp, sqrtPriceX96, iv);
+            console2.log(block.timestamp, sqrtPriceX96, iv, metric);
         }
 
         console2.log("avg gas to update oracle:", totalGas / 600);
