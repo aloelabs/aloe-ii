@@ -147,7 +147,7 @@ contract BorrowerGasTest is Test, IManager {
             account.uniswapDeposit(-75600, -75540, 10000000000);
             positions = zip([-75600, -75540, 0, 0, 0, 0]);
         } else if (action == Action.UNI_WITHDRAW) {
-            account.uniswapWithdraw(0, 60, 1000000);
+            account.uniswapWithdraw(0, 60, 1000000, address(account));
         }
     }
 

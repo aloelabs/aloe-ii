@@ -8,7 +8,7 @@ cp -R ../core/lib lib/core/lib
 cp ../core/foundry.toml lib/core/
 
 source .env
-forge clean
+# forge clean
 forge build
 forge script script/Deploy.s.sol:DeployScript --broadcast --verify
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-import {Math} from "openzeppelin-contracts/utils/math/Math.sol";
+import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
@@ -303,7 +303,10 @@ contract Borrower is IUniswapV3MintCallback {
     /**
      * @notice Allows the account owner to add liquidity to a Uniswap position (or create a new one).
      * Only works within the `modify` callback.
-     * @dev The `LiquidityAmounts` library can help convert underlying amounts to units of `liquidity`
+     * @dev The `LiquidityAmounts` library can help convert underlying amounts to units of `liquidity`.
+     * NOTE: Depending on your use-case, it may be more gas-efficient to call `UNISWAP_POOL.mint` in your
+     * own contract, instead of doing `uniswapDeposit` inside of `modify`'s callback. As long as you set
+     * this `Borrower` as the recipient in `UNISWAP_POOL.mint`, the result is the same.
      * @param lower The tick at the position's lower bound
      * @param upper The tick at the position's upper bound
      * @param liquidity The amount of liquidity to add, in Uniswap's internal units
@@ -327,6 +330,7 @@ contract Borrower is IUniswapV3MintCallback {
      * @param lower The tick at the position's lower bound
      * @param upper The tick at the position's upper bound
      * @param liquidity The amount of liquidity to remove, in Uniswap's internal units
+     * @param recipient Receives the tokens from Uniswap. Usually the address of this `Borrower` account.
      * @return burned0 The amount of `TOKEN0` that was removed from the Uniswap position
      * @return burned1 The amount of `TOKEN1` that was removed from the Uniswap position
      * @return collected0 Equal to `burned0` plus any earned `TOKEN0` fees that hadn't yet been claimed
@@ -335,11 +339,12 @@ contract Borrower is IUniswapV3MintCallback {
     function uniswapWithdraw(
         int24 lower,
         int24 upper,
-        uint128 liquidity
+        uint128 liquidity,
+        address recipient
     ) external returns (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) {
         require(slot0.state == State.InModifyCallback);
 
-        (burned0, burned1, collected0, collected1) = _uniswapWithdraw(lower, upper, liquidity);
+        (burned0, burned1, collected0, collected1) = _uniswapWithdraw(lower, upper, liquidity, recipient);
     }
 
     /**
@@ -439,7 +444,7 @@ contract Borrower is IUniswapV3MintCallback {
                 if (!withdraw) continue;
 
                 // Withdraw all `liquidity` from the position
-                _uniswapWithdraw(l, u, liquidity);
+                _uniswapWithdraw(l, u, liquidity, address(this));
             }
         }
     }
@@ -456,16 +461,11 @@ contract Borrower is IUniswapV3MintCallback {
     function _uniswapWithdraw(
         int24 lower,
         int24 upper,
-        uint128 liquidity
+        uint128 liquidity,
+        address recipient
     ) private returns (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) {
         (burned0, burned1) = UNISWAP_POOL.burn(lower, upper, liquidity);
-        (collected0, collected1) = UNISWAP_POOL.collect(
-            address(this),
-            lower,
-            upper,
-            type(uint128).max,
-            type(uint128).max
-        );
+        (collected0, collected1) = UNISWAP_POOL.collect(recipient, lower, upper, type(uint128).max, type(uint128).max);
     }
 
     function _repay(uint256 amount0, uint256 amount1) private {
