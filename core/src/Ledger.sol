@@ -5,6 +5,7 @@ import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
 import {IERC165} from "openzeppelin-contracts/contracts/interfaces/IERC165.sol";
 import {IERC4626} from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
@@ -307,7 +308,7 @@ contract Ledger {
         uint256 a = _nominalShares(owner, inventory, newTotalSupply);
         uint256 b = _convertToShares(cache.lastBalance, inventory, newTotalSupply, false);
 
-        return a < b ? a : b;
+        return SoladyMath.min(a, b);
     }
 
     /**

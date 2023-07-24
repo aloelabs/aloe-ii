@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
+import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import {MAX_RATE, ONE} from "./libraries/constants/Constants.sol";
@@ -51,8 +52,8 @@ library SafeRateLib {
     }
 
     function _computeAccrualFactor(uint256 rate, uint256 dt) private pure returns (uint256) {
-        if (rate > MAX_RATE) rate = MAX_RATE;
-        if (dt > 1 weeks) dt = 1 weeks;
+        rate = SoladyMath.min(rate, MAX_RATE);
+        dt = SoladyMath.min(dt, 1 weeks);
 
         unchecked {
             return (ONE + rate).rpow(dt, ONE);

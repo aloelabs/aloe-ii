@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
+import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {MAX_SIGMA, IV_SCALE, IV_CHANGE_PER_SECOND, UNISWAP_AVG_WINDOW, FEE_GROWTH_AVG_WINDOW, FEE_GROWTH_ARRAY_LENGTH, FEE_GROWTH_SAMPLE_PERIOD} from "./libraries/constants/Constants.sol";
@@ -75,8 +76,7 @@ contract VolatilityOracle {
                 iv = Volatility.estimate(cachedMetadata[pool], data, a, b, IV_SCALE);
 
                 uint256 maxChange = timeSinceLastWrite * IV_CHANGE_PER_SECOND;
-                if (iv > lastWrite.iv + maxChange) iv = lastWrite.iv + maxChange;
-                else if (iv + maxChange < lastWrite.iv) iv = lastWrite.iv - maxChange;
+                iv = SoladyMath.clamp(iv, SoladyMath.zeroFloorSub(lastWrite.iv, maxChange), lastWrite.iv + maxChange);
             }
 
             // Store the new feeGrowthGlobals sample and update `lastWrites`

@@ -2,6 +2,7 @@
 pragma solidity 0.8.17;
 
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import {Q96} from "./constants/Q.sol";
@@ -136,7 +137,7 @@ library Volatility {
             }
 
             temp = Math.mulDiv(temp, secondsAgo * gamma, secondsPerLiquidityX128 * 1e6);
-            return temp > type(uint128).max ? type(uint128).max : uint128(temp);
+            return uint128(SoladyMath.min(temp, type(uint128).max));
         }
     }
 
