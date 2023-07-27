@@ -14,7 +14,7 @@ contract OracleUpdateHelper {
         unchecked {
             uint256 count = pools.length;
             for (uint256 i = 0; i < count; i++) {
-                ORACLE.update(pools[i]);
+                ORACLE.update(pools[i], 1 << 32);
             }
         }
     }

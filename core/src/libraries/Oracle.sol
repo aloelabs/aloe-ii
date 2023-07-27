@@ -5,7 +5,7 @@ import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.so
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {UNISWAP_AVG_WINDOW} from "./constants/Constants.sol";
-import {Q16} from "src/libraries/constants/Q.sol";
+import {Q16} from "./constants/Q.sol";
 import {TickMath} from "./TickMath.sol";
 
 /// @title Oracle

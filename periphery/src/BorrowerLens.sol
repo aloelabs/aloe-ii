@@ -15,7 +15,7 @@ contract BorrowerLens {
         Borrower account,
         bool previewInterest
     ) external view returns (uint256 healthA, uint256 healthB) {
-        Prices memory prices = account.getPrices();
+        Prices memory prices = account.getPrices(1 << 32);
         Assets memory assets = _getAssets(account, account.getUniswapPositions(), prices);
         (uint256 liabilities0, uint256 liabilities1) = getLiabilities(account, previewInterest);
 
@@ -51,7 +51,7 @@ contract BorrowerLens {
     }
 
     function getAssets(Borrower account) external view returns (Assets memory) {
-        return _getAssets(account, account.getUniswapPositions(), account.getPrices());
+        return _getAssets(account, account.getUniswapPositions(), account.getPrices(1 << 32));
     }
 
     /* solhint-disable code-complexity */
