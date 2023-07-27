@@ -34,15 +34,13 @@ contract VolatilityOracle {
         }
     }
 
-    function update(IUniswapV3Pool pool) external returns (uint56, uint160, uint256) {
+    function update(IUniswapV3Pool pool, uint40 seed) external returns (uint56, uint160, uint256) {
         unchecked {
             // Read `lastWrite` info from storage
             LastWrite memory lastWrite = lastWrites[pool];
 
             // We need to call `Oracle.consult` even if we're going to return early, so go ahead and do it
-            uint56 metric;
-            Volatility.PoolData memory data;
-            (metric, data.sqrtMeanPriceX96, data.secondsPerLiquidityX128) = Oracle.consult(pool);
+            (Oracle.PoolData memory data, uint56 metric) = Oracle.consult(pool, seed);
 
             // If fewer than `FEE_GROWTH_SAMPLE_PERIOD` seconds have elapsed, return early.
             // We still fetch the latest TWAP, but we do not sample feeGrowthGlobals or update IV.
@@ -52,7 +50,6 @@ contract VolatilityOracle {
             }
 
             // Populate remaining `PoolData` fields
-            (data.sqrtPriceX96, data.currentTick, , , , , ) = pool.slot0();
             data.oracleLookback = UNISWAP_AVG_WINDOW;
             data.tickLiquidity = pool.liquidity();
 
@@ -89,9 +86,9 @@ contract VolatilityOracle {
         }
     }
 
-    function consult(IUniswapV3Pool pool) external view returns (uint56, uint160, uint256) {
-        (uint56 metric, uint160 sqrtMeanPriceX96, ) = Oracle.consult(pool);
-        return (metric, sqrtMeanPriceX96, lastWrites[pool].iv);
+    function consult(IUniswapV3Pool pool, uint40 seed) external view returns (uint56, uint160, uint256) {
+        (Oracle.PoolData memory data, uint56 metric) = Oracle.consult(pool, seed);
+        return (metric, data.sqrtMeanPriceX96, lastWrites[pool].iv);
     }
 
     function _getPoolMetadata(IUniswapV3Pool pool) private view returns (Volatility.PoolMetadata memory metadata) {

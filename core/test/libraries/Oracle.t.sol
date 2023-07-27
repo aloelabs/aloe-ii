@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {Q16} from "src/libraries/constants/Q.sol";
+import {Q32} from "src/libraries/constants/Q.sol";
 
 import "src/libraries/Oracle.sol";
 
@@ -14,10 +14,9 @@ contract LibraryWrapper {
         uint256 seed,
         int24 tick,
         uint16 observationIndex,
-        uint16 observationCardinality,
-        uint128 liquidity
+        uint16 observationCardinality
     ) external view returns (int56, uint160) {
-        return Oracle.observe(pool, target, seed, tick, observationIndex, observationCardinality, liquidity);
+        return Oracle.observe(pool, target, seed, tick, observationIndex, observationCardinality);
     }
 }
 
@@ -44,7 +43,6 @@ contract OracleTest is Test {
         else vm.rollFork(BLOCK_A);
 
         (, int24 tick, uint16 idx, uint16 cardinality, , , ) = POOL.slot0();
-        uint128 liquidity = POOL.liquidity();
 
         (uint32 oldest, ) = _oldestAndNewest();
         secondsAgo = uint32(bound(secondsAgo, 0, block.timestamp - oldest));
@@ -62,16 +60,25 @@ contract OracleTest is Test {
         (int56 tickCumB, uint160 liqCumB) = Oracle.observe(
             POOL,
             uint32(block.timestamp - secondsAgo),
+            seed % Q32,
+            tick,
+            idx,
+            cardinality
+        );
+        (int56 tickCumC, uint160 liqCumC) = Oracle.observe(
+            POOL,
+            uint32(block.timestamp - secondsAgo),
             seed,
             tick,
             idx,
-            cardinality,
-            liquidity
+            cardinality
         );
 
         // Make sure they're the same
         assertEq(tickCumB, tickCumA);
+        assertEq(tickCumC, tickCumA);
         assertEq(liqCumB, liqCumA);
+        assertEq(liqCumC, liqCumA);
     }
 
     /// forge-config: default.fuzz.runs = 1024
@@ -80,7 +87,6 @@ contract OracleTest is Test {
         else vm.rollFork(BLOCK_A);
 
         (, int24 tick, uint16 idx, uint16 cardinality, , , ) = POOL.slot0();
-        uint128 liquidity = POOL.liquidity();
 
         (uint32 oldest, ) = _oldestAndNewest();
         secondsAgo = uint32(bound(secondsAgo, block.timestamp - oldest + 1, block.timestamp));
@@ -94,7 +100,7 @@ contract OracleTest is Test {
         // Our method (need to put it in wrapper for cheatcode to work right)
         LibraryWrapper wrapper = new LibraryWrapper();
         vm.expectRevert(bytes("OLD"));
-        wrapper.observe(POOL, uint32(block.timestamp - secondsAgo), seed, tick, idx, cardinality, liquidity);
+        wrapper.observe(POOL, uint32(block.timestamp - secondsAgo), seed, tick, idx, cardinality);
     }
 
     function test_comparative_observeCurrent() public {
@@ -136,8 +142,7 @@ contract OracleTest is Test {
 
     function test_gas_currentObs_oursB() public view {
         (, int24 tick, uint16 index, uint16 cardinality, , , ) = POOL.slot0();
-        uint128 liquidity = POOL.liquidity();
-        Oracle.observe(POOL, uint32(block.timestamp), index, tick, index, cardinality, liquidity);
+        Oracle.observe(POOL, uint32(block.timestamp), index, tick, index, cardinality);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -157,17 +162,16 @@ contract OracleTest is Test {
         uint128 liquidity = POOL.liquidity();
 
         _observeCurrent(tick, idx, liquidity);
-        Oracle.observe(POOL, uint32(block.timestamp - 30 minutes), 178, tick, idx, cardinality, liquidity);
-        Oracle.observe(POOL, uint32(block.timestamp - 60 minutes), 112, tick, idx, cardinality, liquidity);
+        Oracle.observe(POOL, uint32(block.timestamp - 30 minutes), 178, tick, idx, cardinality);
+        Oracle.observe(POOL, uint32(block.timestamp - 60 minutes), 112, tick, idx, cardinality);
     }
 
     function test_gas_realisticObs_oursB() public view {
         (, int24 tick, uint16 idx, uint16 cardinality, , , ) = POOL.slot0();
-        uint128 liquidity = POOL.liquidity();
 
-        Oracle.observe(POOL, uint32(block.timestamp), idx, tick, idx, cardinality, liquidity);
-        Oracle.observe(POOL, uint32(block.timestamp - 30 minutes), 178, tick, idx, cardinality, liquidity);
-        Oracle.observe(POOL, uint32(block.timestamp - 60 minutes), 112, tick, idx, cardinality, liquidity);
+        Oracle.observe(POOL, uint32(block.timestamp), idx, tick, idx, cardinality);
+        Oracle.observe(POOL, uint32(block.timestamp - 30 minutes), 178, tick, idx, cardinality);
+        Oracle.observe(POOL, uint32(block.timestamp - 60 minutes), 112, tick, idx, cardinality);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -193,7 +197,6 @@ contract OracleTest is Test {
         vm.pauseGasMetering();
 
         (, int24 tick, uint16 index, uint16 cardinality, , , ) = POOL.slot0();
-        uint128 liquidity = POOL.liquidity();
         uint256 seed;
 
         {
@@ -214,7 +217,7 @@ contract OracleTest is Test {
         }
         vm.resumeGasMetering();
 
-        Oracle.observe(POOL, uint32(block.timestamp - secondsAgo), seed, tick, index, cardinality, liquidity);
+        Oracle.observe(POOL, uint32(block.timestamp - secondsAgo), seed, tick, index, cardinality);
     }
 
     /// forge-config: default.fuzz.runs = 1024
@@ -236,7 +239,6 @@ contract OracleTest is Test {
         vm.pauseGasMetering();
 
         (, int24 tick, uint16 index, uint16 cardinality, , , ) = POOL.slot0();
-        uint128 liquidity = POOL.liquidity();
         uint256 seed;
 
         {
@@ -256,7 +258,7 @@ contract OracleTest is Test {
         }
         vm.resumeGasMetering();
 
-        Oracle.observe(POOL, uint32(block.timestamp - secondsAgo), seed, tick, index, cardinality, liquidity);
+        Oracle.observe(POOL, uint32(block.timestamp - secondsAgo), seed, tick, index, cardinality);
     }
 
     /// forge-config: default.fuzz.runs = 1024
@@ -264,7 +266,6 @@ contract OracleTest is Test {
         vm.pauseGasMetering();
 
         (, int24 tick, uint16 index, uint16 cardinality, , , ) = POOL.slot0();
-        uint128 liquidity = POOL.liquidity();
         uint256 seed;
 
         {
@@ -285,7 +286,7 @@ contract OracleTest is Test {
         }
         vm.resumeGasMetering();
 
-        Oracle.observe(POOL, uint32(block.timestamp - secondsAgo), seed, tick, index, cardinality, liquidity);
+        Oracle.observe(POOL, uint32(block.timestamp - secondsAgo), seed, tick, index, cardinality);
     }
 
     /// forge-config: default.fuzz.runs = 1024
@@ -293,7 +294,6 @@ contract OracleTest is Test {
         vm.pauseGasMetering();
 
         (, int24 tick, uint16 index, uint16 cardinality, , , ) = POOL.slot0();
-        uint128 liquidity = POOL.liquidity();
         uint256 seed;
 
         {
@@ -314,7 +314,7 @@ contract OracleTest is Test {
         }
         vm.resumeGasMetering();
 
-        Oracle.observe(POOL, uint32(block.timestamp - secondsAgo), seed, tick, index, cardinality, liquidity);
+        Oracle.observe(POOL, uint32(block.timestamp - secondsAgo), seed, tick, index, cardinality);
     }
 
     function _observeCurrent(

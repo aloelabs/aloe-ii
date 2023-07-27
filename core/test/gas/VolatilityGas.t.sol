@@ -5,11 +5,13 @@ import "forge-std/Test.sol";
 
 import "src/VolatilityOracle.sol";
 
+import {getSeed} from "../Utils.sol";
+
 contract VolatilityGasTest is Test {
     uint256 constant START_BLOCK = 70_000_000;
     uint256 constant SIX_HOURS_LATER = 70_045_000;
 
-    IUniswapV3Pool constant pool = IUniswapV3Pool(0x03aF20bDAaFfB4cC0A521796a223f7D85e2aAc31);
+    IUniswapV3Pool constant pool = IUniswapV3Pool(0x85149247691df622eaF1a8Bd0CaFd40BC45154a9);
 
     VolatilityOracle oracle;
 
@@ -25,14 +27,18 @@ contract VolatilityGasTest is Test {
     }
 
     function test_updateNoBinarySearch() public {
-        oracle.update(pool);
+        vm.pauseGasMetering();
+        uint32 seed = getSeed(pool);
+        vm.resumeGasMetering();
+        oracle.update(pool, seed);
     }
 
     function test_consult() public {
         vm.pauseGasMetering();
-        oracle.update(pool);
+        uint32 seed = getSeed(pool);
+        oracle.update(pool, seed);
         vm.resumeGasMetering();
 
-        oracle.consult(pool);
+        oracle.consult(pool, seed);
     }
 }

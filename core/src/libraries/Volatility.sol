@@ -6,6 +6,7 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import {Q96} from "./constants/Q.sol";
 import {mulDiv96} from "./LiquidityAmounts.sol";
+import {Oracle} from "./Oracle.sol";
 import {TickMath} from "./TickMath.sol";
 
 /// @title Volatility
@@ -21,21 +22,6 @@ library Volatility {
         uint24 gamma1;
         // the pool tick spacing
         int24 tickSpacing;
-    }
-
-    struct PoolData {
-        // the current price (from pool.slot0())
-        uint160 sqrtPriceX96;
-        // the current tick (from pool.slot0())
-        int24 currentTick;
-        // the mean sqrt(price) over some period (OracleLibrary.consult() to get arithmeticMeanTick, then use TickMath)
-        uint160 sqrtMeanPriceX96;
-        // the mean liquidity over some period (OracleLibrary.consult())
-        uint160 secondsPerLiquidityX128;
-        // the number of seconds to look back when getting mean tick & mean liquidity
-        uint32 oracleLookback;
-        // the liquidity depth at currentTick (from pool.liquidity())
-        uint128 tickLiquidity;
     }
 
     struct FeeGrowthGlobals {
@@ -58,7 +44,7 @@ library Volatility {
      */
     function estimate(
         PoolMetadata memory metadata,
-        PoolData memory data,
+        Oracle.PoolData memory data,
         FeeGrowthGlobals memory a,
         FeeGrowthGlobals memory b,
         uint256 scale

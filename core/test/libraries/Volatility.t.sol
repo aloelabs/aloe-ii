@@ -5,15 +5,14 @@ import "forge-std/Test.sol";
 
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 
-import {TickMath} from "src/libraries/TickMath.sol";
-import {Volatility} from "src/libraries/Volatility.sol";
+import {Volatility, Oracle, TickMath} from "src/libraries/Volatility.sol";
 
 contract VolatilityTest is Test {
     function setUp() public {}
 
     function test_spec_estimate() public {
         Volatility.PoolMetadata memory metadata = Volatility.PoolMetadata(3600, 3000, 3000, 60);
-        Volatility.PoolData memory data = Volatility.PoolData(
+        Oracle.PoolData memory data = Oracle.PoolData(
             1278673744380353403099539498152303, // sqrtPriceX96
             193789, // currentTick
             TickMath.getSqrtRatioAtTick(193730), // arithmeticMeanTick
@@ -113,7 +112,7 @@ contract VolatilityTest is Test {
         uint48 d
     ) public pure {
         Volatility.PoolMetadata memory metadata = Volatility.PoolMetadata(3600, 3000, 3000, 60);
-        Volatility.PoolData memory data = Volatility.PoolData(
+        Oracle.PoolData memory data = Oracle.PoolData(
             TickMath.getSqrtRatioAtTick(tick), // sqrtPriceX96
             tick, // currentTick
             TickMath.getSqrtRatioAtTick(tick + int24(tickMeanOffset)), // arithmeticMeanTick
@@ -297,7 +296,7 @@ contract VolatilityTest is Test {
 
         tick = boundTick(tick, metadata.tickSpacing);
         arithmeticMeanTick = boundTick(arithmeticMeanTick, metadata.tickSpacing);
-        Volatility.PoolData memory data = Volatility.PoolData(
+        Oracle.PoolData memory data = Oracle.PoolData(
             TickMath.getSqrtRatioAtTick(tick),
             tick,
             TickMath.getSqrtRatioAtTick(arithmeticMeanTick),

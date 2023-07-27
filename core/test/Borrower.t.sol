@@ -74,7 +74,7 @@ contract BorrowerTest is Test, IManager {
     function test_empty() public {
         bytes memory data = abi.encode(0, 0, 0, 0, 0, 0);
         bool[2] memory allowances;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, (1 << 32));
     }
 
     function test_addMargin() public {
@@ -88,7 +88,7 @@ contract BorrowerTest is Test, IManager {
 
         bytes memory data = abi.encode(0, 0, 0, 0, 0, 0);
         bool[2] memory allowances;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, (1 << 32));
     }
 
     function test_borrow() public {
@@ -104,7 +104,7 @@ contract BorrowerTest is Test, IManager {
 
         bytes memory data = abi.encode(100e6, 1e18, 0, 0, 0, 0);
         bool[2] memory allowances;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 100e6);
         assertEq(lender1.borrowBalance(address(account)), 1e18);
@@ -117,7 +117,7 @@ contract BorrowerTest is Test, IManager {
 
         bytes memory data = abi.encode(0, 0, 40e6, 0.4e18, 0, 0);
         bool[2] memory allowances;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 60e6);
         assertEq(lender1.borrowBalance(address(account)), 0.6e18);
@@ -128,19 +128,19 @@ contract BorrowerTest is Test, IManager {
     function testFail_completelyInsolvent() public {
         test_borrow();
 
-        skip(86400); // seconds
+        skip(1 days);
 
         bytes memory data = abi.encode(0, 0, 0, 0, 10e6, 1e17);
         bool[2] memory allowances;
         allowances[0] = true;
         allowances[1] = true;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, (1 << 32));
     }
 
     function testFail_missingLiquidationIncentive() public {
         test_borrow();
 
-        skip(86400); // seconds
+        skip(1 days);
 
         lender0.accrueInterest();
         lender1.accrueInterest();
@@ -154,13 +154,13 @@ contract BorrowerTest is Test, IManager {
         bool[2] memory allowances;
         allowances[0] = true;
         allowances[1] = true;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, (1 << 32));
     }
 
     function test_barelySolvent() public {
         test_borrow();
 
-        skip(86400); // seconds
+        skip(1 days);
 
         lender0.accrueInterest();
         lender1.accrueInterest();
@@ -181,7 +181,7 @@ contract BorrowerTest is Test, IManager {
         bool[2] memory allowances;
         allowances[0] = true;
         allowances[1] = true;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, (1 << 32));
     }
 
     function _prepareKitties() private {
