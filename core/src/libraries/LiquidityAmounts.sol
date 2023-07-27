@@ -6,6 +6,31 @@ import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {Q96} from "./constants/Q.sol";
 
+function mulDiv96(uint256 x, uint256 y) pure returns (uint256 result) {
+    assembly ("memory-safe") {
+        // 512-bit multiply [prod1 prod0] = x * y. Compute the product mod 2^256 and mod 2^256 - 1, then use
+        // use the Chinese Remainder Theorem to reconstruct the 512 bit result. The result is stored in two 256
+        // variables such that product = prod1 * 2^256 + prod0.
+
+        // Least significant 256 bits of the product.
+        let prod0 := mul(x, y)
+        let mm := mulmod(x, y, not(0))
+        // Most significant 256 bits of the product.
+        let prod1 := sub(mm, add(prod0, lt(mm, prod0)))
+
+        // Make sure the result is less than `2**256`.
+        if iszero(gt(0x1000000000000000000000000, prod1)) {
+            // Store the function selector of `FullMulDivFailed()`.
+            mstore(0x00, 0xae47f702)
+            // Revert with (offset, size).
+            revert(0x1c, 0x04)
+        }
+
+        // Divide [prod1 prod0] by 2^96.
+        result := or(shr(96, prod0), shl(160, prod1))
+    }
+}
+
 /// @title LiquidityAmounts
 /// @notice Provides functions for computing liquidity amounts from token amounts and prices
 /// @author Aloe Labs, Inc.
@@ -38,7 +63,7 @@ library LiquidityAmounts {
     ) internal pure returns (uint256 amount1) {
         assert(sqrtRatioAX96 <= sqrtRatioBX96);
 
-        amount1 = Math.mulDiv(liquidity, sqrtRatioBX96 - sqrtRatioAX96, Q96);
+        amount1 = mulDiv96(liquidity, sqrtRatioBX96 - sqrtRatioAX96);
     }
 
     /// @notice Computes the token0 and token1 value for a given amount of liquidity, the current
@@ -85,7 +110,7 @@ library LiquidityAmounts {
 
         unchecked {
             if (sqrtRatioX96 <= sqrtRatioAX96) {
-                uint256 priceX96 = Math.mulDiv(sqrtRatioX96, sqrtRatioX96, Q96);
+                uint256 priceX96 = mulDiv96(sqrtRatioX96, sqrtRatioX96);
 
                 value0 = Math.mulDiv(
                     priceX96,
@@ -93,12 +118,12 @@ library LiquidityAmounts {
                     uint256(sqrtRatioAX96) << 96
                 );
             } else if (sqrtRatioX96 < sqrtRatioBX96) {
-                uint256 numerator = Math.mulDiv(sqrtRatioX96, sqrtRatioBX96 - sqrtRatioX96, Q96);
+                uint256 numerator = mulDiv96(sqrtRatioX96, sqrtRatioBX96 - sqrtRatioX96);
 
                 value0 = Math.mulDiv(liquidity, numerator, sqrtRatioBX96);
-                value1 = Math.mulDiv(liquidity, sqrtRatioX96 - sqrtRatioAX96, Q96);
+                value1 = mulDiv96(liquidity, sqrtRatioX96 - sqrtRatioAX96);
             } else {
-                value1 = Math.mulDiv(liquidity, sqrtRatioBX96 - sqrtRatioAX96, Q96);
+                value1 = mulDiv96(liquidity, sqrtRatioBX96 - sqrtRatioAX96);
             }
         }
     }

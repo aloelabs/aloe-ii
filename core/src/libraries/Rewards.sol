@@ -124,15 +124,15 @@ library Rewards {
         }
     }
 
+    function getRate() internal view returns (uint56) {
+        return _getStorage().poolState.rate;
+    }
+
     /// @dev Returns arguments to be used in `updatePoolState` and `updateUserState`. No good semantic
     /// meaning here, just a coincidence that both functions need this information.
     function load() internal view returns (Storage storage store, uint144 accumulator) {
         store = _getStorage();
         accumulator = _accumulate(store.poolState);
-    }
-
-    function getRate() internal view returns (uint56) {
-        return _getStorage().poolState.rate;
     }
 
     /// @dev Accumulates rewards based on the current `rate` and time elapsed since last update

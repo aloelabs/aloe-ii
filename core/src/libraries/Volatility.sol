@@ -5,6 +5,7 @@ import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
 import {Q96} from "./constants/Q.sol";
+import {mulDiv96} from "./LiquidityAmounts.sol";
 import {TickMath} from "./TickMath.sol";
 
 /// @title Volatility
@@ -103,8 +104,8 @@ library Volatility {
      * @return amount1 An equivalent amount of token1
      */
     function amount0ToAmount1(uint128 amount0, uint160 sqrtPriceX96) internal pure returns (uint256 amount1) {
-        uint224 priceX96 = uint224(Math.mulDiv(sqrtPriceX96, sqrtPriceX96, Q96));
-        amount1 = Math.mulDiv(amount0, priceX96, Q96);
+        uint224 priceX96 = uint224(mulDiv96(sqrtPriceX96, sqrtPriceX96));
+        amount1 = mulDiv96(amount0, priceX96);
     }
 
     /**
@@ -183,10 +184,10 @@ library Volatility {
         assert(sqrtRatioAX96 <= sqrtRatioX96 && sqrtRatioX96 <= sqrtRatioBX96);
 
         unchecked {
-            uint256 numerator = Math.mulDiv(sqrtRatioX96, sqrtRatioBX96 - sqrtRatioX96, Q96);
+            uint256 numerator = mulDiv96(sqrtRatioX96, sqrtRatioBX96 - sqrtRatioX96);
 
             value0 = Math.mulDiv(liquidity, numerator, sqrtRatioBX96);
-            value1 = Math.mulDiv(liquidity, sqrtRatioX96 - sqrtRatioAX96, Q96);
+            value1 = mulDiv96(liquidity, sqrtRatioX96 - sqrtRatioAX96);
         }
     }
 }

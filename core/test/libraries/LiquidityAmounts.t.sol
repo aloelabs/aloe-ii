@@ -3,11 +3,23 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
+import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
+
 import {TickMath} from "src/libraries/TickMath.sol";
-import {LiquidityAmounts} from "src/libraries/LiquidityAmounts.sol";
+import {LiquidityAmounts, mulDiv96} from "src/libraries/LiquidityAmounts.sol";
+import {msb} from "src/libraries/Log2.sol";
 
 contract LiquidityAmountsTest is Test {
     function setUp() public {}
+
+    function test_comparitive_mulDiv96(uint256 a, uint256 b) public {
+        while (msb(a) + msb(b) >= 351) {
+            a = a >> 1;
+        }
+
+        uint256 q96 = 1 << 96;
+        assertEq(mulDiv96(a, b), Math.mulDiv(a, b, q96));
+    }
 
     function test_spec_getAmountsForLiquidity() public {
         uint160 current = 79226859512860901259714;

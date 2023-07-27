@@ -10,7 +10,7 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
 import {Q96} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
-import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
+import {LiquidityAmounts, mulDiv96} from "./libraries/LiquidityAmounts.sol";
 import {Positions} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 
@@ -216,7 +216,7 @@ contract Borrower is IUniswapV3MintCallback {
                 // NOTE: This value is not constrained to `TOKEN1.balanceOf(address(this))`, so liquidators
                 // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
                 // be an issue unless the borrower has already started accruing bad debt.
-                uint256 available1 = Math.mulDiv(liabilities0, priceX96, Q96) + incentive1;
+                uint256 available1 = mulDiv96(liabilities0, priceX96) + incentive1;
 
                 TOKEN1.safeTransfer(address(callee), available1);
                 callee.swap1For0(data, available1, liabilities0);
@@ -252,11 +252,11 @@ contract Borrower is IUniswapV3MintCallback {
     /**
      * @notice Allows the owner to manage their account by handing control to some `callee`. Inside the
      * callback `callee` has access to all sub-commands (`uniswapDeposit`, `uniswapWithdraw`, `borrow`,
-     * and `repay`) and if `allowances` are set, it also has permission to transfer ERC20s. Whatever
-     * `callee` does, the account MUST be healthy after the callback.
+     * `repay`, and `withdrawAnte`) and if `allowances` are set, it also has permission to transfer ERC20s.
+     * Whatever `callee` does, the account MUST be healthy after the callback.
      * @param callee The smart contract that will get temporary control of this account
      * @param data Encoded parameters that get forwarded to `callee`
-     * @param allowances Whether to approve `callee` to transfer ERC20s. The first entry is for `TOKEN0`,
+     * @param allowances Whether to approve `callee` to transfer ERC20s. The 1st entry is for `TOKEN0`,
      * and the 2nd is for `TOKEN1`.
      */
     function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external payable {
