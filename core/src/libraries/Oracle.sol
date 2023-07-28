@@ -122,7 +122,7 @@ library Oracle {
             seed %= observationCardinality;
             (uint32 timeL, int56 tickCumL, uint160 liqCumL, ) = pool.observations(seed);
 
-            for (uint256 i = 0; i < observationCardinality; i++) {                
+            for (uint256 i = 0; i < observationCardinality; i++) {
                 if (timeL == target) {
                     return (tickCumL, liqCumL);
                 }

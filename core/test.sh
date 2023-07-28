@@ -21,6 +21,20 @@ if [ -z "$CI" ]; then
     trap cleanup EXIT
 fi
 
+# Ensure each constant in `Constants.sol` is only defined once
+if [ "$CHECK_CONSTANTS" = true ]; then
+    constants=$(sed -n -E 's/.*constant ([_A-Z]{1,} =).*/\1/p' ./src/libraries/constants/Constants.sol)
+    while read constant; do 
+      n=$(grep -rnw --include=\*.sol '.' -e "$constant" | wc -l)
+      if (( n > 1)); then
+        echo "❌ ${constant} is defined more than once" >> $GITHUB_STEP_SUMMARY
+        exit 1
+      fi
+    done <<< "$constants"
+
+    echo "✅ Each constant is only defined once" >> $GITHUB_STEP_SUMMARY
+fi
+
 # Ensure that `Ledger` and `Lender` have the same storage layouts
 if [ "$CHECK_STORAGE_LAYOUTS" = true ]; then
     A=$(mktemp)
