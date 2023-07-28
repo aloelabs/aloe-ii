@@ -23,7 +23,7 @@ uint256 constant MAX_RATE = 706354;
 
 /// @dev The default amount of Ether required to take on debt in a `Borrower`. The `Factory` can override this value
 /// on a per-market basis.
-uint248 constant DEFAULT_ANTE = 0.1 ether;
+uint216 constant DEFAULT_ANTE = 0.1 ether;
 
 /// @dev The default number of standard deviations of price movement used to determine probe prices for `Borrower`
 /// solvency. The `Factory` can override this value on a per-market basis.
@@ -70,3 +70,13 @@ uint256 constant FEE_GROWTH_SAMPLE_PERIOD = 5 minutes;
 /// from `UNISWAP_AVG_WINDOW` seconds ago. Larger values make the resulting price/liquidity values harder to
 /// manipulate, but also make the oracle slower to respond to changes.
 uint32 constant UNISWAP_AVG_WINDOW = 30 minutes;
+
+/// @dev Assume someone is manipulating the Uniswap TWAP oracle. To steal money from the protocol and create bad debt,
+/// they would need to change the TWAP by a factor of (1 / collateralFactor), where the collateralFactor is a function
+/// of volatility. We have a manipulation metric that increases as an attacker tries to change the TWAP. If this metric
+/// rises above a certain threshold, certain functionality will be paused, e.g. no new debt can be created. The
+/// threshold is calculated as follows:
+///
+///   manipulationThreshold = 2 * log_1.0001(1 / collateralFactor) / MANIPULATION_THRESHOLD_DIVISOR
+///
+uint24 constant MANIPULATION_THRESHOLD_DIVISOR = 24;

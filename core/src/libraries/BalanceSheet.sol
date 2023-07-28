@@ -2,12 +2,13 @@
 pragma solidity 0.8.17;
 
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
-import {MIN_SIGMA, MAX_SIGMA, MAX_LEVERAGE, LIQUIDATION_INCENTIVE} from "./constants/Constants.sol";
+import {MIN_SIGMA, MAX_SIGMA, MAX_LEVERAGE, LIQUIDATION_INCENTIVE, MANIPULATION_THRESHOLD_DIVISOR} from "./constants/Constants.sol";
 import {Q96} from "./constants/Q.sol";
 import {mulDiv96} from "./LiquidityAmounts.sol";
+import {TickMath} from "./TickMath.sol";
 
 struct Assets {
     uint256 fixed0;
@@ -79,16 +80,15 @@ library BalanceSheet {
     function computeProbePrices(
         uint160 sqrtMeanPriceX96,
         uint256 sigma,
-        uint256 n
-    ) internal pure returns (uint160 a, uint160 b) {
+        uint256 n,
+        uint56 metric
+    ) internal pure returns (uint160 a, uint160 b, bool isSus) {
         unchecked {
-            if (sigma < MIN_SIGMA) sigma = MIN_SIGMA;
-            else if (sigma > MAX_SIGMA) sigma = MAX_SIGMA;
+            sigma = n * SoladyMath.clamp(sigma, MIN_SIGMA, MAX_SIGMA);
+            isSus = metric > _manipulationThreshold(_effectiveCollateralFactor(sigma));
 
-            sigma *= n;
-
-            a = uint160((sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 - sigma)) / 1e9);
-            b = SafeCastLib.safeCastTo160((sqrtMeanPriceX96 * FixedPointMathLib.sqrt(1e18 + sigma)) / 1e9);
+            a = uint160((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 - sigma)) / 1e9);
+            b = SafeCastLib.safeCastTo160((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 + sigma)) / 1e9);
         }
     }
 
@@ -117,6 +117,20 @@ library BalanceSheet {
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
                 incentive1 += shortfall / LIQUIDATION_INCENTIVE;
             }
+        }
+    }
+
+    /// @dev Equivalent to log_{1.0001}(1e18 / cf) / 12 assuming `MANIPULATION_THRESHOLD_DIVISOR = 24`
+    function _manipulationThreshold(uint256 cf) private pure returns (uint24) {
+        return uint24(-TickMath.getTickAtSqrtRatio(uint160(cf)) - 501937) / MANIPULATION_THRESHOLD_DIVISOR;
+    }
+
+    /// @dev Equivalent to \frac{1 - σ}{1 + 1/liquidationIncentive + 1/maxLeverage} where σ = clampedAndScaledSigma / 1e18 in floating point
+    function _effectiveCollateralFactor(uint256 clampedAndScaledSigma) private pure returns (uint256 cf) {
+        unchecked {
+            cf =
+                ((1e18 - clampedAndScaledSigma) * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE)) /
+                (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE);
         }
     }
 }

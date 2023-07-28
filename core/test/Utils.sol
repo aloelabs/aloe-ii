@@ -43,8 +43,8 @@ contract Router {
 contract VolatilityOracleMock {
     function prepare(IUniswapV3Pool pool) external {}
 
-    function consult(IUniswapV3Pool pool) external view returns (uint160, uint256) {
-        (uint160 sqrtMeanPriceX96, ) = Oracle.consult(pool, 20 minutes);
-        return (sqrtMeanPriceX96, 0.025e18);
+    function consult(IUniswapV3Pool pool) external view returns (uint56, uint160, uint256) {
+        (uint56 metric, uint160 sqrtMeanPriceX96, ) = Oracle.consult(pool);
+        return (metric, sqrtMeanPriceX96, 0.025e18);
     }
 }

@@ -272,16 +272,21 @@ contract Borrower is IUniswapV3MintCallback {
         if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
         if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
-        (uint256 ante, uint256 nSigma) = FACTORY.getParameters(UNISWAP_POOL);
+        (uint256 ante, uint256 nSigma, uint256 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
 
-        Prices memory prices = _getPrices(nSigma);
+        (Prices memory prices, bool isSus) = _getPrices(nSigma);
         Assets memory assets = _getAssets(positions_, prices, false);
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
         require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
         unchecked {
-            if (liabilities0 + liabilities1 > 0) require(address(this).balance > ante, "Aloe: missing ante");
+            if (liabilities0 + liabilities1 > 0)
+                require(
+                    address(this).balance > ante && !isSus && block.timestamp > pausedUntilTime,
+                    "Aloe: missing ante / sus price"
+                );
         }
+        if (isSus) FACTORY.pause(UNISWAP_POOL);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -397,16 +402,17 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function getPrices() public view returns (Prices memory prices) {
-        (, uint256 nSigma) = FACTORY.getParameters(UNISWAP_POOL);
-        prices = _getPrices(nSigma);
+        (, uint256 nSigma, ) = FACTORY.getParameters(UNISWAP_POOL);
+        (prices, ) = _getPrices(nSigma);
     }
 
-    function _getPrices(uint256 n) private view returns (Prices memory prices) {
-        (uint160 sqrtMeanPriceX96, uint256 sigma) = ORACLE.consult(UNISWAP_POOL);
-
+    function _getPrices(uint256 n) private view returns (Prices memory prices, bool isSus) {
+        uint56 metric;
+        uint256 sigma;
+        // compute current price and volatility
+        (metric, prices.c, sigma) = ORACLE.consult(UNISWAP_POOL);
         // compute prices at which solvency will be checked
-        (uint160 a, uint160 b) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, sigma, n);
-        prices = Prices(a, b, sqrtMeanPriceX96);
+        (prices.a, prices.b, isSus) = BalanceSheet.computeProbePrices(prices.c, sigma, n, metric);
     }
 
     function _getAssets(

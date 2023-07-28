@@ -6,7 +6,7 @@ import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmu
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {DEFAULT_ANTE, DEFAULT_N_SIGMA} from "./libraries/constants/Constants.sol";
+import {DEFAULT_ANTE, DEFAULT_N_SIGMA, UNISWAP_AVG_WINDOW} from "./libraries/constants/Constants.sol";
 
 import {Borrower} from "./Borrower.sol";
 import {Lender} from "./Lender.sol";
@@ -33,8 +33,9 @@ contract Factory {
     }
 
     struct Parameters {
-        uint248 ante;
+        uint216 ante;
         uint8 nSigma;
+        uint32 pausedUntilTime;
     }
 
     VolatilityOracle public immutable ORACLE;
@@ -80,6 +81,13 @@ contract Factory {
         lenderImplementation = address(new Lender(address(this)));
     }
 
+    function pause(IUniswapV3Pool pool) external {
+        require(isBorrower[msg.sender]);
+        unchecked {
+            getParameters[pool].pausedUntilTime = uint32(block.timestamp) + UNISWAP_AVG_WINDOW;
+        }
+    }
+
     /*//////////////////////////////////////////////////////////////
                              WORLD CREATION
     //////////////////////////////////////////////////////////////*/
@@ -100,7 +108,7 @@ contract Factory {
         Borrower borrowerImplementation = new Borrower(ORACLE, pool, lender0, lender1);
 
         getMarket[pool] = Market(lender0, lender1, borrowerImplementation);
-        getParameters[pool] = Parameters(DEFAULT_ANTE, DEFAULT_N_SIGMA);
+        getParameters[pool] = Parameters(DEFAULT_ANTE, DEFAULT_N_SIGMA, 0);
         emit CreateMarket(pool, lender0, lender1);
     }
 

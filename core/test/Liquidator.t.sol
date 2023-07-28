@@ -234,7 +234,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        uint256 debt = 1617e18;
+        uint256 debt = 1615e18;
 
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
@@ -286,7 +286,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        uint256 debt = 1617e18;
+        uint256 debt = 1615e18;
 
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
@@ -408,13 +408,15 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         // increase price of DAI by 1 tick
         {
-            uint32[] memory t = new uint32[](2);
-            t[0] = 1200;
-            t[1] = 0;
+            uint32[] memory t = new uint32[](3);
+            t[0] = 3600;
+            t[1] = 1800;
+            t[2] = 0;
             (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s) = pool.observe(t);
             int24 newTick = TickMath.getTickAtSqrtRatio(prices.c) + 1;
             tickCumulatives[0] = 0;
-            tickCumulatives[1] = int56(newTick) * 1200;
+            tickCumulatives[1] = int56(newTick) * 1800;
+            tickCumulatives[2] = int56(newTick) * 3600;
             vm.mockCall(
                 address(pool),
                 abi.encodeWithSelector(pool.observe.selector),
@@ -469,13 +471,15 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         // increase price of DAI by 1 tick
         {
-            uint32[] memory t = new uint32[](2);
-            t[0] = 1200;
-            t[1] = 0;
+            uint32[] memory t = new uint32[](3);
+            t[0] = 3600;
+            t[1] = 1800;
+            t[2] = 0;
             (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s) = pool.observe(t);
             int24 newTick = TickMath.getTickAtSqrtRatio(prices.c) + 1;
             tickCumulatives[0] = 0;
-            tickCumulatives[1] = int56(newTick) * 1200;
+            tickCumulatives[1] = int56(newTick) * 1800;
+            tickCumulatives[2] = int56(newTick) * 3600;
             vm.mockCall(
                 address(pool),
                 abi.encodeWithSelector(pool.observe.selector),
