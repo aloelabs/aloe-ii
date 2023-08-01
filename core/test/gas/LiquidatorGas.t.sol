@@ -11,7 +11,7 @@ import "src/Factory.sol";
 import "src/Lender.sol";
 import "src/RateModel.sol";
 
-import {VolatilityOracleMock} from "../Utils.sol";
+import {VolatilityOracleMock, getSeed} from "../Utils.sol";
 
 contract LiquidatorGasTest is Test, IManager, ILiquidator {
     IUniswapV3Pool constant pool = IUniswapV3Pool(0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8);
@@ -21,6 +21,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
     Lender immutable lender0;
     Lender immutable lender1;
     Borrower immutable account;
+    uint32 immutable oracleSeed;
 
     constructor() {
         vm.createSelectFork(vm.rpcUrl("mainnet"));
@@ -35,6 +36,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         factory.createMarket(pool);
         (lender0, lender1, ) = factory.getMarket(pool);
         account = Borrower(factory.createBorrower(pool, address(this)));
+        oracleSeed = getSeed(pool);
     }
 
     function setUp() public {
@@ -56,15 +58,14 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         // borrow 200 DAI
         bytes memory data = abi.encode(Action.BORROW, 200e18, 0);
         bool[2] memory allowances;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, oracleSeed);
 
         assertEq(lender0.borrowBalance(address(account)), 200e18);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), 1);
+        account.liquidate(this, bytes(""), 1, oracleSeed);
 
-        skip(1 days); // seconds
-        lender0.accrueInterest();
+        setInterest(lender0, 10010);
 
         assertGt(lender0.borrowBalance(address(account)), 200e18);
         assertLt(lender0.borrowBalance(address(account)), 201e18);
@@ -72,7 +73,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(this, bytes(""), 1);
+        account.liquidate(this, bytes(""), 1, oracleSeed);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);
@@ -89,17 +90,16 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         // borrow 200 DAI and 20 WETH
         bytes memory data = abi.encode(Action.BORROW, 200e18, 20e18);
         bool[2] memory allowances;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, oracleSeed);
 
         assertEq(lender0.borrowBalance(address(account)), 200e18);
         assertEq(lender1.borrowBalance(address(account)), 20e18);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), 1);
+        account.liquidate(this, bytes(""), 1, oracleSeed);
 
-        skip(1 days); // seconds
-        lender0.accrueInterest();
-        lender1.accrueInterest();
+        setInterest(lender0, 10010);
+        setInterest(lender1, 10010);
 
         assertGt(lender0.borrowBalance(address(account)), 200e18);
         assertLt(lender0.borrowBalance(address(account)), 201e18);
@@ -109,7 +109,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(this, bytes(""), 1);
+        account.liquidate(this, bytes(""), 1, oracleSeed);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);
@@ -127,22 +127,21 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         // borrow 200 DAI and 20 WETH
         bytes memory data = abi.encode(Action.BORROW, 199.5e18, 20e18);
         bool[2] memory allowances;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, oracleSeed);
 
         // create a small Uniswap position
         data = abi.encode(Action.UNI_DEPOSIT, 0, 0);
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, oracleSeed);
 
         assertEq(account.getUniswapPositions().length, 2);
 
-        skip(1 days); // seconds
-        lender0.accrueInterest();
-        lender1.accrueInterest();
+        setInterest(lender0, 10010);
+        setInterest(lender1, 10010);
 
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(this, bytes(""), 1);
+        account.liquidate(this, bytes(""), 1, oracleSeed);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);
@@ -160,26 +159,25 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
         bool[2] memory allowances;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, oracleSeed);
 
         // withdraw `debt` DAI
         data = abi.encode(Action.WITHDRAW, debt, 0);
         allowances[0] = true;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, oracleSeed);
 
-        skip(3 days); // seconds
-        lender0.accrueInterest();
-        lender1.accrueInterest();
+        setInterest(lender0, 10100);
+        setInterest(lender1, 10100);
 
-        account.warn();
-        skip(2 minutes + 1 seconds);
+        account.warn(oracleSeed);
+        skip(LIQUIDATION_GRACE_PERIOD + 1 seconds);
         lender0.accrueInterest();
         lender1.accrueInterest();
 
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(this, bytes(""), 1);
+        account.liquidate(this, bytes(""), 1, oracleSeed);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);
@@ -197,20 +195,19 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
         bool[2] memory allowances;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, oracleSeed);
 
         // withdraw `debt` DAI
         data = abi.encode(Action.WITHDRAW, debt, 0);
         allowances[0] = true;
-        account.modify(this, data, allowances);
+        account.modify(this, data, allowances, oracleSeed);
 
-        skip(3 days); // seconds
-        lender0.accrueInterest();
-        lender1.accrueInterest();
+        setInterest(lender0, 10100);
+        setInterest(lender1, 10100);
 
         vm.resumeGasMetering();
 
-        account.warn();
+        account.warn(oracleSeed);
     }
 
     enum Action {
@@ -272,5 +269,17 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
     function getParameters(IUniswapV3Pool) external pure returns (uint248 ante, uint8 nSigma) {
         ante = DEFAULT_ANTE;
         nSigma = DEFAULT_N_SIGMA;
+    }
+
+    // (helpers)
+    function setInterest(Lender lender, uint256 amount) private {
+        bytes32 ID = bytes32(uint256(1));
+        uint256 slot1 = uint256(vm.load(address(lender), ID));
+
+        uint256 borrowBase = slot1 % (1 << 184);
+        uint256 borrowIndex = slot1 >> 184;
+
+        uint256 newSlot1 = borrowBase + ((borrowIndex * amount / 10_000) << 184);
+        vm.store(address(lender), ID, bytes32(newSlot1));
     }
 }

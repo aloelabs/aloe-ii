@@ -3,7 +3,6 @@ pragma solidity 0.8.17;
 
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
-
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
@@ -115,8 +114,11 @@ contract Borrower is IUniswapV3MintCallback {
     /**
      * @notice Warns the borrower that they're about to be liquidated. NOTE: Liquidators are only
      * forced to call this in cases where the 5% swap bonus is up for grabs.
+     * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
+     * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
+     * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
      */
-    function warn() external {
+    function warn(uint40 oracleSeed) external {
         // Load `slot0` from storage. We don't use `_loadSlot0` here because the `require` is different
         uint256 slot0_;
         assembly ("memory-safe") {
@@ -127,7 +129,7 @@ contract Borrower is IUniswapV3MintCallback {
 
         {
             // Fetch prices from oracle
-            Prices memory prices = getPrices();
+            Prices memory prices = getPrices(oracleSeed);
             // Withdraw Uniswap positions while tallying assets
             Assets memory assets = _getAssets(positions.read(), prices, false);
             // Fetch liabilities from lenders
@@ -157,13 +159,16 @@ contract Borrower is IUniswapV3MintCallback {
      * liquidity is thin and swap price impact would be too large, you can use higher values to
      * reduce swap size and make it easier for `callee` to do its job. `2` would be half swap size,
      * `3` one third, and so on.
+     * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
+     * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
+     * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
      */
-    function liquidate(ILiquidator callee, bytes calldata data, uint256 strain) external {
+    function liquidate(ILiquidator callee, bytes calldata data, uint256 strain, uint40 oracleSeed) external {
         uint256 slot0_ = _loadSlot0();
         _saveSlot0(slot0_, _formatted(State.Locked));
 
         // Fetch prices from oracle
-        Prices memory prices = getPrices();
+        Prices memory prices = getPrices(oracleSeed);
 
         uint256 liabilities0;
         uint256 liabilities1;
@@ -258,8 +263,16 @@ contract Borrower is IUniswapV3MintCallback {
      * @param data Encoded parameters that get forwarded to `callee`
      * @param allowances Whether to approve `callee` to transfer ERC20s. The 1st entry is for `TOKEN0`,
      * and the 2nd is for `TOKEN1`.
+     * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
+     * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
+     * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
      */
-    function modify(IManager callee, bytes calldata data, bool[2] calldata allowances) external payable {
+    function modify(
+        IManager callee,
+        bytes calldata data,
+        bool[2] calldata allowances,
+        uint40 oracleSeed
+    ) external payable {
         require(_loadSlot0() % (1 << 160) == uint160(msg.sender), "Aloe: only owner");
 
         if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
@@ -274,7 +287,7 @@ contract Borrower is IUniswapV3MintCallback {
 
         (uint256 ante, uint256 nSigma, uint256 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
 
-        (Prices memory prices, bool isSus) = _getPrices(nSigma);
+        (Prices memory prices, bool isSus) = _getPrices(nSigma, oracleSeed);
         Assets memory assets = _getAssets(positions_, prices, false);
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
 
@@ -401,16 +414,16 @@ contract Borrower is IUniswapV3MintCallback {
         return positions.read();
     }
 
-    function getPrices() public view returns (Prices memory prices) {
+    function getPrices(uint40 oracleSeed) public view returns (Prices memory prices) {
         (, uint256 nSigma, ) = FACTORY.getParameters(UNISWAP_POOL);
-        (prices, ) = _getPrices(nSigma);
+        (prices, ) = _getPrices(nSigma, oracleSeed);
     }
 
-    function _getPrices(uint256 n) private view returns (Prices memory prices, bool isSus) {
+    function _getPrices(uint256 n, uint40 oracleSeed) private view returns (Prices memory prices, bool isSus) {
         uint56 metric;
         uint256 sigma;
         // compute current price and volatility
-        (metric, prices.c, sigma) = ORACLE.consult(UNISWAP_POOL);
+        (metric, prices.c, sigma) = ORACLE.consult(UNISWAP_POOL, oracleSeed);
         // compute prices at which solvency will be checked
         (prices.a, prices.b, isSus) = BalanceSheet.computeProbePrices(prices.c, sigma, n, metric);
     }
