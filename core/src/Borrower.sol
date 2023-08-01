@@ -296,7 +296,7 @@ contract Borrower is IUniswapV3MintCallback {
             if (liabilities0 + liabilities1 > 0)
                 require(
                     address(this).balance > ante && !isSus && block.timestamp > pausedUntilTime,
-                    "Aloe: ante or TWAP"
+                    "Aloe: missing ante / sus price"
                 );
         }
         if (isSus) FACTORY.pause(UNISWAP_POOL);
