@@ -120,7 +120,7 @@ library BalanceSheet {
         }
     }
 
-    /// @dev Equivalent to log_{1.0001}(1e18 / cf) / 12 assuming `MANIPULATION_THRESHOLD_DIVISOR = 24`
+    /// @dev Equivalent to log_{1.0001}(1e18 / cf) / 12 assuming `MANIPULATION_THRESHOLD_DIVISOR` is 24
     function _manipulationThreshold(uint256 cf) private pure returns (uint24) {
         return uint24(-TickMath.getTickAtSqrtRatio(uint160(cf)) - 501937) / MANIPULATION_THRESHOLD_DIVISOR;
     }
