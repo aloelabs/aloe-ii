@@ -8,6 +8,33 @@ import {Q128} from "aloe-ii-core/libraries/constants/Q.sol";
 import {LiquidityAmounts} from "aloe-ii-core/libraries/LiquidityAmounts.sol";
 import {TickMath} from "aloe-ii-core/libraries/TickMath.sol";
 
+bytes32 constant UNISWAP_INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
+
+function computePoolAddress(
+    address factory,
+    address token0,
+    address token1,
+    uint24 fee
+) pure returns (IUniswapV3Pool pool) {
+    assert(token0 < token1);
+    pool = IUniswapV3Pool(
+        address(
+            uint160(
+                uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            hex"ff",
+                            factory,
+                            keccak256(abi.encode(token0, token1, fee)),
+                            UNISWAP_INIT_CODE_HASH
+                        )
+                    )
+                )
+            )
+        )
+    );
+}
+
 library Uniswap {
     struct Position {
         // the lower tick of a position

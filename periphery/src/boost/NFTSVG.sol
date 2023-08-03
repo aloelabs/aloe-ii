@@ -10,11 +10,11 @@ library NFTSVG {
     using LibString for int256;
 
     struct SVGParams {
-        uint256 tokenId;
+        string tokenId;
         string token0;
         string token1;
-        string token0Symbol;
-        string token1Symbol;
+        string symbol0;
+        string symbol1;
         string feeTier;
         int24 lower;
         int24 upper;
@@ -34,13 +34,13 @@ library NFTSVG {
                 '<g filter="url(#shadow)"><g clip-path="url(#card)" filter="url(#rough-paper)">',
                 // card background
                 '<rect width="350" height="475" x="30" y="30" fill="white" />',
-                _generateSVGHeaderText(params.token0Symbol, params.token1Symbol, params.feeTier),
+                _generateSVGHeaderText(params.symbol0, params.symbol1, params.feeTier),
                 '<g clip-path="url(#square330)" style="transform:translate(40px,165px)"',
                 params.inRange ? ">" : ' filter="url(#grayscale)">',
                 _generate3X3Quilt(params.color0, "rgb(242,245,238)", params.color1, params.color2, params.color3),
-                _generateAnimatedText(params.token0, params.token1, params.token0Symbol, params.token1Symbol),
+                _generateAnimatedText(params.token0, params.token1, params.symbol0, params.symbol1),
                 "</g>",
-                _generatePositionDataText(params.tokenId.toString(), params.lower, params.upper, params.isGeneralized),
+                _generatePositionDataText(params.tokenId, params.lower, params.upper, params.isGeneralized),
                 "</g></g></svg>"
             );
     }
