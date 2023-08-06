@@ -24,7 +24,7 @@ library NFTDescriptor {
         bool isGeneralized;
     }
 
-    function constructTokenURI(ConstructTokenURIParams memory params) public pure returns (string memory) {
+    function constructTokenURI(ConstructTokenURIParams memory params) internal pure returns (string memory) {
         params.symbol0 = _escapeQuotes(params.symbol0);
         params.symbol1 = _escapeQuotes(params.symbol1);
 

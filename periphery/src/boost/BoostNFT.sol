@@ -7,21 +7,15 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {Borrower, IManager, ERC20} from "aloe-ii-core/Borrower.sol";
 import {Factory} from "aloe-ii-core/Factory.sol";
 
-import {INonfungiblePositionManager as INFTManager} from "../interfaces/INonfungiblePositionManager.sol";
-import {computePoolAddress} from "../libraries/Uniswap.sol";
 import {NFTDescriptor} from "./NFTDescriptor.sol";
+import {SafeERC20Namer} from "./SafeERC20Namer.sol";
 
 contract BoostNFT is ERC721 {
-    address public immutable DEPLOYER;
-
     Factory public immutable FACTORY;
 
-    struct Slot0 {
-        IManager boostManager;
-        uint256 nextId;
-    }
+    address public owner;
 
-    Slot0 public slot0;
+    IManager public boostManager;
 
     struct NFTAttributes {
         Borrower borrower;
@@ -37,7 +31,7 @@ contract BoostNFT is ERC721 {
     //////////////////////////////////////////////////////////////*/
 
     constructor(Factory factory) ERC721("Uniswap V3 - Aloe Edition", "UNI-V3-ALOE") {
-        DEPLOYER = msg.sender;
+        owner = msg.sender;
         FACTORY = factory;
     }
 
@@ -45,9 +39,14 @@ contract BoostNFT is ERC721 {
                                GOVERNANCE
     //////////////////////////////////////////////////////////////*/
 
-    function setBoostManager(IManager boostManager) external {
-        require(msg.sender == DEPLOYER);
-        slot0.boostManager = boostManager;
+    function setOwner(address owner_) external {
+        require(msg.sender == owner);
+        owner = owner_;
+    }
+
+    function setBoostManager(IManager boostManager_) external {
+        require(msg.sender == owner);
+        boostManager = boostManager_;
     }
 
     function createBorrower(IUniswapV3Pool pool) external {
@@ -59,38 +58,37 @@ contract BoostNFT is ERC721 {
     //////////////////////////////////////////////////////////////*/
 
     function mint(IUniswapV3Pool pool, bytes memory initializationData) public payable {
-        Slot0 memory slot0_ = slot0;
+        uint256 id = uint256(keccak256(abi.encodePacked(msg.sender, balanceOf(msg.sender))));
 
         Borrower borrower = _nextBorrower(pool);
-        attributesOf[slot0_.nextId] = NFTAttributes(borrower, false);
-        _mint(msg.sender, slot0_.nextId);
-        slot0.nextId++;
+        attributesOf[id] = NFTAttributes(borrower, false);
+        _mint(msg.sender, id);
 
-        initializationData = abi.encode(/* owner */ msg.sender, /* data */ initializationData);
-        borrower.modify{value: msg.value}(slot0_.boostManager, initializationData, [false, false]);
+        initializationData = abi.encode(msg.sender, 0, initializationData);
+        borrower.modify{value: msg.value}(boostManager, initializationData, [false, false]);
     }
 
     /*//////////////////////////////////////////////////////////////
                             BORROWER MODIFY
     //////////////////////////////////////////////////////////////*/
 
-    function modify(uint256 id, IManager manager, bytes memory data, bool[2] calldata allowances) public payable {
-        require(msg.sender == _ownerOf[id], "NOT_AUTHORIZED");
+    function modify(uint256 id, uint8 action, IManager manager, bytes memory data, bool[2] calldata allowances) public payable {
+        require(msg.sender == _ownerOf[id], "Aloe: only NFT owner can modify");
 
         NFTAttributes memory attributes = attributesOf[id];
 
         if (address(manager) == address(0)) {
-            manager = slot0.boostManager;
+            manager = boostManager;
         } else if (!attributes.isGeneralized) {
             attributesOf[id].isGeneralized = true;
         }
 
-        data = abi.encode(/* owner */ msg.sender, /* data */ data);
+        data = abi.encode(msg.sender, action, data);
         attributes.borrower.modify{value: msg.value}(manager, data, allowances);
     }
 
-    function modify(uint256 id, bytes calldata data, bool[2] calldata allowances) external payable {
-        modify(id, IManager(address(0)), data, allowances);
+    function modify(uint256 id, uint8 action, bytes calldata data, bool[2] calldata allowances) external payable {
+        modify(id, action, IManager(address(0)), data, allowances);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -122,8 +120,8 @@ contract BoostNFT is ERC721 {
                     tokenId: id,
                     token0: address(token0),
                     token1: address(token1),
-                    symbol0: token0.symbol(),
-                    symbol1: token1.symbol(),
+                    symbol0: SafeERC20Namer.tokenSymbol(address(token0)),
+                    symbol1: SafeERC20Namer.tokenSymbol(address(token1)),
                     tickLower: tickLower,
                     tickUpper: tickUpper,
                     tickCurrent: tickCurrent,
