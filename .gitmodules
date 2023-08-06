@@ -13,3 +13,6 @@
 [submodule "core/lib/clones-with-immutable-args"]
 	path = core/lib/clones-with-immutable-args
 	url = https://github.com/aloelabs/clones-with-immutable-args
+[submodule "core/lib/solady"]
+	path = core/lib/solady
+	url = https://github.com/vectorized/solady
