@@ -72,7 +72,13 @@ contract BoostNFT is ERC721 {
                             BORROWER MODIFY
     //////////////////////////////////////////////////////////////*/
 
-    function modify(uint256 id, uint8 action, IManager manager, bytes memory data, bool[2] calldata allowances) public payable {
+    function modify(
+        uint256 id,
+        uint8 action,
+        IManager manager,
+        bytes memory data,
+        bool[2] calldata allowances
+    ) public payable {
         require(msg.sender == _ownerOf[id], "Aloe: only NFT owner can modify");
 
         NFTAttributes memory attributes = attributesOf[id];
