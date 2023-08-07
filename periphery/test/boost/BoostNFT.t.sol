@@ -27,7 +27,7 @@ contract BoostNFTTest is Test {
         vm.createSelectFork(vm.rpcUrl("optimism"));
         vm.rollFork(107847552);
 
-        boostNft = new BoostNFT(FACTORY);
+        boostNft = new BoostNFT(address(this), FACTORY);
         boostManager = new BoostManager(FACTORY, address(boostNft), UNISWAP_NFT);
 
         boostNft.setBoostManager(boostManager);

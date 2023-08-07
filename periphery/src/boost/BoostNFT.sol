@@ -30,8 +30,8 @@ contract BoostNFT is ERC721 {
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(Factory factory) ERC721("Uniswap V3 - Aloe Edition", "UNI-V3-ALOE") {
-        owner = msg.sender;
+    constructor(address owner_, Factory factory) ERC721("Uniswap V3 - Aloe Edition", "UNI-V3-ALOE") {
+        owner = owner_;
         FACTORY = factory;
     }
 
