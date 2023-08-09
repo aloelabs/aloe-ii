@@ -46,7 +46,7 @@ contract AccrueInterestScript is KeeperScript {
             lenders[i * 2 + 1] = lender1;
         }
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
-        HELPER.accrueInterest(lenders);
+        LenderAccrualHelper(0xDa2764DaDc020Fc2c7eE79B1d9645E3eeA1CAa5A).accrueInterest(lenders);
         vm.stopBroadcast();
     }
 }

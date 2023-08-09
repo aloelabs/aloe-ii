@@ -7,6 +7,7 @@ import {LibString} from "solady/src/utils/LibString.sol";
 import {NFTSVG} from "./NFTSVG.sol";
 
 library NFTDescriptor {
+    using LibString for string;
     using LibString for uint256;
 
     struct ConstructTokenURIParams {
@@ -25,8 +26,8 @@ library NFTDescriptor {
     }
 
     function constructTokenURI(ConstructTokenURIParams memory params) internal pure returns (string memory) {
-        params.symbol0 = _escapeQuotes(params.symbol0);
-        params.symbol1 = _escapeQuotes(params.symbol1);
+        params.symbol0 = params.symbol0.escapeJSON();
+        params.symbol1 = params.symbol1.escapeJSON();
 
         string memory tokenId = params.tokenId.toString();
         string memory token0 = _addressToString(params.token0);
@@ -121,7 +122,7 @@ library NFTDescriptor {
         string memory feeString
     ) private pure returns (string memory) {
         NFTSVG.SVGParams memory svgParams = NFTSVG.SVGParams(
-            tokenId,
+            tokenId.slice(0, 16),
             token0,
             token1,
             params.symbol0,
@@ -158,25 +159,5 @@ library NFTDescriptor {
 
     function _tokenToColor(address token, uint256 offset) private pure returns (string memory) {
         return string.concat("#", uint256((uint160(token) >> offset) % (1 << 24)).toHexStringNoPrefix(3));
-    }
-
-    function _escapeQuotes(string memory symbol) private pure returns (string memory) {
-        bytes memory symbolBytes = bytes(symbol);
-        uint8 quotesCount = 0;
-        for (uint8 i = 0; i < symbolBytes.length; i++) {
-            if (symbolBytes[i] == '"') quotesCount++;
-        }
-        if (quotesCount > 0) {
-            bytes memory escapedBytes = new bytes(symbolBytes.length + (quotesCount));
-            uint256 index;
-            for (uint8 i = 0; i < symbolBytes.length; i++) {
-                if (symbolBytes[i] == '"') {
-                    escapedBytes[index++] = "\\";
-                }
-                escapedBytes[index++] = symbolBytes[i];
-            }
-            return string(escapedBytes);
-        }
-        return symbol;
     }
 }

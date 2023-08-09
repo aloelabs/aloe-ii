@@ -23,7 +23,7 @@ contract UpdateOracleScript is KeeperScript {
 
         vm.createSelectFork(vm.rpcUrl("base"));
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
-        HELPER.update(poolsBase);
+        OracleUpdateHelper(0x3C56D0B36Bfc486Eab4304Da6322b5A335552F55).update(poolsBase);
         vm.stopBroadcast();
     }
 }
