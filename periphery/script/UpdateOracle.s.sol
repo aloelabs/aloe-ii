@@ -20,5 +20,10 @@ contract UpdateOracleScript is KeeperScript {
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
         HELPER.update(poolsArbitrum);
         vm.stopBroadcast();
+
+        vm.createSelectFork(vm.rpcUrl("base"));
+        vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
+        HELPER.update(poolsBase);
+        vm.stopBroadcast();
     }
 }

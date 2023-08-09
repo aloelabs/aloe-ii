@@ -33,4 +33,8 @@ abstract contract KeeperScript is Script {
         IUniswapV3Pool(0x7e7FB3CCEcA5F2ac952eDF221fd2a9f62E411980), // MAGIC/WETH
         IUniswapV3Pool(0x92c63d0e701CAAe670C9415d91C474F686298f00)  // WETH/ARB
     ];
+
+    IUniswapV3Pool[] poolsBase = [
+        IUniswapV3Pool(0x10648BA41B8565907Cfa1496765fA4D95390aa0d) //  cbETH/WETH
+    ];
 }

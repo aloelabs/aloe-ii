@@ -36,5 +36,17 @@ contract AccrueInterestScript is KeeperScript {
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
         HELPER.accrueInterest(lenders);
         vm.stopBroadcast();
+
+        vm.createSelectFork(vm.rpcUrl("base"));
+
+        lenders = new Lender[](poolsBase.length * 2);
+        for (uint256 i = 0; i < poolsBase.length; i++) {
+            (Lender lender0, Lender lender1, ) = FACTORY.getMarket(poolsBase[i]);
+            lenders[i * 2 + 0] = lender0;
+            lenders[i * 2 + 1] = lender1;
+        }
+        vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
+        HELPER.accrueInterest(lenders);
+        vm.stopBroadcast();
     }
 }
