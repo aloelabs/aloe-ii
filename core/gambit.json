@@ -7,10 +7,11 @@
         "solc-optimize": true,
         "num-mutants": 7,
         "solc-remappings": [
-            "clones-with-immutable-args=lib/clones-with-immutable-args/src/",
             "ds-test=lib/forge-std/lib/ds-test/src/",
             "forge-std=lib/forge-std/src/",
-            "openzeppelin-contracts=lib/openzeppelin-contracts/contracts/",
+            "clones-with-immutable-args=lib/clones-with-immutable-args/src/",
+            "openzeppelin-contracts=lib/openzeppelin-contracts/",
+            "solady=lib/solady/src/",
             "solmate=lib/solmate/src/",
             "v3-core=lib/v3-core/"
         ]
