@@ -61,8 +61,8 @@ contract BoostManager is IManager {
                 // Add 0.1% extra to account for rounding in Uniswap's math. This is more gas-efficient than
                 // computing exact amounts needed with LiquidityAmounts library, and has negligible impact on
                 // interest rates and liquidation thresholds.
-                borrower.borrow(amount0 * (boost + 10) / 10000, amount1 * (boost + 10) / 10000, msg.sender);
-                borrower.uniswapDeposit(lower, upper, uint128(uint256(liquidity) * boost / 10000));
+                borrower.borrow((amount0 * (boost - 9990)) / 10000, (amount1 * (boost - 9990)) / 10000, msg.sender);
+                borrower.uniswapDeposit(lower, upper, uint128((uint256(liquidity) * boost) / 10000));
             }
 
             return zip([lower, upper, 0, 0, 0, 0]);
