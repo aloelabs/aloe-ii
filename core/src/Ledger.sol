@@ -342,6 +342,9 @@ contract Ledger {
 
     function _previewInterest(Cache memory cache) internal view returns (Cache memory, uint256, uint256) {
         unchecked {
+            // Guard against reentrancy
+            require(cache.lastAccrualTime != 0, "Aloe: locked");
+
             uint256 oldBorrows = (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
             uint256 oldInventory = cache.lastBalance + oldBorrows;
 
