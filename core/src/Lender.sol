@@ -496,12 +496,10 @@ contract Lender is Ledger {
 
     function _load() private returns (Cache memory cache, uint256 inventory) {
         cache = Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
-        // Guard against reentrancy
-        require(cache.lastAccrualTime != 0, "Aloe: locked");
 
         // Accrue interest (only in memory)
         uint256 newTotalSupply;
-        (cache, inventory, newTotalSupply) = _previewInterest(cache);
+        (cache, inventory, newTotalSupply) = _previewInterest(cache); // Includes reentrancy guard
 
         // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
         if (newTotalSupply > cache.totalSupply) {
