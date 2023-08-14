@@ -93,9 +93,13 @@ contract VolatilityOracle {
 
     function _getPoolMetadata(IUniswapV3Pool pool) private view returns (Volatility.PoolMetadata memory metadata) {
         (, , uint16 observationIndex, uint16 observationCardinality, , uint8 feeProtocol, ) = pool.slot0();
-        // If block times are inconsistent, `maxSecondsAgo` from oracle may be inflated. Divide by 2 to be extra safe.
-        metadata.maxSecondsAgo = Oracle.getMaxSecondsAgo(pool, observationIndex, observationCardinality) / 2;
-        require(metadata.maxSecondsAgo > UNISWAP_AVG_WINDOW, "Aloe: cardinality");
+        // We want observations from `UNISWAP_AVG_WINDOW` and `UNISWAP_AVG_WINDOW * 2` seconds ago. Since observation
+        // frequency varies with `pool` usage, we apply an extra 3x safety factor. If `pool` usage increases,
+        // oracle cardinality may need to be increased as well. This should be monitored off-chain.
+        require(
+            Oracle.getMaxSecondsAgo(pool, observationIndex, observationCardinality) > UNISWAP_AVG_WINDOW * 6,
+            "Aloe: cardinality"
+        );
 
         uint24 fee = pool.fee();
         metadata.gamma0 = fee;

@@ -107,7 +107,7 @@ library BalanceSheet {
                 uint256 shortfall = liabilities0 - assets0;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                incentive1 += mulDiv96(shortfall / LIQUIDATION_INCENTIVE, meanPriceX96);
+                incentive1 += mulDiv96(shortfall, meanPriceX96) / LIQUIDATION_INCENTIVE;
             }
 
             if (liabilities1 > assets1) {

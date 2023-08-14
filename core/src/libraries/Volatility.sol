@@ -14,8 +14,6 @@ import {TickMath} from "./TickMath.sol";
 /// @author Aloe Labs, Inc.
 library Volatility {
     struct PoolMetadata {
-        // the oldest oracle observation that's been populated by the pool
-        uint32 maxSecondsAgo;
         // the overall fee minus the protocol fee for token0, times 1e6
         uint24 gamma0;
         // the overall fee minus the protocol fee for token1, times 1e6
