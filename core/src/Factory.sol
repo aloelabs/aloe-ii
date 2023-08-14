@@ -54,6 +54,8 @@ contract Factory {
 
     mapping(IUniswapV3Pool => Parameters) public getParameters;
 
+    mapping(address => bool) public isLender;
+
     mapping(address => bool) public isBorrower;
 
     /*//////////////////////////////////////////////////////////////
@@ -98,12 +100,14 @@ contract Factory {
         address asset0 = pool.token0();
         address asset1 = pool.token1();
 
-        bytes32 salt = keccak256(abi.encode(pool));
+        bytes32 salt = keccak256(abi.encodePacked(pool));
         Lender lender0 = Lender(lenderImplementation.cloneDeterministic({salt: salt, data: abi.encodePacked(asset0)}));
         Lender lender1 = Lender(lenderImplementation.cloneDeterministic({salt: salt, data: abi.encodePacked(asset1)}));
 
         lender0.initialize(RATE_MODEL, 8);
         lender1.initialize(RATE_MODEL, 8);
+        isLender[address(lender0)] = true;
+        isLender[address(lender1)] = true;
 
         Borrower borrowerImplementation = new Borrower(ORACLE, pool, lender0, lender1);
 
@@ -157,13 +161,14 @@ contract Factory {
     //////////////////////////////////////////////////////////////*/
 
     function claimRewards(Lender[] calldata lenders, address beneficiary) external returns (uint256 earned) {
-        // Couriers cannot claim rewards because the accounting isn't quite correct for them -- we save gas
-        // by omitting a `Rewards.updateUserState` call for the courier in `Lender._burn`
+        // Couriers cannot claim rewards because the accounting isn't quite correct for them. Specifically, we
+        // save gas by omitting a `Rewards.updateUserState` call for the courier in `Lender._burn`
         require(!isCourier[msg.sender]);
 
         unchecked {
             uint256 count = lenders.length;
             for (uint256 i = 0; i < count; i++) {
+                assert(isLender[address(lenders[i])]);
                 earned += lenders[i].claimRewards(msg.sender);
             }
         }
