@@ -65,7 +65,7 @@ contract VolatilityOracleTest is Test {
 
             oracle.prepare(pool);
 
-            (, uint256 gamma0, uint256 gamma1, ) = oracle.cachedMetadata(pool);
+            (uint256 gamma0, uint256 gamma1, ) = oracle.cachedMetadata(pool);
             (uint256 fgg0, uint256 fgg1, uint256 fggTime) = oracle.feeGrowthGlobals(pool, 0);
             (uint256 index, uint256 time, uint256 iv) = oracle.lastWrites(pool);
 
