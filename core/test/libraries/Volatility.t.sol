@@ -11,7 +11,7 @@ contract VolatilityTest is Test {
     function setUp() public {}
 
     function test_spec_estimate() public {
-        Volatility.PoolMetadata memory metadata = Volatility.PoolMetadata(3600, 3000, 3000, 60);
+        Volatility.PoolMetadata memory metadata = Volatility.PoolMetadata(3000, 3000, 60);
         Oracle.PoolData memory data = Oracle.PoolData(
             1278673744380353403099539498152303, // sqrtPriceX96
             193789, // currentTick
@@ -111,7 +111,7 @@ contract VolatilityTest is Test {
         uint48 c,
         uint48 d
     ) public pure {
-        Volatility.PoolMetadata memory metadata = Volatility.PoolMetadata(3600, 3000, 3000, 60);
+        Volatility.PoolMetadata memory metadata = Volatility.PoolMetadata(3000, 3000, 60);
         Oracle.PoolData memory data = Oracle.PoolData(
             TickMath.getSqrtRatioAtTick(tick), // sqrtPriceX96
             tick, // currentTick
@@ -280,7 +280,6 @@ contract VolatilityTest is Test {
         oracleLookback = uint32(bound(oracleLookback, 15 seconds, 1 days));
 
         Volatility.PoolMetadata memory metadata = Volatility.PoolMetadata(
-            0,
             uint24(gammas % (1 << 24)),
             uint24(gammas >> 24),
             0
