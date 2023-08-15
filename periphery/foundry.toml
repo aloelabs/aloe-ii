@@ -30,6 +30,20 @@ allow_paths = [
     '../core'
 ]
 
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = 'long'
+multiline_func_header = 'params_first'
+quote_style = 'double'
+number_underscore = 'preserve'
+override_spacing = true
+
+[doc]
+out = '../docs/'
+title = 'Aloe II'
+
 [rpc_endpoints]
 mainnet = "${RPC_URL_MAINNET}"
 goerli = "${RPC_URL_GOERLI}"

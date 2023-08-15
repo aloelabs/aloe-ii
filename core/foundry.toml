@@ -40,7 +40,6 @@ override_spacing = true
 [doc]
 out = '../docs/'
 title = 'Aloe II'
-book = './book.toml'
 
 [invariant]
 runs = 256                 # The number of runs for each invariant test.
