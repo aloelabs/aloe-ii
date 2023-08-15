@@ -27,6 +27,21 @@ remappings = [
 [fuzz]
 runs = 4096
 
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = false
+int_types = 'long'
+multiline_func_header = 'params_first'
+quote_style = 'double'
+number_underscore = 'preserve'
+override_spacing = true
+
+[doc]
+out = '../docs/'
+title = 'Aloe II'
+book = './book.toml'
+
 [invariant]
 runs = 256                 # The number of runs for each invariant test.
 depth = 200                # The number of calls executed to attempt to break invariants in one run.
