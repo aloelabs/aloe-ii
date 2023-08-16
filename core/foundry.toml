@@ -38,7 +38,6 @@ number_underscore = 'preserve'
 override_spacing = true
 
 [doc]
-out = '../docs/'
 title = 'Aloe II'
 
 [invariant]
