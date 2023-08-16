@@ -13,7 +13,7 @@ else
 fi
 cd ..
 
-cp -rf core/docs/src/src/ docs/src/core
+cp -rf core/docs/src/src/. docs/src/core
 rm -rf core/docs
 
 cd periphery
@@ -29,5 +29,5 @@ else
 fi
 cd ..
 
-cp -rf periphery/docs/src/src/ docs/src/periphery
+cp -rf periphery/docs/src/src/. docs/src/periphery
 rm -rf periphery/docs
