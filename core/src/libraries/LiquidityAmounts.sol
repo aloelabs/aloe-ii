@@ -34,7 +34,7 @@ function mulDiv96(uint256 x, uint256 y) pure returns (uint256 result) {
 /// @title LiquidityAmounts
 /// @notice Provides functions for computing liquidity amounts from token amounts and prices
 /// @author Aloe Labs, Inc.
-/// @author Modified from Uniswap (https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/LiquidityAmounts.sol)
+/// @author Modified from [Uniswap](https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/LiquidityAmounts.sol)
 library LiquidityAmounts {
     /// @notice Computes the amount of token0 for a given amount of liquidity and a price range
     /// @param sqrtRatioAX96 A sqrt price representing the first tick boundary

@@ -6,7 +6,7 @@ import {log2Up, exp2} from "./Log2.sol";
 /// @title Rewards
 /// @notice Implements logic for staking rewards
 /// @author Aloe Labs, Inc.
-/// @author Inspired by Yield Protocol (https://github.com/yieldprotocol/yield-utils-v2/blob/main/src/token/ERC20Rewards.sol)
+/// @author Inspired by [Yield Protocol](https://github.com/yieldprotocol/yield-utils-v2/blob/main/src/token/ERC20Rewards.sol)
 library Rewards {
     event RewardsRateSet(uint56 rate);
 

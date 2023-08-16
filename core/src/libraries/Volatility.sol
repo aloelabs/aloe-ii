@@ -34,7 +34,7 @@ library Volatility {
     }
 
     /**
-     * @notice Estimates implied volatility using https://lambert-guillaume.medium.com/on-chain-volatility-and-uniswap-v3-d031b98143d1
+     * @notice Estimates implied volatility using [this math](https://lambert-guillaume.medium.com/on-chain-volatility-and-uniswap-v3-d031b98143d1).
      * @param metadata The pool's metadata (may be cached)
      * @param data A summary of the pool's state from `pool.slot0` `pool.observe` and `pool.liquidity`
      * @param a The pool's cumulative feeGrowthGlobals some time in the past
