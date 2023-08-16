@@ -51,17 +51,18 @@ contract BoostManager is IManager {
             // Amount of liquidity in the position
             uint128 liquidity;
             // Leverage factor
-            uint8 boost;
-            (tokenId, lower, upper, liquidity, boost) = abi.decode(args, (uint256, int24, int24, uint128, uint8));
+            uint24 boost;
+            (tokenId, lower, upper, liquidity, boost) = abi.decode(args, (uint256, int24, int24, uint128, uint24));
 
             require(owner == UNISWAP_NFT.ownerOf(tokenId), "Aloe: owners must match to import");
 
             unchecked {
                 (uint256 amount0, uint256 amount1) = _withdrawFromNFT(tokenId, liquidity, msg.sender);
-                // Add a little extra to account for rounding in Uniswap's math. This is more gas-efficient
-                // than computing exact amounts needed with LiquidityAmounts library, and doesn't hurt anything.
-                borrower.borrow(1 + (amount0 + 1) * (boost - 1), 1 + (amount1 + 1) * (boost - 1), msg.sender);
-                borrower.uniswapDeposit(lower, upper, liquidity * boost);
+                // Add 0.1% extra to account for rounding in Uniswap's math. This is more gas-efficient than
+                // computing exact amounts needed with LiquidityAmounts library, and has negligible impact on
+                // interest rates and liquidation thresholds.
+                borrower.borrow((amount0 * (boost - 9990)) / 10000, (amount1 * (boost - 9990)) / 10000, msg.sender);
+                borrower.uniswapDeposit(lower, upper, uint128((uint256(liquidity) * boost) / 10000));
             }
 
             return zip([lower, upper, 0, 0, 0, 0]);

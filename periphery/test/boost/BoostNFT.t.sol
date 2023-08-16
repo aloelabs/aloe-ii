@@ -72,7 +72,7 @@ contract BoostNFTTest is Test {
         int24 lower = -887272;
         int24 upper = 887272;
         uint128 liquidity = 100038005272;
-        uint8 boost = 1;
+        uint24 boost = 10000;
         bytes memory data = abi.encode(tokenId, lower, upper, liquidity, boost);
 
         vm.expectRevert(bytes("Aloe: owners must match to import"));
@@ -89,7 +89,7 @@ contract BoostNFTTest is Test {
     }
 
     function test_mintStorage() public {
-        (address owner, , , ) = _mintX(2);
+        (address owner, , , ) = _mintX(20000);
 
         uint256 id = uint256(keccak256(abi.encodePacked(owner, uint256(0))));
         assertEq(boostNft.ownerOf(id), owner);
@@ -100,25 +100,25 @@ contract BoostNFTTest is Test {
     }
 
     function test_gas_mint1x() public {
-        _mintX(1);
+        _mintX(10000);
     }
 
     function test_gas_mint2x() public {
-        _mintX(2);
+        _mintX(20000);
     }
 
     function test_gas_mint3x() public {
-        _mintX(3);
+        _mintX(30000);
     }
 
     function test_gas_mint5x() public {
-        _mintX(5);
+        _mintX(50000);
     }
 
     function test_remove() public {
         vm.pauseGasMetering();
 
-        (address owner, int24 lower, int24 upper, uint128 liquidity) = _mintX(2);
+        (address owner, int24 lower, int24 upper, uint128 liquidity) = _mintX(20000);
         uint256 id = uint256(keccak256(abi.encodePacked(owner, uint256(0))));
         bytes memory data = abi.encode(lower, upper, liquidity * 2);
 
@@ -128,7 +128,7 @@ contract BoostNFTTest is Test {
         boostNft.modify(id, 1, data, [true, true]);
     }
 
-    function _mintX(uint8 boost) private returns (address owner, int24 lower, int24 upper, uint128 liquidity) {
+    function _mintX(uint24 boost) private returns (address owner, int24 lower, int24 upper, uint128 liquidity) {
         vm.pauseGasMetering();
         IUniswapV3Pool pool = IUniswapV3Pool(0xbf16ef186e715668AA29ceF57e2fD7f9D48AdFE6);
         _prepareLenders(pool);

@@ -48,3 +48,44 @@ contract DeployBoostScript is Script {
         }
     }
 }
+
+contract UpdateBoostManagerScript is Script {
+    string[] chains = ["optimism", "arbitrum", "base"];
+
+    Factory[] factories = [
+        Factory(0x95110C9806833d3D3C250112fac73c5A6f631E80),
+        Factory(0x95110C9806833d3D3C250112fac73c5A6f631E80),
+        Factory(0xA56eA45565478Fcd131AEccaB2FE934F23BAD8dc)
+    ];
+
+    IUniswapNFT[] uniswapNfts = [
+        IUniswapNFT(0xC36442b4a4522E871399CD717aBDD847Ab11FE88),
+        IUniswapNFT(0xC36442b4a4522E871399CD717aBDD847Ab11FE88),
+        IUniswapNFT(0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1)
+    ];
+
+    BoostNFT[] boostNfts = [
+        BoostNFT(0xF4dee9b7dDdc447B4b325207c01e77e0FC12307f),
+        BoostNFT(0xF4dee9b7dDdc447B4b325207c01e77e0FC12307f),
+        BoostNFT(0xAe6Ce0306ED104Ab989b4C87ea305d9395C21F45)
+    ];
+
+    function run() external {
+        uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
+
+        for (uint256 i = 0; i < chains.length; i++) {
+            Factory factory = factories[i];
+            IUniswapNFT uniswapNft = uniswapNfts[i];
+            BoostNFT boostNft = boostNfts[i];
+
+            vm.createSelectFork(vm.rpcUrl(chains[i]));
+            vm.startBroadcast(deployerPrivateKey);
+
+            BoostManager boostManager = new BoostManager{salt: TAG}(factory, address(boostNft), uniswapNft);
+
+            boostNft.setBoostManager(boostManager);
+
+            vm.stopBroadcast();
+        }
+    }
+}
