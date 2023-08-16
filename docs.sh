@@ -8,8 +8,8 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     find docs -type f -name '*.md' -print0 | xargs -0 sed -i.bak -E 's|\/src\/(.*)\.md|/core/\1.md|g'
 else
     # Linux (including Ubuntu) sed command
-    sed -i -E 's|github.com\/aloelabs\/aloe-ii\/blob\/([0-9a-fA-F]+)\/|github.com/aloelabs/aloe-ii/blob/\1/core/|g'
-    sed -i -E 's|\/src\/(.*)\.md|/core/\1.md|g'
+    find docs -type f -name '*.md' -print0 | xargs -0 sed -i -E 's|github.com\/aloelabs\/aloe-ii\/blob\/([0-9a-fA-F]+)\/|github.com/aloelabs/aloe-ii/blob/\1/core/|g'
+    find docs -type f -name '*.md' -print0 | xargs -0 sed -i -E 's|\/src\/(.*)\.md|/core/\1.md|g'
 fi
 cd ..
 
@@ -24,8 +24,8 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     find docs -type f -name '*.md' -print0 | xargs -0 sed -i.bak -E 's|\/src\/(.*)\.md|/periphery/\1.md|g'
 else
     # Linux (including Ubuntu) sed command
-    sed -i -E 's|github.com\/aloelabs\/aloe-ii\/blob\/([0-9a-fA-F]+)\/|github.com/aloelabs/aloe-ii/blob/\1/periphery/|g'
-    sed -i -E 's|\/src\/(.*)\.md|/periphery/\1.md|g'
+    find docs -type f -name '*.md' -print0 | xargs -0 sed -i -E 's|github.com\/aloelabs\/aloe-ii\/blob\/([0-9a-fA-F]+)\/|github.com/aloelabs/aloe-ii/blob/\1/periphery/|g'
+    find docs -type f -name '*.md' -print0 | xargs -0 sed -i -E 's|\/src\/(.*)\.md|/periphery/\1.md|g'
 fi
 cd ..
 
