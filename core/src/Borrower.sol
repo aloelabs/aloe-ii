@@ -207,42 +207,46 @@ contract Borrower is IUniswapV3MintCallback {
             liabilities0 -= repayable0;
             liabilities1 -= repayable1;
 
-            if (liabilities0 + liabilities1 == 0 || (liabilities0 > 0 && liabilities1 > 0)) {
-                // If both are zero or neither is zero, there's nothing more to do.
-                // Callbacks/swaps won't help.
-                incentive1 = 0;
-            } else if (liabilities0 > 0) {
+            // Decide whether to swap or not
+            bool shouldSwap;
+            assembly ("memory-safe") {
+                // If both are zero or neither is zero, there's nothing more to do
+                shouldSwap := xor(gt(liabilities0, 0), gt(liabilities1, 0))
+                // Divide by `strain` and check again. This second check can generate false positives in cases
+                // where one division (not both) floors to 0, which is why we `and()` with the check above.
+                liabilities0 := div(liabilities0, strain)
+                liabilities1 := div(liabilities1, strain)
+                shouldSwap := and(shouldSwap, xor(gt(liabilities0, 0), gt(liabilities1, 0)))
+                // If not swapping, set `incentive1 = 0`
+                incentive1 := mul(shouldSwap, incentive1)
+            }
+
+            if (shouldSwap) {
                 uint256 unleashTime = slot0_ >> 160;
                 require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
 
-                liabilities0 /= strain;
                 incentive1 /= strain;
+                if (liabilities0 > 0) {
+                    // NOTE: This value is not constrained to `TOKEN1.balanceOf(address(this))`, so liquidators
+                    // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
+                    // be an issue unless the borrower has already started accruing bad debt.
+                    uint256 available1 = mulDiv96(liabilities0, priceX96) + incentive1;
 
-                // NOTE: This value is not constrained to `TOKEN1.balanceOf(address(this))`, so liquidators
-                // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
-                // be an issue unless the borrower has already started accruing bad debt.
-                uint256 available1 = mulDiv96(liabilities0, priceX96) + incentive1;
+                    TOKEN1.safeTransfer(address(callee), available1);
+                    callee.swap1For0(data, available1, liabilities0);
 
-                TOKEN1.safeTransfer(address(callee), available1);
-                callee.swap1For0(data, available1, liabilities0);
+                    repayable0 += liabilities0;
+                } else {
+                    // NOTE: This value is not constrained to `TOKEN0.balanceOf(address(this))`, so liquidators
+                    // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
+                    // be an issue unless the borrower has already started accruing bad debt.
+                    uint256 available0 = Math.mulDiv(liabilities1 + incentive1, Q96, priceX96);
 
-                repayable0 += liabilities0;
-            } else {
-                uint256 unleashTime = slot0_ >> 160;
-                require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
+                    TOKEN0.safeTransfer(address(callee), available0);
+                    callee.swap0For1(data, available0, liabilities1);
 
-                liabilities1 /= strain;
-                incentive1 /= strain;
-
-                // NOTE: This value is not constrained to `TOKEN0.balanceOf(address(this))`, so liquidators
-                // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
-                // be an issue unless the borrower has already started accruing bad debt.
-                uint256 available0 = Math.mulDiv(liabilities1 + incentive1, Q96, priceX96);
-
-                TOKEN0.safeTransfer(address(callee), available0);
-                callee.swap0For1(data, available0, liabilities1);
-
-                repayable1 += liabilities1;
+                    repayable1 += liabilities1;
+                }
             }
 
             _repay(repayable0, repayable1);
