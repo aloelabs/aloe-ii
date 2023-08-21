@@ -130,7 +130,7 @@ contract Borrower is IUniswapV3MintCallback {
         {
             // Fetch prices from oracle
             Prices memory prices = getPrices(oracleSeed);
-            // Withdraw Uniswap positions while tallying assets
+            // Tally assets without actually withdrawing Uniswap positions
             Assets memory assets = _getAssets(positions.read(), prices, false);
             // Fetch liabilities from lenders
             (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
@@ -196,7 +196,7 @@ contract Borrower is IUniswapV3MintCallback {
         // NOTE: The health check values assets at the TWAP and is difficult to manipulate. However,
         // the instantaneous price does impact what tokens we receive when burning Uniswap positions.
         // As such, additional calls to `TOKEN0.balanceOf` and `TOKEN1.balanceOf` are required for
-        // precise inventory, and we take care not to change `incentive1`.
+        // precise inventory, and we take care not to increase `incentive1`.
 
         unchecked {
             // Figure out what portion of liabilities can be repaid using existing assets
@@ -351,7 +351,8 @@ contract Borrower is IUniswapV3MintCallback {
      * @dev The `LiquidityAmounts` library can help convert underlying amounts to units of `liquidity`
      * @param lower The tick at the position's lower bound
      * @param upper The tick at the position's upper bound
-     * @param liquidity The amount of liquidity to remove, in Uniswap's internal units
+     * @param liquidity The amount of liquidity to remove, in Uniswap's internal units. Pass 0 to collect
+     * fees without burning any liquidity.
      * @param recipient Receives the tokens from Uniswap. Usually the address of this `Borrower` account.
      * @return burned0 The amount of `TOKEN0` that was removed from the Uniswap position
      * @return burned1 The amount of `TOKEN1` that was removed from the Uniswap position
