@@ -31,7 +31,7 @@ function msb(uint256 x) pure returns (uint256 y) {
  * @notice Implements the binary logarithm
  * @param x A Q128.128 number. WARNING: If `x == 0` this pretends it's 1
  * @return result log_2(x) as a Q8.10 number, precise up to 10 fractional bits
- * @dev The math, for your convenience...
+ * @custom:math The math, for your convenience...
  * log_2(x) = log_2(2^n · y)                                         |  n ∈ ℤ, y ∈ [1, 2)
  *          = log_2(2^n) + log_2(y)
  *          = n + log_2(y)
@@ -235,7 +235,7 @@ function log2Up(uint256 x, uint8 iters) pure returns (int256 result) {
  * @notice Implements binary exponentiation
  * @param x A Q8.10 number, e.g. the output of log2. WARNING: Behavior is undefined outside [-131072, 131072)
  * @return result 2^x as a Q128.128 number
- * @dev The math, for your convenience...
+ * @custom:math The math, for your convenience...
  * 2^x = 2^(n + f)                                                |  n ∈ ℤ, f ∈ [0, 1)
  *     = 2^n · 2^f
  *

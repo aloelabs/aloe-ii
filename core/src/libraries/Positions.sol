@@ -21,7 +21,7 @@ function zip(int24[6] memory positions) pure returns (uint144 zipped) {
 
 /**
  * @notice Extracts up to three Uniswap positions from `zipped`. Each position consists of an `int24 lower` and
- * `int24 upper`, and will be included in the output array iff `lower != upper`. The output array is flattened
+ * `int24 upper`, and will be included in the output array *iff* `lower != upper`. The output array is flattened
  * such that lower and upper ticks are next to each other, e.g. one position may be at indices 0 & 1, and another
  * at indices 2 & 3.
  * @dev The output array's length will be one of {0, 2, 4, 6}. We do *not* validate that `lower < upper`, nor do

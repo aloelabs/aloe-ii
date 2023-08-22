@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
+import {MAX_LEVERAGE} from "src/libraries/constants/Constants.sol";
 import {RateModel, SafeRateLib} from "src/RateModel.sol";
 
 contract RateModelTest is Test {
@@ -24,6 +25,11 @@ contract RateModelTest is Test {
 
         assertGe(result, 1e12);
         assertLt(result, 1.5e12);
+
+        // Single-block accrual factor should always be less than 1 + 1 / MAX_LEVERAGE so liquidators
+        // have time to respond to interest updates
+        result = model.getAccrualFactor(utilization, 13 seconds);
+        assertLt(result, 1e12 + 1e12 / MAX_LEVERAGE);
     }
 
     function test_accrualFactorIncreasesMonotonically(uint256 utilization) public {

@@ -120,12 +120,14 @@ library BalanceSheet {
         }
     }
 
-    /// @dev Equivalent to log_{1.0001}(1e18 / cf) / 12 assuming `MANIPULATION_THRESHOLD_DIVISOR` is 24
+    /// @dev Equivalent to \\( \frac{log_{1.0001} \left( \frac{10^{18}}{cf} \right)}{12} \\)
+    /// assuming `MANIPULATION_THRESHOLD_DIVISOR` is 24
     function _manipulationThreshold(uint256 cf) private pure returns (uint24) {
         return uint24(-TickMath.getTickAtSqrtRatio(uint160(cf)) - 501937) / MANIPULATION_THRESHOLD_DIVISOR;
     }
 
-    /// @dev Equivalent to \frac{1 - σ}{1 + 1/liquidationIncentive + 1/maxLeverage} where σ = clampedAndScaledSigma / 1e18 in floating point
+    /// @dev Equivalent to \\( \frac{1 - σ}{1 + \frac{1}{liquidationIncentive} + \frac{1}{maxLeverage}} \\) where
+    /// \\( σ = \frac{clampedAndScaledSigma}{10^{18}} \\) in floating point
     function _effectiveCollateralFactor(uint256 clampedAndScaledSigma) private pure returns (uint256 cf) {
         unchecked {
             cf =

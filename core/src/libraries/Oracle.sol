@@ -11,7 +11,7 @@ import {TickMath} from "./TickMath.sol";
 /// @title Oracle
 /// @notice Provides functions to integrate with V3 pool oracle
 /// @author Aloe Labs, Inc.
-/// @author Modified from Uniswap (https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/OracleLibrary.sol)
+/// @author Modified from [Uniswap](https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/OracleLibrary.sol)
 library Oracle {
     struct PoolData {
         // the current price (from pool.slot0())
@@ -140,8 +140,8 @@ library Oracle {
      * @notice Searches for oracle observations nearest to the `target` time. If `target` lies between two existing
      * observations, linearly interpolate between them. If `target` is newer than the most recent observation,
      * we interpolate between the most recent one and a hypothetical one taken at the current block.
-     * @dev As long as `target <= block.timestamp`, return values should match what you'd get from Uniswap:
-     * ```
+     * @dev As long as `target <= block.timestamp`, return values should match what you'd get from Uniswap.
+     * @custom:example ```solidity
      *   uint32[] memory secondsAgos = new uint32[](1);
      *   secondsAgos[0] = block.timestamp - target;
      *   (int56[] memory tickCumulatives, uint160[] memory secondsPerLiquidityCumulativeX128s) = pool.observe(
@@ -152,11 +152,11 @@ library Oracle {
      * @param target The timestamp of the desired observation
      * @param seed The index of `pool.observations` where we start our search. Can be determined off-chain to make
      * this method more efficient than Uniswap's binary search.
-     * @param tick The current tick (from pool.slot0())
-     * @param observationIndex The current observation index (from pool.slot0())
-     * @param observationCardinality The current observation cardinality (from pool.slot0())
-     * @return tickCumulative The tick * time elapsed since `pool` was first initialized
-     * @return secondsPerLiquidityCumulativeX128 The time elapsed / max(1, liquidity) since `pool` was first initialized
+     * @param tick The current tick (from `pool.slot0()`)
+     * @param observationIndex The current observation index (from `pool.slot0()`)
+     * @param observationCardinality The current observation cardinality (from `pool.slot0()`)
+     * @return The tick * time elapsed since `pool` was first initialized
+     * @return The time elapsed / max(1, liquidity) since `pool` was first initialized
      */
     function observe(
         IUniswapV3Pool pool,
@@ -209,7 +209,7 @@ library Oracle {
      * @param pool Address of Uniswap V3 pool that we want to observe
      * @param observationIndex The observation index from pool.slot0()
      * @param observationCardinality The observationCardinality from pool.slot0()
-     * @dev (, , uint16 observationIndex, uint16 observationCardinality, , , ) = pool.slot0();
+     * @dev `(, , uint16 observationIndex, uint16 observationCardinality, , , ) = pool.slot0();`
      * @return secondsAgo The number of seconds ago that the oldest observation was stored
      */
     function getMaxSecondsAgo(

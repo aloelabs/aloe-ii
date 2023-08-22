@@ -9,16 +9,18 @@ uint256 constant ONE = 1e12;
 uint256 constant BORROWS_SCALER = type(uint72).max * ONE;
 
 /// @dev The maximum percentage yield per second, scaled up by 1e12. The current value is equivalent to
-/// (1 + 706354 / 1e12) ^ (24 * 60 * 60) - 1 ⇒ +6.3% per day or +53% per week. If the rate is consistently at this
-/// maximum value, the `Lender` will function for 1 year before `borrowIndex` overflows. Useful math:
-///
-///   T: number of years before overflow, assuming maximum rate
-///   borrowIndexInit: `ONE`
-///   borrowIndexMax: 2^72 - 1
-///
-///   maxAPR: ln(borrowIndexMax / borrowIndexInit) / T
-///   maxAPY: exp(maxAPR) - 1
-///   MAX_RATE: (exp(maxAPR / secondsPerYear) - 1) * 1e12
+/// `((1 + 706354 / 1e12) ** (24 * 60 * 60)) - 1` ⇒ +6.3% per day or +53% per week. If the rate is consistently at
+/// this maximum value, the `Lender` will function for 1 year before `borrowIndex` overflows.
+/// @custom:math
+/// > 📘 Useful Math
+/// >
+/// > - T: number of years before overflow, assuming maximum rate
+/// > - borrowIndexInit: `ONE`
+/// > - borrowIndexMax: 2^72 - 1
+/// >
+/// > - maxAPR: ln(borrowIndexMax / borrowIndexInit) / T
+/// > - maxAPY: exp(maxAPR) - 1
+/// > - MAX_RATE: (exp(maxAPR / secondsPerYear) - 1) * 1e12
 uint256 constant MAX_RATE = 706354;
 
 /// @dev The default amount of Ether required to take on debt in a `Borrower`. The `Factory` can override this value
@@ -29,20 +31,21 @@ uint216 constant DEFAULT_ANTE = 0.1 ether;
 /// solvency. The `Factory` can override this value on a per-market basis.
 uint8 constant DEFAULT_N_SIGMA = 5;
 
-/// @dev The minimum implied volatility. Clamped to this *before* multiplying by `DEFAULT_N_SIGMA`
+/// @dev The minimum implied volatility. Clamped to this **before** multiplying by `DEFAULT_N_SIGMA`
 uint256 constant MIN_SIGMA = 0.01e18;
 
-/// @dev The maximum implied volatility. Clamped to this *before* multiplying by `DEFAULT_N_SIGMA`
+/// @dev The maximum implied volatility. Clamped to this **before** multiplying by `DEFAULT_N_SIGMA`
 /// To avoid underflow in `BalanceSheet.computeProbePrices`, ensure that `MAX_SIGMA * DEFAULT_N_SIGMA <= 1e18`
 uint256 constant MAX_SIGMA = 0.18e18;
 
-/// @dev The lower bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 4 --> 25%
+/// @dev The lower bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 4 → 25%
 uint256 constant MIN_RESERVE_FACTOR = 4;
 
-/// @dev The upper bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 20 --> 5%
+/// @dev The upper bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 20 → 5%
 uint256 constant MAX_RESERVE_FACTOR = 20;
 
-// 1 + 1 / MAX_LEVERAGE should correspond to the maximum feasible single-block accrualFactor so that liquidators have time to respond to interest updates
+/// @dev \\( 1 + \frac{1}{\text{MAX_LEVERAGE}} \\) should correspond to the maximum feasible single-block
+/// `accrualFactor` so that liquidators have time to respond to interest updates
 uint256 constant MAX_LEVERAGE = 200;
 
 uint256 constant LIQUIDATION_INCENTIVE = 20; // Expressed as reciprocal, e.g. 20 --> 5%
@@ -59,7 +62,8 @@ uint256 constant IV_CHANGE_PER_SECOND = 5e12;
 uint256 constant FEE_GROWTH_AVG_WINDOW = 6 hours;
 
 /// @dev The length of the circular buffer that stores feeGrowthGlobals samples.
-/// Must have be in interval [ FEE_GROWTH_AVG_WINDOW / FEE_GROWTH_SAMPLE_PERIOD, 256 )
+/// Must be in interval
+/// \\( \left[ \frac{\text{FEE_GROWTH_AVG_WINDOW}}{\text{FEE_GROWTH_SAMPLE_PERIOD}}, 256 \right) \\)
 uint256 constant FEE_GROWTH_ARRAY_LENGTH = 72;
 
 /// @dev The minimum number of seconds that must elapse before a new feeGrowthGlobals sample will be stored. This also
@@ -77,6 +81,6 @@ uint32 constant UNISWAP_AVG_WINDOW = 30 minutes;
 /// rises above a certain threshold, certain functionality will be paused, e.g. no new debt can be created. The
 /// threshold is calculated as follows:
 ///
-///   manipulationThreshold = 2 * log_1.0001(1 / collateralFactor) / MANIPULATION_THRESHOLD_DIVISOR
-///
+/// \\( \text{manipulationThreshold} =
+/// 2 \cdot \frac{log_{1.0001}\left( \frac{1}{\text{collateralFactor}} \right)}{\text{MANIPULATION_THRESHOLD_DIVISOR}} \\)
 uint24 constant MANIPULATION_THRESHOLD_DIVISOR = 24;

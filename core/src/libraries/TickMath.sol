@@ -4,20 +4,20 @@ pragma solidity 0.8.17;
 import {msb} from "./Log2.sol";
 
 /// @title Math library for computing sqrt prices from ticks and vice versa
-/// @notice Computes sqrt price for ticks of size 1.0001, i.e. sqrt(1.0001^tick) as fixed point Q64.96 numbers. Supports
-/// prices between 2**-128 and 2**128
+/// @notice Computes sqrt price for ticks of size 1.0001, i.e. \\(\sqrt{1.0001^{tick}}\\) as fixed point Q64.96 numbers. Supports
+/// prices between \\(2^{-128}\\) and \\(2^{128}\\)
 /// @author Aloe Labs, Inc.
-/// @author Modified from Uniswap (https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/TickMath.sol) and
-/// Aperture Finance (https://github.com/Aperture-Finance/uni-v3-lib/blob/main/src/TickMath.sol)
+/// @author Modified from [Uniswap](https://github.com/Uniswap/v3-core/blob/main/contracts/libraries/TickMath.sol) and
+/// [Aperture Finance](https://github.com/Aperture-Finance/uni-v3-lib/blob/main/src/TickMath.sol)
 library TickMath {
-    /// @dev The minimum tick that may be passed to #getSqrtRatioAtTick computed from log base 1.0001 of 2**-128
+    /// @dev The minimum tick that may be passed to `getSqrtRatioAtTick` computed from \\( log_{1.0001}2^{-128} \\)
     int24 internal constant MIN_TICK = -887272;
-    /// @dev The maximum tick that may be passed to #getSqrtRatioAtTick computed from log base 1.0001 of 2**128
+    /// @dev The maximum tick that may be passed to `getSqrtRatioAtTick` computed from \\( log_{1.0001}2^{128} \\)
     int24 internal constant MAX_TICK = 887272;
 
-    /// @dev The minimum value that can be returned from #getSqrtRatioAtTick. Equivalent to getSqrtRatioAtTick(MIN_TICK)
+    /// @dev The minimum value that can be returned from `getSqrtRatioAtTick`. Equivalent to `getSqrtRatioAtTick(MIN_TICK)`
     uint160 internal constant MIN_SQRT_RATIO = 4295128739;
-    /// @dev The maximum value that can be returned from #getSqrtRatioAtTick. Equivalent to getSqrtRatioAtTick(MAX_TICK)
+    /// @dev The maximum value that can be returned from `getSqrtRatioAtTick`. Equivalent to `getSqrtRatioAtTick(MAX_TICK)`
     uint160 internal constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
     /// @dev A threshold used for optimized bounds check, equals `MAX_SQRT_RATIO - MIN_SQRT_RATIO - 1`
     uint160 private constant MAX_SQRT_RATIO_MINUS_MIN_SQRT_RATIO_MINUS_ONE =
@@ -25,7 +25,7 @@ library TickMath {
 
     /* solhint-disable code-complexity */
 
-    /// @notice Calculates sqrt(1.0001^tick) * 2^96
+    /// @notice Calculates \\( \sqrt{1.0001^{tick}} * 2^{96} \\)
     /// @dev Throws if |tick| > max tick
     /// @param tick The input tick for the above formula
     /// @return sqrtPriceX96 A Fixed point Q64.96 number representing the sqrt of the ratio of the two assets (token1/token0)

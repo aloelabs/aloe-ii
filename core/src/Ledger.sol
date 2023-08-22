@@ -155,7 +155,7 @@ contract Ledger {
         return uint32(balances[account] >> 224);
     }
 
-    /// @notice The lending principle of `account`. Only tracked if they have a courier
+    /// @notice The lending principle of `account`. Only tracked if they have a courier.
     function principleOf(address account) external view returns (uint256) {
         return (balances[account] >> 112) % Q112;
     }
@@ -259,15 +259,10 @@ contract Ledger {
     /**
      * @notice Returns a conservative estimate of the maximum amount of `asset()` that can be deposited into the
      * Vault for `receiver`, through a deposit call.
-     * @return The maximum amount of `asset()` that can be deposited
-     *
-     * @dev Should return the *precise* maximum. In this case that'd be on the order of 2**112 with weird constraints
+     * @dev Should return the *precise* maximum. In this case that'd be on the order of 2^112 with constraints
      * coming from both `lastBalance` and `totalSupply`, which changes during interest accrual. Instead of doing
-     * complicated math, we provide a constant conservative estimate of 2**96.
-     *
-     * - MUST return a limited value if receiver is subject to some deposit limit.
-     * - MUST return 2 ** 256 - 1 if there is no limit on the maximum amount of assets that may be deposited.
-     * - MUST NOT revert.
+     * complicated math, we provide a constant conservative estimate of 2^96.
+     * @return The maximum amount of `asset()` that can be deposited
      */
     function maxDeposit(address) external pure returns (uint256) {
         return 1 << 96;
@@ -276,15 +271,10 @@ contract Ledger {
     /**
      * @notice Returns a conservative estimate of the maximum number of Vault shares that can be minted for `receiver`,
      * through a mint call.
-     * @return The maximum number of Vault shares that can be minted
-     *
-     * @dev Should return the *precise* maximum. In this case that'd be on the order of 2**112 with weird constraints
+     * @dev Should return the *precise* maximum. In this case that'd be on the order of 2^112 with constraints
      * coming from both `lastBalance` and `totalSupply`, which changes during interest accrual. Instead of doing
-     * complicated math, we provide a constant conservative estimate of 2**96.
-     *
-     * - MUST return a limited value if receiver is subject to some mint limit.
-     * - MUST return 2 ** 256 - 1 if there is no limit on the maximum number of shares that may be minted.
-     * - MUST NOT revert.
+     * complicated math, we provide a constant conservative estimate of 2^96.
+     * @return The maximum number of Vault shares that can be minted
      */
     function maxMint(address) external pure returns (uint256) {
         return 1 << 96;
@@ -295,11 +285,6 @@ contract Ledger {
      * redeem call.
      * @param owner The address that would burn Vault shares when redeeming
      * @return The maximum number of Vault shares that can be redeemed
-     *
-     * @dev
-     * - MUST return a limited value if owner is subject to some withdrawal limit or timelock.
-     * - MUST return balanceOf(owner) if owner is not subject to any withdrawal limit or timelock.
-     * - MUST NOT revert.
      */
     function maxRedeem(address owner) external view returns (uint256) {
         (Cache memory cache, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());
@@ -315,10 +300,6 @@ contract Ledger {
      * withdraw call.
      * @param owner The address that would burn Vault shares when withdrawing
      * @return The maximum amount of `asset()` that can be withdrawn
-     *
-     * @dev
-     * - MUST return a limited value if owner is subject to some withdrawal limit or timelock.
-     * - MUST NOT revert.
      */
     function maxWithdraw(address owner) external view returns (uint256) {
         return convertToAssets(this.maxRedeem(owner));
