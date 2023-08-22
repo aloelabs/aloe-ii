@@ -13,7 +13,6 @@ import {OracleUpdateHelper} from "src/helpers/OracleUpdateHelper.sol";
 import {FrontendManager} from "src/managers/FrontendManager.sol";
 import {SimpleManager} from "src/managers/SimpleManager.sol";
 import {UniswapNFTManager, INFTManager} from "src/managers/UniswapNFTManager.sol";
-import {WithdrawManager} from "src/managers/WithdrawManager.sol";
 
 IPermit2 constant PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
@@ -39,7 +38,6 @@ contract DeployScript is Script {
             new FrontendManager{salt: TAG}(ALOE_II_FACTORY);
             new SimpleManager{salt: TAG}();
             new UniswapNFTManager{salt: TAG}(ALOE_II_FACTORY, UNISWAP_NFT_MANAGER);
-            new WithdrawManager{salt: TAG}();
 
             vm.stopBroadcast();
         }

@@ -269,11 +269,7 @@ contract Borrower is IUniswapV3MintCallback {
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
      * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
      */
-    function modify(
-        IManager callee,
-        bytes calldata data,
-        uint40 oracleSeed
-    ) external payable {
+    function modify(IManager callee, bytes calldata data, uint40 oracleSeed) external payable {
         require(_loadSlot0() % (1 << 160) == uint160(msg.sender), "Aloe: only owner");
 
         _saveSlot0(uint160(msg.sender), _formatted(State.InModifyCallback));
