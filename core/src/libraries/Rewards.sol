@@ -39,7 +39,8 @@ library Rewards {
 
     /**
      * @notice Sets the pool's reward rate. May be 0.
-     * @param rate The rewards rate, specified as [token units per second]
+     * @param rate The rewards rate, specified as [token units per second]. Keep between 10^19 and 10^24
+     * token units per year for smooth operation -- between 10 and 1 million tokens, assuming 18 decimals.
      */
     function setRate(uint56 rate) internal {
         Storage storage store = _getStorage();
