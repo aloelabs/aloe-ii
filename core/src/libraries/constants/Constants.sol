@@ -9,8 +9,8 @@ uint256 constant ONE = 1e12;
 uint256 constant BORROWS_SCALER = type(uint72).max * ONE;
 
 /// @dev The maximum percentage yield per second, scaled up by 1e12. The current value is equivalent to
-/// (1 + 706354 / 1e12) ^ (24 * 60 * 60) - 1 ⇒ +6.3% per day or +53% per week. If the rate is consistently at this
-/// maximum value, the `Lender` will function for 1 year before `borrowIndex` overflows.
+/// `((1 + 706354 / 1e12) ** (24 * 60 * 60)) - 1` ⇒ +6.3% per day or +53% per week. If the rate is consistently at
+/// this maximum value, the `Lender` will function for 1 year before `borrowIndex` overflows.
 /// @custom:math
 /// > 📘 Useful Math
 /// >

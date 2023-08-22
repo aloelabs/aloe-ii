@@ -259,7 +259,7 @@ contract Ledger {
     /**
      * @notice Returns a conservative estimate of the maximum amount of `asset()` that can be deposited into the
      * Vault for `receiver`, through a deposit call.
-     * @dev Should return the *precise* maximum. In this case that'd be on the order of 2^112 with weird constraints
+     * @dev Should return the *precise* maximum. In this case that'd be on the order of 2^112 with constraints
      * coming from both `lastBalance` and `totalSupply`, which changes during interest accrual. Instead of doing
      * complicated math, we provide a constant conservative estimate of 2^96.
      * @return The maximum amount of `asset()` that can be deposited
@@ -271,7 +271,7 @@ contract Ledger {
     /**
      * @notice Returns a conservative estimate of the maximum number of Vault shares that can be minted for `receiver`,
      * through a mint call.
-     * @dev Should return the *precise* maximum. In this case that'd be on the order of 2^112 with weird constraints
+     * @dev Should return the *precise* maximum. In this case that'd be on the order of 2^112 with constraints
      * coming from both `lastBalance` and `totalSupply`, which changes during interest accrual. Instead of doing
      * complicated math, we provide a constant conservative estimate of 2^96.
      * @return The maximum number of Vault shares that can be minted
