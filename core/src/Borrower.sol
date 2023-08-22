@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
+import {IUniswapV3SwapCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
@@ -32,7 +33,7 @@ interface IManager {
 /// @title Borrower
 /// @author Aloe Labs, Inc.
 /// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
-contract Borrower is IUniswapV3MintCallback {
+contract Borrower is IUniswapV3MintCallback, IUniswapV3SwapCallback {
     using SafeTransferLib for ERC20;
     using Positions for int24[6];
 
@@ -307,7 +308,7 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /*//////////////////////////////////////////////////////////////
-                              SUB-COMMANDS
+                           UNISWAP CALLBACKS
     //////////////////////////////////////////////////////////////*/
 
     /**
@@ -321,6 +322,22 @@ contract Borrower is IUniswapV3MintCallback {
         if (amount0 > 0) TOKEN0.safeTransfer(msg.sender, amount0);
         if (amount1 > 0) TOKEN1.safeTransfer(msg.sender, amount1);
     }
+
+    /**
+     * @notice Callback for Uniswap V3 pool; necessary for `uniswapSwap` to work
+     * @param amount0 The amount of `TOKEN0` owed to the `UNISWAP_POOL`
+     * @param amount1 The amount of `TOKEN1` owed to the `UNISWAP_POOL`
+     */
+    function uniswapV3SwapCallback(int256 amount0, int256 amount1, bytes calldata) external {
+        require(msg.sender == address(UNISWAP_POOL));
+
+        if (amount0 > 0) TOKEN0.safeTransfer(msg.sender, uint256(amount0));
+        if (amount1 > 0) TOKEN1.safeTransfer(msg.sender, uint256(amount1));
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                              SUB-COMMANDS
+    //////////////////////////////////////////////////////////////*/
 
     /**
      * @notice Allows the account owner to add liquidity to a Uniswap position (or create a new one).
@@ -368,6 +385,30 @@ contract Borrower is IUniswapV3MintCallback {
         require(slot0.state == State.InModifyCallback);
 
         (burned0, burned1, collected0, collected1) = _uniswapWithdraw(lower, upper, liquidity, recipient);
+    }
+
+    /**
+     * @notice Allows the account owner to swap tokens using the `UNISWAP_POOL`. Only works within the
+     * `modify` callback.
+     * @dev This is technically unnecessary since you can use `modify`'s `allowances` array to get full
+     * control of assets, then trade on any DEX you want. We include this because it's convenient and
+     * gas-efficient for times when you want to trade on `UNISWAP_POOL`.
+     * @param zeroForOne The direction of the swap, true for token0 to token1, false for token1 to token0
+     * @param amountSpecified The amount to swap, which implicitly configures the swap as exact input
+     * (positive), or exact output (negative)
+     * @param sqrtPriceLimitX96 The Q64.96 sqrt(price) limit. If `zeroForOne`, the post-swap price cannot
+     * be less than this. Otherwise, it cannot be greater than this.
+     * @return amount0 How much `TOKEN0` moved into `UNISWAP_POOL`. Exact when negative, minimum when positive.
+     * @return amount1 How much `TOKEN1` moved into `UNISWAP_POOL`. Exact when negative, minimum when positive.
+     */
+    function uniswapSwap(
+        bool zeroForOne,
+        int256 amountSpecified,
+        uint160 sqrtPriceLimitX96
+    ) external returns (int256 amount0, int256 amount1) {
+        require(slot0.state == State.InModifyCallback);
+
+        (amount0, amount1) = UNISWAP_POOL.swap(address(this), zeroForOne, amountSpecified, sqrtPriceLimitX96, "");
     }
 
     /**
