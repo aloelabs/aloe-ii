@@ -63,14 +63,12 @@ contract BorrowerGasTest is Test, IManager {
 
     function test_modify() public {
         bytes memory data = abi.encode(Action.NONE, 0, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
     }
 
     function test_modifyWithAnte() public {
         bytes memory data = abi.encode(Action.NONE, 0, 0);
-        bool[2] memory allowances;
-        account.modify{value: DEFAULT_ANTE + 1 wei}(this, data, allowances, oracleSeed);
+        account.modify{value: DEFAULT_ANTE + 1 wei}(this, data, oracleSeed);
     }
 
     function test_addMargin() public {
@@ -79,22 +77,17 @@ contract BorrowerGasTest is Test, IManager {
 
     function test_borrow() public {
         bytes memory data = abi.encode(Action.BORROW, 0, 20e18); // 0 DAI, 20 WETH
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
     }
 
     function test_repay() public {
         bytes memory data = abi.encode(Action.REPAY, 0, 20e18); // 0 DAI, 20 WETH
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
     }
 
     function test_withdraw() public {
-        bytes memory data = abi.encode(Action.WITHDRAW, 0, 1e18); // 0 DAI, 1 WETH
-        bool[2] memory allowances;
-        allowances[0] = true;
-        allowances[1] = true;
-        account.modify(this, data, allowances, oracleSeed);
+        bytes memory data = abi.encode(Action.WITHDRAW, 1e18, 1e18); // 1 DAI, 1 WETH
+        account.modify(this, data, oracleSeed);
     }
 
     function test_uniswapDepositStandard() public {
@@ -103,14 +96,12 @@ contract BorrowerGasTest is Test, IManager {
 
     function test_uniswapDepositInBorrower() public {
         bytes memory data = abi.encode(Action.UNI_DEPOSIT, 0, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
     }
 
     function test_uniswapWithdraw() public {
         bytes memory data = abi.encode(Action.UNI_WITHDRAW, 0, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
     }
 
     function test_getUniswapPositions() public {
@@ -143,8 +134,7 @@ contract BorrowerGasTest is Test, IManager {
         } else if (action == Action.REPAY) {
             account.repay(amount0, amount1);
         } else if (action == Action.WITHDRAW) {
-            if (amount0 != 0) asset0.transferFrom(msg.sender, address(this), amount0);
-            if (amount0 != 0) asset1.transferFrom(msg.sender, address(this), amount0);
+            account.transfer(amount0, amount1, address(this));
         } else if (action == Action.UNI_DEPOSIT) {
             account.uniswapDeposit(-75600, -75540, 10000000000);
             positions = zip([-75600, -75540, 0, 0, 0, 0]);

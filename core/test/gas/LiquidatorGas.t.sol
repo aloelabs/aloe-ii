@@ -57,8 +57,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
 
         // borrow 200 DAI
         bytes memory data = abi.encode(Action.BORROW, 200e18, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
 
         assertEq(lender0.borrowBalance(address(account)), 200e18);
 
@@ -89,8 +88,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
 
         // borrow 200 DAI and 20 WETH
         bytes memory data = abi.encode(Action.BORROW, 200e18, 20e18);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
 
         assertEq(lender0.borrowBalance(address(account)), 200e18);
         assertEq(lender1.borrowBalance(address(account)), 20e18);
@@ -126,12 +124,11 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
 
         // borrow 200 DAI and 20 WETH
         bytes memory data = abi.encode(Action.BORROW, 199.5e18, 20e18);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
 
         // create a small Uniswap position
         data = abi.encode(Action.UNI_DEPOSIT, 0, 0);
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
 
         assertEq(account.getUniswapPositions().length, 2);
 
@@ -158,13 +155,11 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         uint256 debt = 1615.62695e18;
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
 
         // withdraw `debt` DAI
         data = abi.encode(Action.WITHDRAW, debt, 0);
-        allowances[0] = true;
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
 
         setInterest(lender0, 10100);
         setInterest(lender1, 10100);
@@ -194,13 +189,11 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         uint256 debt = 1615.62695e18;
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
 
         // withdraw `debt` DAI
         data = abi.encode(Action.WITHDRAW, debt, 0);
-        allowances[0] = true;
-        account.modify(this, data, allowances, oracleSeed);
+        account.modify(this, data, oracleSeed);
 
         setInterest(lender0, 10100);
         setInterest(lender1, 10100);
@@ -226,8 +219,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         (Action action, uint256 amount0, uint256 amount1) = abi.decode(data, (Action, uint256, uint256));
 
         if (action == Action.WITHDRAW) {
-            if (amount0 > 0) asset0.transferFrom(address(account), address(this), amount0);
-            if (amount1 > 0) asset1.transferFrom(address(account), address(this), amount1);
+            account.transfer(amount0, amount1, address(this));
         } else if (action == Action.BORROW) {
             account.borrow(amount0, amount1, msg.sender);
         } else if (action == Action.UNI_DEPOSIT) {

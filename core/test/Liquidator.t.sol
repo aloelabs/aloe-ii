@@ -57,8 +57,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         deal(address(asset1), address(account), margin1);
 
         bytes memory data = abi.encode(Action.BORROW, borrows0, borrows1);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), borrows0);
         assertEq(lender1.borrowBalance(address(account)), borrows1);
@@ -100,8 +99,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         // borrow 200 DAI
         bytes memory data = abi.encode(Action.BORROW, 200e18, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 200e18);
         assertEq(asset0.balanceOf(address(account)), 201e18);
@@ -129,8 +127,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         // borrow 20 ETH
         bytes memory data = abi.encode(Action.BORROW, 0, 20e18);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(lender1.borrowBalance(address(account)), 20e18);
         assertEq(asset1.balanceOf(address(account)), 20.1e18);
@@ -159,8 +156,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         // borrow 200 DAI and 20 ETH
         bytes memory data = abi.encode(Action.BORROW, 200e18, 20e18);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 200e18);
         assertEq(lender1.borrowBalance(address(account)), 20e18);
@@ -195,12 +191,11 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         // borrow 200 DAI and 20 ETH
         bytes memory data = abi.encode(Action.BORROW, 200e18, 20e18);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         // create a small Uniswap position
         data = abi.encode(Action.UNI_DEPOSIT, 0, 0);
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 200e18);
         assertEq(lender1.borrowBalance(address(account)), 20e18);
@@ -238,8 +233,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), debt);
         assertEq(asset0.balanceOf(address(account)), debt);
@@ -247,8 +241,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         // withdraw `debt` DAI
         data = abi.encode(Action.WITHDRAW, debt, 0);
-        allowances[0] = true;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(asset0.balanceOf(address(account)), 0);
 
@@ -290,13 +283,11 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         // withdraw `debt` DAI
         data = abi.encode(Action.WITHDRAW, debt, 0);
-        allowances[0] = true;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         setInterest(lender0, 10010);
         debt = debt * 10010 / 10000;
@@ -335,16 +326,14 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         // borrow ETH
         bytes memory data = abi.encode(Action.BORROW, 0, borrow1);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(lender1.borrowBalance(address(account)), borrow1);
         assertEq(asset1.balanceOf(address(account)), borrow1);
 
         // withdraw ETH
         data = abi.encode(Action.WITHDRAW, 0, borrow1);
-        allowances[1] = true;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(asset1.balanceOf(address(account)), 0);
 
@@ -390,16 +379,14 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         // borrow DAI
         bytes memory data = abi.encode(Action.BORROW, borrow0, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), borrow0);
         assertEq(asset0.balanceOf(address(account)), borrow0);
 
         // withdraw DAI
         data = abi.encode(Action.WITHDRAW, borrow0, 0);
-        allowances[0] = true;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(asset0.balanceOf(address(account)), 0);
 
@@ -458,13 +445,11 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         // borrow DAI
         bytes memory data = abi.encode(Action.BORROW, borrow0, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         // withdraw DAI
         data = abi.encode(Action.WITHDRAW, borrow0, 0);
-        allowances[0] = true;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(this, bytes(""), 1, (1 << 32));
@@ -532,8 +517,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         (Action action, uint256 amount0, uint256 amount1) = abi.decode(data, (Action, uint256, uint256));
 
         if (action == Action.WITHDRAW) {
-            if (amount0 > 0) asset0.transferFrom(address(account), address(this), amount0);
-            if (amount1 > 0) asset1.transferFrom(address(account), address(this), amount1);
+            account.transfer(amount0, amount1, address(this));
         } else if (action == Action.BORROW) {
             account.borrow(amount0, amount1, msg.sender);
         } else if (action == Action.UNI_DEPOSIT) {

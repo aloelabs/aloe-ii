@@ -260,13 +260,11 @@ contract Borrower is IUniswapV3MintCallback {
 
     /**
      * @notice Allows the owner to manage their account by handing control to some `callee`. Inside the
-     * callback `callee` has access to all sub-commands (`uniswapDeposit`, `uniswapWithdraw`, `borrow`,
-     * `repay`, and `withdrawAnte`) and if `allowances` are set, it also has permission to transfer ERC20s.
-     * Whatever `callee` does, the account MUST be healthy after the callback.
+     * callback `callee` has access to all sub-commands (`uniswapDeposit`, `uniswapWithdraw`, `transfer`,
+     * `borrow`, `repay`, and `withdrawAnte`). Whatever `callee` does, the account MUST be healthy
+     * after the callback.
      * @param callee The smart contract that will get temporary control of this account
      * @param data Encoded parameters that get forwarded to `callee`
-     * @param allowances Whether to approve `callee` to transfer ERC20s. The 1st entry is for `TOKEN0`,
-     * and the 2nd is for `TOKEN1`.
      * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
      * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
@@ -274,20 +272,13 @@ contract Borrower is IUniswapV3MintCallback {
     function modify(
         IManager callee,
         bytes calldata data,
-        bool[2] calldata allowances,
         uint40 oracleSeed
     ) external payable {
         require(_loadSlot0() % (1 << 160) == uint160(msg.sender), "Aloe: only owner");
 
-        if (allowances[0]) TOKEN0.safeApprove(address(callee), type(uint256).max);
-        if (allowances[1]) TOKEN1.safeApprove(address(callee), type(uint256).max);
-
         _saveSlot0(uint160(msg.sender), _formatted(State.InModifyCallback));
         int24[] memory positions_ = positions.write(callee.callback(data, msg.sender));
         _saveSlot0(uint160(msg.sender), _formatted(State.Ready));
-
-        if (allowances[0]) TOKEN0.safeApprove(address(callee), 1);
-        if (allowances[1]) TOKEN1.safeApprove(address(callee), 1);
 
         (uint256 ante, uint256 nSigma, uint256 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
 
@@ -371,6 +362,20 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /**
+     * @notice The most flexible sub-command. Allows the account owner to transfer amounts of `TOKEN0` and
+     * `TOKEN1` to any `recipient` they want. Only works within the `modify` callback.
+     * @param amount0 The amount of `TOKEN0` to transfer
+     * @param amount1 The amount of `TOKEN1` to transfer
+     * @param recipient Receives the transferred tokens
+     */
+    function transfer(uint256 amount0, uint256 amount1, address recipient) external {
+        require(slot0.state == State.InModifyCallback);
+
+        if (amount0 > 0) TOKEN0.safeTransfer(recipient, amount0);
+        if (amount1 > 0) TOKEN1.safeTransfer(recipient, amount1);
+    }
+
+    /**
      * @notice Allows the account owner to borrow funds from `LENDER0` and `LENDER1`. Only works within
      * the `modify` callback.
      * @dev If `amount0 > 0` and interest hasn't yet accrued in this block for `LENDER0`, it will accrue
@@ -390,8 +395,8 @@ contract Borrower is IUniswapV3MintCallback {
      * @notice Allows the account owner to repay debts to `LENDER0` and `LENDER1`. Only works within the
      * `modify` callback.
      * @dev This is technically unnecessary since you could call `Lender.repay` directly, specifying this
-     * contract as the `beneficiary` and using `modify`'s `allowances` array to give yourself full control
-     * of assets. We include it because it's convenient and gas-efficient for common use-cases.
+     * contract as the `beneficiary` and using the `transfer` sub-command to make payments. We include it
+     * because it's convenient and gas-efficient for common use-cases.
      * @param amount0 The amount of `TOKEN0` to repay
      * @param amount1 The amount of `TOKEN1` to repay
      */
