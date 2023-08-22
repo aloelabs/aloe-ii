@@ -2,8 +2,10 @@
 pragma solidity 0.8.17;
 
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
+import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {zip} from "aloe-ii-core/libraries/Positions.sol";
+import {TickMath} from "aloe-ii-core/libraries/TickMath.sol";
 import {Borrower, IManager} from "aloe-ii-core/Borrower.sol";
 import {Factory} from "aloe-ii-core/Factory.sol";
 import {Lender} from "aloe-ii-core/Lender.sol";
@@ -23,6 +25,14 @@ contract BoostManager is IManager {
         FACTORY = factory;
         BOOST_NFT = boostNft;
         UNISWAP_NFT = uniswapNft;
+    }
+
+    function uniswapV3SwapCallback(int256 amount0, int256 amount1, bytes calldata data) external {
+        (address borrower, ERC20 token0, ERC20 token1) = abi.decode(data, (address, ERC20, ERC20));
+        require(FACTORY.isBorrower(borrower));
+
+        if (amount0 > 0) token0.safeTransferFrom(borrower, msg.sender, uint256(amount0));
+        if (amount1 > 0) token1.safeTransferFrom(borrower, msg.sender, uint256(amount1));
     }
 
     function callback(bytes calldata data) external override returns (uint144) {
@@ -68,35 +78,84 @@ contract BoostManager is IManager {
             return zip([lower, upper, 0, 0, 0, 0]);
         }
 
-        // Burn liquidity
+        // Collect earned fees
         if (action == 1) {
+            // The position's lower and upper ticks
+            (int24 lower, int24 upper) = abi.decode(args, (int24, int24));
+
+            (, , uint256 collected0, uint256 collected1) = borrower.uniswapWithdraw(lower, upper, 0);
+            borrower.TOKEN0().safeTransferFrom(msg.sender, owner, collected0);
+            borrower.TOKEN1().safeTransferFrom(msg.sender, owner, collected1);
+        }
+
+        // Burn liquidity
+        if (action == 2) {
             // The position's lower tick
             int24 lower;
             // The position's upper tick
             int24 upper;
             // Amount of liquidity in the position
             uint128 liquidity;
-            (lower, upper, liquidity) = abi.decode(args, (int24, int24, uint128));
+            // Maximum amount of token0 or token1 to swap in order to repay debts
+            uint128 maxSpend;
+            // Whether to swap token0 for token1 or vice versa
+            bool zeroForOne;
+            (lower, upper, liquidity, maxSpend, zeroForOne) = abi.decode(
+                args,
+                (int24, int24, uint128, uint128, bool)
+            );
 
+            // Burn liquidity and collect fees
+            borrower.uniswapWithdraw(lower, upper, liquidity);
+
+            // Collect metadata from `borrower`
             Lender lender0 = borrower.LENDER0();
             Lender lender1 = borrower.LENDER1();
-            lender0.accrueInterest();
-            lender1.accrueInterest();
-            uint256 amount0 = lender0.borrowBalanceStored(msg.sender);
-            uint256 amount1 = lender1.borrowBalanceStored(msg.sender);
-
-            borrower.uniswapWithdraw(lower, upper, uint128(liquidity));
-            borrower.repay(amount0, amount1);
-
             ERC20 token0 = borrower.TOKEN0();
             ERC20 token1 = borrower.TOKEN1();
-            amount0 = token0.balanceOf(msg.sender);
-            amount1 = token1.balanceOf(msg.sender);
 
-            token0.safeTransferFrom(msg.sender, owner, amount0);
-            token1.safeTransferFrom(msg.sender, owner, amount1);
+            // Balance sheet computations
+            lender0.accrueInterest();
+            lender1.accrueInterest();
+            uint256 liabilities0 = lender0.borrowBalanceStored(msg.sender);
+            uint256 liabilities1 = lender1.borrowBalanceStored(msg.sender);
+            uint256 assets0 = token0.balanceOf(msg.sender);
+            uint256 assets1 = token1.balanceOf(msg.sender);
+            int256 surplus0 = int256(assets0) - int256(liabilities0);
+            int256 surplus1 = int256(assets1) - int256(liabilities1);
 
-            return 0;
+            // Swap iff (it's necessary) AND (direction matches user's intent)
+            if (surplus0 < 0 && !zeroForOne) {
+                (, int256 spent1) = borrower.UNISWAP_POOL().swap({
+                    recipient: msg.sender,
+                    zeroForOne: false,
+                    amountSpecified: surplus0, // negative implies "exact amount out"
+                    sqrtPriceLimitX96: TickMath.MAX_SQRT_RATIO - 1,
+                    data: abi.encode(borrower, token0, token1)
+                });
+                require(uint256(spent1) <= maxSpend, "slippage");
+                assets0 = liabilities0;
+                assets1 -= uint256(spent1);
+            } else if (surplus1 < 0 && zeroForOne) {
+                (int256 spent0, ) = borrower.UNISWAP_POOL().swap({
+                    recipient: msg.sender,
+                    zeroForOne: true,
+                    amountSpecified: surplus1, // negative implies "exact amount out"
+                    sqrtPriceLimitX96: TickMath.MIN_SQRT_RATIO + 1,
+                    data: abi.encode(borrower, token0, token1)
+                });
+                require(uint256(spent0) <= maxSpend, "slippage");
+                assets0 -= uint256(spent0);
+                assets1 = liabilities1;
+            }
+
+            // Repay
+            borrower.repay(liabilities0, liabilities1);
+
+            unchecked {
+                token0.safeTransferFrom(msg.sender, owner, assets0 - liabilities0);
+                token1.safeTransferFrom(msg.sender, owner, assets1 - liabilities1);
+            }
         }
 
         return 0;

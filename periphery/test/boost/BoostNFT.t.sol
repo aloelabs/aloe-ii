@@ -125,7 +125,7 @@ contract BoostNFTTest is Test {
         vm.resumeGasMetering();
 
         vm.prank(owner);
-        boostNft.modify(id, 1, data, [true, true]);
+        boostNft.modify(id, 2, data, [true, true]);
     }
 
     function _mintX(uint24 boost) private returns (address owner, int24 lower, int24 upper, uint128 liquidity) {
