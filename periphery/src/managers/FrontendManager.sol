@@ -23,11 +23,9 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
         FACTORY = factory;
     }
 
-    /// @dev This is safe because though this contract will have many approvals, its assets are always transient.
-    // As long as we do `safeTransfer` and not `safeTransferFrom`, we're fine.
-    function uniswapV3SwapCallback(int256 amount0, int256 amount1, bytes calldata) external {
-        if (amount0 > 0) ERC20(IUniswapV3Pool(msg.sender).token0()).safeTransfer(msg.sender, uint256(amount0));
-        if (amount1 > 0) ERC20(IUniswapV3Pool(msg.sender).token1()).safeTransfer(msg.sender, uint256(amount1));
+    function uniswapV3SwapCallback(int256 amount0, int256 amount1, bytes calldata data) external {
+        Borrower borrower = abi.decode(data, (Borrower));
+        borrower.transfer(amount0 > 0 ? uint256(amount0) : 0, amount1 > 0 ? uint256(amount1) : 0, msg.sender);
     }
 
     /* solhint-disable code-complexity */
@@ -67,8 +65,8 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
 
             // transfer out
             if (action == 1) {
-                (address asset, uint256 amount) = abi.decode(args[i], (address, uint256));
-                ERC20(asset).safeTransferFrom(msg.sender, owner, amount);
+                (uint256 amount0, uint256 amount1) = abi.decode(args[i], (uint256, uint256));
+                account.transfer(amount0, amount1, owner);
                 continue;
             }
 
@@ -102,7 +100,7 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
 
             // swap
             if (action == 6) {
-                (address assetIn, int256 amount0, int256 amount1) = abi.decode(args[i], (address, int256, int256));
+                (int256 amount0, int256 amount1) = abi.decode(args[i], (int256, int256));
 
                 int256 amountIn;
                 int256 amountOut;
@@ -121,15 +119,12 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
                     sqrtPriceLimitX96 = TickMath.MAX_SQRT_RATIO - 1;
                 }
 
-                // Pull in required funds from `account`
-                ERC20(assetIn).safeTransferFrom(msg.sender, address(this), uint256(amountIn));
-
                 (int256 received0, int256 received1) = account.UNISWAP_POOL().swap({
                     recipient: msg.sender,
                     zeroForOne: zeroForOne,
                     amountSpecified: amountIn,
                     sqrtPriceLimitX96: sqrtPriceLimitX96,
-                    data: bytes("")
+                    data: abi.encode(account)
                 });
 
                 if (zeroForOne) require(-received1 >= amountOut, "slippage");

@@ -38,8 +38,9 @@ contract BorrowerTest is Test, IManager {
             _account.repay(repay0, repay1);
         }
 
-        if (withdraw0 != 0) asset0.transferFrom(msg.sender, address(this), withdraw0);
-        if (withdraw1 != 0) asset1.transferFrom(msg.sender, address(this), withdraw1);
+        if (withdraw0 != 0 || withdraw1 != 0) {
+            _account.transfer(withdraw0, withdraw1, address(this));
+        }
 
         return 0;
     }
@@ -73,8 +74,7 @@ contract BorrowerTest is Test, IManager {
 
     function test_empty() public {
         bytes memory data = abi.encode(0, 0, 0, 0, 0, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
     }
 
     function test_addMargin() public {
@@ -87,8 +87,7 @@ contract BorrowerTest is Test, IManager {
         asset1.transfer(address(account), 1e17);
 
         bytes memory data = abi.encode(0, 0, 0, 0, 0, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
     }
 
     function test_borrow() public {
@@ -103,8 +102,7 @@ contract BorrowerTest is Test, IManager {
         asset1.transfer(address(account), 1e17);
 
         bytes memory data = abi.encode(100e6, 1e18, 0, 0, 0, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 100e6);
         assertEq(lender1.borrowBalance(address(account)), 1e18);
@@ -116,8 +114,7 @@ contract BorrowerTest is Test, IManager {
         test_borrow();
 
         bytes memory data = abi.encode(0, 0, 40e6, 0.4e18, 0, 0);
-        bool[2] memory allowances;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 60e6);
         assertEq(lender1.borrowBalance(address(account)), 0.6e18);
@@ -131,10 +128,7 @@ contract BorrowerTest is Test, IManager {
         skip(1 days);
 
         bytes memory data = abi.encode(0, 0, 0, 0, 10e6, 1e17);
-        bool[2] memory allowances;
-        allowances[0] = true;
-        allowances[1] = true;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
     }
 
     function testFail_missingLiquidationIncentive() public {
@@ -151,10 +145,7 @@ contract BorrowerTest is Test, IManager {
         uint256 assets1 = asset1.balanceOf(address(account));
 
         bytes memory data = abi.encode(0, 0, 0, 0, assets0 - liabilities0, assets1 - liabilities1);
-        bool[2] memory allowances;
-        allowances[0] = true;
-        allowances[1] = true;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
     }
 
     function test_barelySolvent() public {
@@ -178,10 +169,7 @@ contract BorrowerTest is Test, IManager {
             assets0 - ((liabilities0 * 1.005e8) / 1e8),
             assets1 - ((liabilities1 * 1.005e8) / 1e8)
         );
-        bool[2] memory allowances;
-        allowances[0] = true;
-        allowances[1] = true;
-        account.modify(this, data, allowances, (1 << 32));
+        account.modify(this, data, (1 << 32));
     }
 
     function _prepareKitties() private {
