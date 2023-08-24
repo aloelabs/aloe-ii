@@ -26,6 +26,7 @@ jobs:
         env:
           RPC_URL_OPTIMISM: ${{ secrets.RPC_URL_OPTIMISM }}
           RPC_URL_ARBITRUM: ${{ secrets.RPC_URL_ARBITRUM }}
+          RPC_URL_BASE: ${{ secrets.RPC_URL_BASE }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
         run: |
           cd periphery
