@@ -36,8 +36,27 @@ contract Borrower is IUniswapV3MintCallback {
     using SafeTransferLib for ERC20;
     using Positions for int24[6];
 
+    /**
+     * @notice Most liquidations involve swapping one asset for another. To incentivize such swaps (even in
+     * volatile markets) liquidators are rewarded with a 5% bonus. To avoid paying that bonus to liquidators,
+     * the account owner can listen for this event. Once it's emitted, they have 2 minutes to bring the
+     * account back to health. If they fail, the liquidation will proceed.
+     * @dev Fortuitous price movements and/or direct `Lender.repay` can bring the account back to health and
+     * nullify the immediate liquidation threat, but they will not clear the warning. This means that next
+     * time the account is unhealthy, liquidators might skip `warn` and `liquidate` right away. To clear the
+     * warning and return to a "clean" state, make sure to call `modify` -- even if the callback is a no-op.
+     * @dev The deadline for regaining health (avoiding liquidation) is given by `slot0.unleashLiquidationTime`.
+     * If this value is 0, the account is in the aforementioned "clean" state.
+     */
     event Warn();
 
+    /**
+     * @notice Emitted when the account gets `liquidate`d
+     * @param repay0 The amount of `TOKEN0` that was repaid
+     * @param repay1 The amount of `TOKEN1` that was repaid
+     * @param incentive1 The value of the swap bonus given to the liquidator, expressed in terms of `TOKEN1`
+     * @param priceX96 The price at which the liquidation took place
+     */
     event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX96);
 
     /// @notice The factory that created this contract
