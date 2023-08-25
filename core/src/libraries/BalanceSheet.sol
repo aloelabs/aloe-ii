@@ -4,7 +4,13 @@ pragma solidity 0.8.17;
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
-import {MIN_SIGMA, MAX_SIGMA, MAX_LEVERAGE, LIQUIDATION_INCENTIVE, MANIPULATION_THRESHOLD_DIVISOR} from "./constants/Constants.sol";
+import {
+    MIN_SIGMA,
+    MAX_SIGMA,
+    MAX_LEVERAGE,
+    LIQUIDATION_INCENTIVE,
+    MANIPULATION_THRESHOLD_DIVISOR
+} from "./constants/Constants.sol";
 import {mulDiv96} from "./LiquidityAmounts.sol";
 import {TickMath} from "./TickMath.sol";
 
