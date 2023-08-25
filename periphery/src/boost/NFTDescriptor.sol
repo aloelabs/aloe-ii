@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-import {Base64} from "solady/src/utils/Base64.sol";
-import {LibString} from "solady/src/utils/LibString.sol";
+import {Base64} from "solady/utils/Base64.sol";
+import {LibString} from "solady/utils/LibString.sol";
 
 import {NFTSVG} from "./NFTSVG.sol";
 

@@ -28,18 +28,13 @@ contract BoostManager is IManager {
     }
 
     function uniswapV3SwapCallback(int256 amount0, int256 amount1, bytes calldata data) external {
-        (address borrower, ERC20 token0, ERC20 token1) = abi.decode(data, (address, ERC20, ERC20));
-        require(FACTORY.isBorrower(borrower));
-
-        if (amount0 > 0) token0.safeTransferFrom(borrower, msg.sender, uint256(amount0));
-        if (amount1 > 0) token1.safeTransferFrom(borrower, msg.sender, uint256(amount1));
+        Borrower borrower = abi.decode(data, (Borrower));
+        borrower.transfer(amount0 > 0 ? uint256(amount0) : 0, amount1 > 0 ? uint256(amount1) : 0, msg.sender);
     }
 
-    function callback(bytes calldata data) external override returns (uint144) {
+    function callback(bytes calldata data, address owner) external override returns (uint144) {
         // We cast `msg.sender` as a `Borrower`, but it could really be anything. DO NOT TRUST!
-        Borrower borrower = Borrower(msg.sender);
-        // Same goes for `owner` -- we don't yet know if it's really the owner
-        (address owner, , ) = borrower.slot0();
+        Borrower borrower = Borrower(payable(msg.sender));
 
         // Need to check that `msg.sender` is really a borrower and that its owner is `BOOST_NFT`
         // in order to be sure that incoming `data` is in the expected format
@@ -82,10 +77,7 @@ contract BoostManager is IManager {
         if (action == 1) {
             // The position's lower and upper ticks
             (int24 lower, int24 upper) = abi.decode(args, (int24, int24));
-
-            (, , uint256 collected0, uint256 collected1) = borrower.uniswapWithdraw(lower, upper, 0);
-            borrower.TOKEN0().safeTransferFrom(msg.sender, owner, collected0);
-            borrower.TOKEN1().safeTransferFrom(msg.sender, owner, collected1);
+            borrower.uniswapWithdraw(lower, upper, 0, owner);
         }
 
         // Burn liquidity
@@ -103,7 +95,7 @@ contract BoostManager is IManager {
             (lower, upper, liquidity, maxSpend, zeroForOne) = abi.decode(args, (int24, int24, uint128, uint128, bool));
 
             // Burn liquidity and collect fees
-            borrower.uniswapWithdraw(lower, upper, liquidity);
+            borrower.uniswapWithdraw(lower, upper, liquidity, msg.sender);
 
             // Collect metadata from `borrower`
             Lender lender0 = borrower.LENDER0();
@@ -150,8 +142,7 @@ contract BoostManager is IManager {
             borrower.repay(liabilities0, liabilities1);
 
             unchecked {
-                token0.safeTransferFrom(msg.sender, owner, assets0 - liabilities0);
-                token1.safeTransferFrom(msg.sender, owner, assets1 - liabilities1);
+                borrower.transfer(assets0 - liabilities0, assets1 - liabilities1, owner);
             }
         }
 

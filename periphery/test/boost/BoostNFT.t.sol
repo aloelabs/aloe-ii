@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity >=0.7.6;
+pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {BoostNFT, Borrower, Factory, IManager, IUniswapV3Pool} from "src/boost/BoostNFT.sol";
+import {Factory, DEFAULT_ANTE} from "aloe-ii-core/Factory.sol";
+
+import {BoostNFT, Borrower, IManager, IUniswapV3Pool} from "src/boost/BoostNFT.sol";
 import {INonfungiblePositionManager as IUniswapNFT} from "src/interfaces/INonfungiblePositionManager.sol";
 import {BoostManager, Lender} from "src/managers/BoostManager.sol";
 
+// TODO: BoostNFTTest tests will fail until we have a new, live Factory + VolatilityOracle to fork off of
 Factory constant FACTORY = Factory(0x95110C9806833d3D3C250112fac73c5A6f631E80);
 
 IUniswapNFT constant UNISWAP_NFT = IUniswapNFT(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
@@ -76,16 +79,16 @@ contract BoostNFTTest is Test {
         bytes memory data = abi.encode(tokenId, lower, upper, liquidity, boost);
 
         vm.expectRevert(bytes("Aloe: owners must match to import"));
-        boostNft.mint(pool, data);
+        boostNft.mint(pool, data, 1 << 32);
 
         vm.prank(UNISWAP_NFT.ownerOf(tokenId));
         UNISWAP_NFT.approve(address(boostManager), tokenId);
 
         vm.expectRevert(bytes("Aloe: owners must match to import"));
-        boostNft.mint{value: 0.001 ether + 1}(pool, data);
+        boostNft.mint{value: DEFAULT_ANTE + 1}(pool, data, 1 << 32);
 
         vm.prank(UNISWAP_NFT.ownerOf(tokenId));
-        boostNft.mint{value: 0.001 ether + 1}(pool, data);
+        boostNft.mint{value: DEFAULT_ANTE + 1}(pool, data, 1 << 32);
     }
 
     function test_mintStorage() public {
@@ -125,7 +128,7 @@ contract BoostNFTTest is Test {
         vm.resumeGasMetering();
 
         vm.prank(owner);
-        boostNft.modify(id, 2, data, [true, true]);
+        boostNft.modify(id, 2, data, 1 << 32);
     }
 
     function _mintX(uint24 boost) private returns (address owner, int24 lower, int24 upper, uint128 liquidity) {
@@ -144,7 +147,7 @@ contract BoostNFTTest is Test {
         vm.resumeGasMetering();
 
         vm.prank(owner);
-        boostNft.mint{value: 0.001 ether + 1}(pool, data);
+        boostNft.mint{value: DEFAULT_ANTE + 1}(pool, data, 1 << 32);
     }
 
     function _prepareLenders(IUniswapV3Pool pool) private {

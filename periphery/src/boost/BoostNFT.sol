@@ -57,7 +57,7 @@ contract BoostNFT is ERC721 {
                                   MINT
     //////////////////////////////////////////////////////////////*/
 
-    function mint(IUniswapV3Pool pool, bytes memory initializationData) public payable {
+    function mint(IUniswapV3Pool pool, bytes memory initializationData, uint40 oracleSeed) public payable {
         uint256 id = uint256(keccak256(abi.encodePacked(msg.sender, balanceOf(msg.sender))));
 
         Borrower borrower = _nextBorrower(pool);
@@ -65,20 +65,14 @@ contract BoostNFT is ERC721 {
         _mint(msg.sender, id);
 
         initializationData = abi.encode(msg.sender, 0, initializationData);
-        borrower.modify{value: msg.value}(boostManager, initializationData, [false, false]);
+        borrower.modify{value: msg.value}(boostManager, initializationData, oracleSeed);
     }
 
     /*//////////////////////////////////////////////////////////////
                             BORROWER MODIFY
     //////////////////////////////////////////////////////////////*/
 
-    function modify(
-        uint256 id,
-        uint8 action,
-        IManager manager,
-        bytes memory data,
-        bool[2] calldata allowances
-    ) public payable {
+    function modify(uint256 id, uint8 action, IManager manager, bytes memory data, uint40 oracleSeed) public payable {
         require(msg.sender == _ownerOf[id], "Aloe: only NFT owner can modify");
 
         NFTAttributes memory attributes = attributesOf[id];
@@ -90,11 +84,11 @@ contract BoostNFT is ERC721 {
         }
 
         data = abi.encode(msg.sender, action, data);
-        attributes.borrower.modify{value: msg.value}(manager, data, allowances);
+        attributes.borrower.modify{value: msg.value}(manager, data, oracleSeed);
     }
 
-    function modify(uint256 id, uint8 action, bytes calldata data, bool[2] calldata allowances) external payable {
-        modify(id, action, IManager(address(0)), data, allowances);
+    function modify(uint256 id, uint8 action, bytes calldata data, uint40 oracleSeed) external payable {
+        modify(id, action, IManager(address(0)), data, oracleSeed);
     }
 
     /*//////////////////////////////////////////////////////////////
