@@ -34,7 +34,7 @@ interface INonfungiblePositionManager is IERC721Metadata, IERC721Enumerable, IER
     /// @param amount1 The amount of token1 owed to the position that was collected
     event Collect(uint256 indexed tokenId, address recipient, uint256 amount0, uint256 amount1);
 
-    /// @return Returns the address of the Uniswap V3 factory
+    /// @notice Returns the address of the Uniswap V3 factory
     function factory() external view returns (address);
 
     /// @notice Returns the position information associated with a given token ID.
