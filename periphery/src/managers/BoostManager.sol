@@ -2,7 +2,8 @@
 pragma solidity 0.8.17;
 
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
-import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+
+import {IUniswapV3SwapCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
 
 import {zip} from "aloe-ii-core/libraries/Positions.sol";
 import {TickMath} from "aloe-ii-core/libraries/TickMath.sol";
@@ -12,7 +13,7 @@ import {Lender} from "aloe-ii-core/Lender.sol";
 
 import {INonfungiblePositionManager as IUniswapNFT} from "../interfaces/INonfungiblePositionManager.sol";
 
-contract BoostManager is IManager {
+contract BoostManager is IManager, IUniswapV3SwapCallback {
     using SafeTransferLib for ERC20;
 
     Factory public immutable FACTORY;

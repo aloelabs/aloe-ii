@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {MIN_SIGMA, MAX_SIGMA, MAX_LEVERAGE, LIQUIDATION_INCENTIVE, MANIPULATION_THRESHOLD_DIVISOR} from "./constants/Constants.sol";
-import {Q96} from "./constants/Q.sol";
 import {mulDiv96} from "./LiquidityAmounts.sol";
 import {TickMath} from "./TickMath.sol";
 

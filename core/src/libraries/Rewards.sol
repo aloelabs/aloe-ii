@@ -12,7 +12,7 @@ library Rewards {
 
     event RewardsClaimed(address user, uint112 amount);
 
-    bytes32 private constant REWARDS_SLOT = keccak256("aloe.ii.rewards");
+    bytes32 private constant _REWARDS_SLOT = keccak256("aloe.ii.rewards");
 
     struct PoolState {
         // Accumulated rewards per token, scaled up by 1e16
@@ -146,7 +146,7 @@ library Rewards {
 
     /// @dev Diamond-pattern-style storage getter
     function _getStorage() private pure returns (Storage storage store) {
-        bytes32 position = REWARDS_SLOT;
+        bytes32 position = _REWARDS_SLOT;
         assembly ("memory-safe") {
             store.slot := position
         }

@@ -20,14 +20,14 @@ interface IRateModel {
 /// @author Aloe Labs, Inc.
 /// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract RateModel is IRateModel {
-    uint256 private constant A = 6.1010463348e20;
+    uint256 private constant _A = 6.1010463348e20;
 
-    uint256 private constant B = A / 1e18;
+    uint256 private constant _B = _A / 1e18;
 
     /// @inheritdoc IRateModel
     function getYieldPerSecond(uint256 utilization, address) external pure returns (uint256) {
         unchecked {
-            return (utilization < 0.99e18) ? A / (1e18 - utilization) - B : 60400;
+            return (utilization < 0.99e18) ? _A / (1e18 - utilization) - _B : 60400;
         }
     }
 }

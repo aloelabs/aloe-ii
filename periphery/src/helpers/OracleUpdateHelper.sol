@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import {VolatilityOracle, IUniswapV3Pool} from "aloe-ii-core/VolatilityOracle.sol";
 
 contract OracleUpdateHelper {
-    VolatilityOracle immutable ORACLE;
+    VolatilityOracle public immutable ORACLE;
 
     constructor(VolatilityOracle oracle) {
         ORACLE = oracle;

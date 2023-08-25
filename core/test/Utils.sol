@@ -26,7 +26,7 @@ contract FactoryForLenderTests is Factory {
     ) Factory(VolatilityOracle(address(0)), rateModel, rewardsToken) {}
 
     function deploySingleLender(ERC20 asset) external returns (Lender) {
-        address proxy = ClonesWithImmutableArgs.clone(lenderImplementation, abi.encodePacked(address(asset)));
+        address proxy = ClonesWithImmutableArgs.clone(LENDER_IMPLEMENTATION, abi.encodePacked(address(asset)));
 
         Lender(proxy).initialize(RATE_MODEL, 8);
         return Lender(proxy);

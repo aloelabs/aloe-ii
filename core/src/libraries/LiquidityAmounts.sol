@@ -2,9 +2,6 @@
 pragma solidity 0.8.17;
 
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
-
-import {Q96} from "./constants/Q.sol";
 
 function mulDiv96(uint256 x, uint256 y) pure returns (uint256 result) {
     assembly ("memory-safe") {

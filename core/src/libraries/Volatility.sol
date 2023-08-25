@@ -4,7 +4,6 @@ pragma solidity 0.8.17;
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
-import {Q96} from "./constants/Q.sol";
 import {mulDiv96} from "./LiquidityAmounts.sol";
 import {Oracle} from "./Oracle.sol";
 import {TickMath} from "./TickMath.sol";

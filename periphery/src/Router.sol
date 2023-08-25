@@ -5,6 +5,8 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {Lender} from "aloe-ii-core/Lender.sol";
 
+import {IPermit2} from "./interfaces/IPermit2.sol";
+
 contract Router {
     using SafeTransferLib for ERC20;
 
@@ -96,12 +98,6 @@ contract Router {
         units = lender.repay(amount, beneficiary);
     }
 
-    function isMaxRedeemDynamic(Lender lender, address owner) external view returns (bool) {
-        // NOTE: If the first statement is true, the second statement will also be true (unless this is the block in which
-        // they deposited for the first time). We include the first statement only to reduce computation.
-        return lender.courierOf(owner) > 0 || lender.balanceOf(owner) != lender.maxRedeem(owner);
-    }
-
     function redeemWithChecks(
         Lender lender,
         uint256 shares,
@@ -117,42 +113,10 @@ contract Router {
 
         amount = lender.redeem(shares, msg.sender, msg.sender);
     }
-}
 
-// Minimal Permit2 interface, derived from
-// https://github.com/Uniswap/permit2/blob/main/src/interfaces/ISignatureTransfer.sol
-interface IPermit2 {
-    // Token and amount in a permit message.
-    struct TokenPermissions {
-        // Token to transfer.
-        ERC20 token;
-        // Amount to transfer.
-        uint256 amount;
+    function isMaxRedeemDynamic(Lender lender, address owner) external view returns (bool) {
+        // NOTE: If the first statement is true, the second statement will also be true (unless this is the block in which
+        // they deposited for the first time). We include the first statement only to reduce computation.
+        return lender.courierOf(owner) > 0 || lender.balanceOf(owner) != lender.maxRedeem(owner);
     }
-
-    // The permit2 message.
-    struct PermitTransferFrom {
-        // Permitted token and amount.
-        TokenPermissions permitted;
-        // Unique identifier for this permit.
-        uint256 nonce;
-        // Expiration for this permit.
-        uint256 deadline;
-    }
-
-    // Transfer details for permitTransferFrom().
-    struct SignatureTransferDetails {
-        // Recipient of tokens.
-        address to;
-        // Amount to transfer.
-        uint256 requestedAmount;
-    }
-
-    // Consume a permit2 message and transfer tokens.
-    function permitTransferFrom(
-        PermitTransferFrom calldata permit,
-        SignatureTransferDetails calldata transferDetails,
-        address owner,
-        bytes calldata signature
-    ) external;
 }
