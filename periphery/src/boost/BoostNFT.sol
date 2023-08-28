@@ -13,18 +13,18 @@ import {SafeERC20Namer} from "./SafeERC20Namer.sol";
 contract BoostNFT is ERC721 {
     Factory public immutable FACTORY;
 
-    address public owner;
-
-    IManager public boostManager;
-
     struct NFTAttributes {
         Borrower borrower;
         bool isGeneralized;
     }
 
+    address public owner;
+
+    IManager public boostManager;
+
     mapping(uint256 => NFTAttributes) public attributesOf;
 
-    Borrower[] internal freeBorrowers;
+    Borrower[] internal _freeBorrowers;
 
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
@@ -50,7 +50,7 @@ contract BoostNFT is ERC721 {
     }
 
     function createBorrower(IUniswapV3Pool pool) external {
-        freeBorrowers.push(Borrower(FACTORY.createBorrower(pool, address(this))));
+        _freeBorrowers.push(Borrower(FACTORY.createBorrower(pool, address(this))));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -139,10 +139,10 @@ contract BoostNFT is ERC721 {
 
     function _nextBorrower(IUniswapV3Pool pool) private returns (Borrower borrower) {
         unchecked {
-            uint256 count = freeBorrowers.length;
+            uint256 count = _freeBorrowers.length;
             if (count > 0) {
-                borrower = freeBorrowers[count - 1];
-                freeBorrowers.pop();
+                borrower = _freeBorrowers[count - 1];
+                _freeBorrowers.pop();
             } else {
                 borrower = Borrower(FACTORY.createBorrower(pool, address(this)));
             }

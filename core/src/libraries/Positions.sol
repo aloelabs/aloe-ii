@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-import {Q24} from "./constants/Q.sol";
+import {Q24} from "./constants/Q.sol"; // solhint-disable-line no-unused-import
 
 /**
  * @notice Compresses `positions` into `zipped`. Useful for creating the return value of `IManager.callback`

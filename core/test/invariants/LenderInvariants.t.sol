@@ -56,7 +56,7 @@ contract LenderInvariantsTest is Test {
             excludeSender(address(this));
             excludeSender(address(rateModel));
             excludeSender(address(factory));
-            excludeSender(address(factory.lenderImplementation()));
+            excludeSender(address(factory.LENDER_IMPLEMENTATION()));
             excludeSender(address(asset));
             excludeSender(address(lender));
             excludeSender(address(lenderHarness));

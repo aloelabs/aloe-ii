@@ -3,7 +3,15 @@ pragma solidity 0.8.17;
 
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {MAX_SIGMA, IV_SCALE, IV_CHANGE_PER_SECOND, UNISWAP_AVG_WINDOW, FEE_GROWTH_AVG_WINDOW, FEE_GROWTH_ARRAY_LENGTH, FEE_GROWTH_SAMPLE_PERIOD} from "./libraries/constants/Constants.sol";
+import {
+    MAX_SIGMA,
+    IV_SCALE,
+    IV_CHANGE_PER_SECOND,
+    UNISWAP_AVG_WINDOW,
+    FEE_GROWTH_AVG_WINDOW,
+    FEE_GROWTH_ARRAY_LENGTH,
+    FEE_GROWTH_SAMPLE_PERIOD
+} from "./libraries/constants/Constants.sol";
 import {Oracle} from "./libraries/Oracle.sol";
 import {Volatility} from "./libraries/Volatility.sol";
 

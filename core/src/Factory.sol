@@ -44,7 +44,7 @@ contract Factory {
 
     ERC20 public immutable REWARDS_TOKEN;
 
-    address public immutable lenderImplementation;
+    address public immutable LENDER_IMPLEMENTATION;
 
     /*//////////////////////////////////////////////////////////////
                              WORLD STORAGE
@@ -80,7 +80,7 @@ contract Factory {
         RATE_MODEL = rateModel;
         REWARDS_TOKEN = rewardsToken;
 
-        lenderImplementation = address(new Lender(address(this)));
+        LENDER_IMPLEMENTATION = address(new Lender(address(this)));
     }
 
     function pause(IUniswapV3Pool pool) external {
@@ -101,8 +101,8 @@ contract Factory {
         address asset1 = pool.token1();
 
         bytes32 salt = keccak256(abi.encodePacked(pool));
-        Lender lender0 = Lender(lenderImplementation.cloneDeterministic({salt: salt, data: abi.encodePacked(asset0)}));
-        Lender lender1 = Lender(lenderImplementation.cloneDeterministic({salt: salt, data: abi.encodePacked(asset1)}));
+        Lender lender0 = Lender(LENDER_IMPLEMENTATION.cloneDeterministic({salt: salt, data: abi.encodePacked(asset0)}));
+        Lender lender1 = Lender(LENDER_IMPLEMENTATION.cloneDeterministic({salt: salt, data: abi.encodePacked(asset1)}));
 
         lender0.initialize(RATE_MODEL, 8);
         lender1.initialize(RATE_MODEL, 8);

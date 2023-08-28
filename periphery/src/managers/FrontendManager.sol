@@ -4,13 +4,11 @@ pragma solidity 0.8.17;
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 
 import {IUniswapV3SwapCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3SwapCallback.sol";
-import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {TickMath} from "aloe-ii-core/libraries/TickMath.sol";
 
 import {Borrower, IManager} from "aloe-ii-core/Borrower.sol";
 import {Factory} from "aloe-ii-core/Factory.sol";
-import {Lender} from "aloe-ii-core/Lender.sol";
 
 contract FrontendManager is IManager, IUniswapV3SwapCallback {
     using SafeTransferLib for ERC20;
