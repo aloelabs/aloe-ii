@@ -137,15 +137,17 @@ contract VolatilityTest is Test {
         amount1 = Volatility.amount0ToAmount1(0, TickMath.getSqrtRatioAtTick(-1000));
         assertEq(amount1, 0);
         amount1 = Volatility.amount0ToAmount1(type(uint128).max, TickMath.getSqrtRatioAtTick(1000));
-        assertEq(amount1, 376068295634136240002369832470443982846);
+        assertEq(amount1, 376068295634136240002369832473867089913);
         amount1 = Volatility.amount0ToAmount1(type(uint128).max, TickMath.getSqrtRatioAtTick(-1000));
-        assertEq(amount1, 307901757690220954445983032426008412159);
+        assertEq(amount1, 307901757690220954445983032426865855048);
         amount1 = Volatility.amount0ToAmount1(4000000000, TickMath.getSqrtRatioAtTick(193325)); // ~ 4000 USDC
         assertEq(amount1, 994576722964113793); // ~ 1 ETH
     }
 
-    function test_amount0ToAmount1(uint128 amount0, int16 tick) public {
-        uint256 amount1 = Volatility.amount0ToAmount1(amount0, TickMath.getSqrtRatioAtTick(tick));
+    function test_amount0ToAmount1(uint128 amount0, int24 tick) public {
+        tick = int24(bound(tick, -100000, 100000));
+        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
+        uint256 amount1 = Volatility.amount0ToAmount1(amount0, sqrtPriceX96);
 
         if (amount0 == 0) {
             assertEq(amount1, 0);
@@ -153,15 +155,10 @@ contract VolatilityTest is Test {
         }
         if (amount0 < 1e6) return;
 
-        uint256 priceX96Actual = Math.mulDiv(amount1, 2 ** 96, amount0);
+        uint256 priceX128Actual = Math.mulDiv(amount1, 2 ** 128, amount0);
+        uint256 priceX128Expected = Math.mulDiv(sqrtPriceX96, sqrtPriceX96, 2 ** 64);
 
-        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
-        uint256 priceX96Expected = Math.mulDiv(sqrtPriceX96, sqrtPriceX96, 2 ** 96);
-
-        if (-30000 < tick && tick < 30000) {
-            assertLe(priceX96Actual / priceX96Expected, 1);
-            assertLe(priceX96Expected / priceX96Actual, 1);
-        }
+        assertApproxEqRel(priceX128Actual, priceX128Expected, 0.01e18);
     }
 
     function test_spec_computeRevenueGamma() public {

@@ -7,9 +7,10 @@ import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUni
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
-import {Q96} from "./libraries/constants/Q.sol";
+import {Q128} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
-import {LiquidityAmounts, mulDiv96} from "./libraries/LiquidityAmounts.sol";
+import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
+import {mulDiv128} from "./libraries/MulDiv.sol";
 import {Positions} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 
@@ -55,9 +56,9 @@ contract Borrower is IUniswapV3MintCallback {
      * @param repay0 The amount of `TOKEN0` that was repaid
      * @param repay1 The amount of `TOKEN1` that was repaid
      * @param incentive1 The value of the swap bonus given to the liquidator, expressed in terms of `TOKEN1`
-     * @param priceX96 The price at which the liquidation took place
+     * @param priceX128 The price at which the liquidation took place
      */
-    event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX96);
+    event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX128);
 
     /// @notice The factory that created this contract
     Factory public immutable FACTORY;
@@ -193,7 +194,7 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 liabilities1;
 
         uint256 incentive1;
-        uint256 priceX96;
+        uint256 priceX128;
 
         {
             // Withdraw Uniswap positions while tallying assets
@@ -201,7 +202,7 @@ contract Borrower is IUniswapV3MintCallback {
             // Fetch liabilities from lenders
             (liabilities0, liabilities1) = _getLiabilities();
             // Calculate liquidation incentive
-            (incentive1, priceX96) = BalanceSheet.computeLiquidationIncentive(
+            (incentive1, priceX128) = BalanceSheet.computeLiquidationIncentive(
                 assets.fixed0 + assets.fluid0C, // total assets0 at `prices.c` (the TWAP)
                 assets.fixed1 + assets.fluid1C, // total assets1 at `prices.c` (the TWAP)
                 liabilities0,
@@ -249,7 +250,7 @@ contract Borrower is IUniswapV3MintCallback {
                     // NOTE: This value is not constrained to `TOKEN1.balanceOf(address(this))`, so liquidators
                     // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
                     // be an issue unless the borrower has already started accruing bad debt.
-                    uint256 available1 = mulDiv96(liabilities0, priceX96) + incentive1;
+                    uint256 available1 = mulDiv128(liabilities0, priceX128) + incentive1;
 
                     TOKEN1.safeTransfer(address(callee), available1);
                     callee.swap1For0(data, available1, liabilities0);
@@ -259,7 +260,7 @@ contract Borrower is IUniswapV3MintCallback {
                     // NOTE: This value is not constrained to `TOKEN0.balanceOf(address(this))`, so liquidators
                     // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
                     // be an issue unless the borrower has already started accruing bad debt.
-                    uint256 available0 = Math.mulDiv(liabilities1 + incentive1, Q96, priceX96);
+                    uint256 available0 = Math.mulDiv(liabilities1 + incentive1, Q128, priceX128);
 
                     TOKEN0.safeTransfer(address(callee), available0);
                     callee.swap0For1(data, available0, liabilities1);
@@ -273,7 +274,7 @@ contract Borrower is IUniswapV3MintCallback {
 
             _saveSlot0(slot0_ % (1 << 160), _formatted(State.Ready));
 
-            emit Liquidate(repayable0, repayable1, incentive1, priceX96);
+            emit Liquidate(repayable0, repayable1, incentive1, priceX128);
         }
     }
 

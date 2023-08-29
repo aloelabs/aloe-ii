@@ -78,7 +78,7 @@ fi
 
 # Run forge tests
 if [ "$CHECK_FORGE_TESTS" = true ]; then
-    forge test -vv --no-match-contract ".*Gas" --no-match-test "historical"
+    forge test -vv --no-match-contract ".*Gas" --no-match-test "historical|Ffi"
 
     echo "✅ forge tests pass" >> $GITHUB_STEP_SUMMARY
 fi

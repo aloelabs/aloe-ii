@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {BalanceSheet, TickMath, mulDiv96} from "src/libraries/BalanceSheet.sol";
+import {BalanceSheet, TickMath, square} from "src/libraries/BalanceSheet.sol";
 
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 
@@ -116,18 +116,22 @@ contract BalanceSheetTest is Test {
     }
 
     function test_computeProbePrices(uint160 sqrtMeanPriceX96, uint256 sigma) public {
-        // TODO: These bounds should be enforced somewhere. Related to https://github.com/aloelabs/aloe-ii/issues/66
-        sqrtMeanPriceX96 = uint160(bound(sqrtMeanPriceX96, (1 << 56), TickMath.MAX_SQRT_RATIO / 1.0863e9));
+        // The lower bound is related to how precise our assertion is. For prices to be correct within 0.01%,
+        // the sqrtPrice must be >= 2^40 (approximately). Calculations for that are here:
+        // https://www.desmos.com/calculator/gfbkcnt0vs
+        // The upper bound is due to the fact that the result (specifically `b`) must fit in uint160. The maximum
+        // volatility factor is 1 + 5*0.18, so we divide `TickMath.MAX_SQRT_RATIO` by sqrt(1e18 + 5*0.18e18)
+        sqrtMeanPriceX96 = uint160(bound(sqrtMeanPriceX96, (1 << 40), TickMath.MAX_SQRT_RATIO / 1.0863e9));
         (uint256 a, uint256 b, ) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, sigma, 5, 0);
 
-        uint256 price = mulDiv96(sqrtMeanPriceX96, sqrtMeanPriceX96);
-        a = mulDiv96(a, a);
-        b = mulDiv96(b, b);
+        uint256 price = square(sqrtMeanPriceX96);
+        a = square(uint160(a));
+        b = square(uint160(b));
 
         if (sigma < 0.01e18) sigma = 0.01e18;
         else if (sigma > 0.18e18) sigma = 0.18e18;
 
-        assertApproxEqRel(a, price * (1e18 - 5 * sigma) / 1e18, 0.0001e18);
-        assertApproxEqRel(b, price * (1e18 + 5 * sigma) / 1e18, 0.0001e18);
+        assertApproxEqRel(a, SoladyMath.fullMulDiv(price, 1e18 - 5 * sigma, 1e18), 0.0001e18);
+        assertApproxEqRel(b, SoladyMath.fullMulDiv(price, 1e18 + 5 * sigma, 1e18), 0.0001e18);
     }
 }
