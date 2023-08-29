@@ -2,7 +2,6 @@
 pragma solidity 0.8.17;
 
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
-import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {
     MIN_SIGMA,
@@ -11,7 +10,7 @@ import {
     LIQUIDATION_INCENTIVE,
     MANIPULATION_THRESHOLD_DIVISOR
 } from "./constants/Constants.sol";
-import {mulDiv96} from "./LiquidityAmounts.sol";
+import {square, mulDiv128} from "./MulDiv.sol";
 import {TickMath} from "./TickMath.sol";
 
 struct Assets {
@@ -64,18 +63,18 @@ library BalanceSheet {
         }
 
         // combine
-        uint224 priceX96;
+        uint256 priceX128;
         uint256 liabilities;
         uint256 assets;
 
-        priceX96 = uint224(mulDiv96(prices.a, prices.a));
-        liabilities = liabilities1 + mulDiv96(liabilities0, priceX96);
-        assets = mem.fluid1A + mem.fixed1 + mulDiv96(mem.fixed0, priceX96);
+        priceX128 = square(prices.a);
+        liabilities = liabilities1 + mulDiv128(liabilities0, priceX128);
+        assets = mem.fluid1A + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
         if (liabilities > assets) return false;
 
-        priceX96 = uint224(mulDiv96(prices.b, prices.b));
-        liabilities = liabilities1 + mulDiv96(liabilities0, priceX96);
-        assets = mem.fluid1B + mem.fixed1 + mulDiv96(mem.fixed0, priceX96);
+        priceX128 = square(prices.b);
+        liabilities = liabilities1 + mulDiv128(liabilities0, priceX128);
+        assets = mem.fluid1B + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
         if (liabilities > assets) return false;
 
         return true;
@@ -92,7 +91,7 @@ library BalanceSheet {
             isSus = metric > _manipulationThreshold(_effectiveCollateralFactor(sigma));
 
             a = uint160((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 - sigma)) / 1e9);
-            b = SafeCastLib.safeCastTo160((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 + sigma)) / 1e9);
+            b = uint160(SoladyMath.min((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 + sigma)) / 1e9, type(uint160).max));
         }
     }
 
@@ -102,16 +101,16 @@ library BalanceSheet {
         uint256 liabilities0,
         uint256 liabilities1,
         uint160 sqrtMeanPriceX96
-    ) internal pure returns (uint256 incentive1, uint224 meanPriceX96) {
+    ) internal pure returns (uint256 incentive1, uint256 meanPriceX128) {
         unchecked {
-            meanPriceX96 = uint224(mulDiv96(sqrtMeanPriceX96, sqrtMeanPriceX96));
+            meanPriceX128 = square(sqrtMeanPriceX96);
 
             if (liabilities0 > assets0) {
                 // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
                 uint256 shortfall = liabilities0 - assets0;
                 // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
                 // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                incentive1 += mulDiv96(shortfall, meanPriceX96) / LIQUIDATION_INCENTIVE;
+                incentive1 += mulDiv128(shortfall, meanPriceX128) / LIQUIDATION_INCENTIVE;
             }
 
             if (liabilities1 > assets1) {

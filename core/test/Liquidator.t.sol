@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import "forge-std/Test.sol";
 
 import {DEFAULT_ANTE, DEFAULT_N_SIGMA, LIQUIDATION_INCENTIVE} from "src/libraries/constants/Constants.sol";
+import {Q96} from "src/libraries/constants/Q.sol";
 import {zip} from "src/libraries/Positions.sol";
 
 import "src/Borrower.sol";
