@@ -270,10 +270,9 @@ contract Borrower is IUniswapV3MintCallback {
             }
 
             _repay(repayable0, repayable1);
-            payable(callee).transfer(address(this).balance / strain);
-
             _saveSlot0(slot0_ % (1 << 160), _formatted(State.Ready));
 
+            payable(callee).transfer(address(this).balance / strain);
             emit Liquidate(repayable0, repayable1, incentive1, priceX128);
         }
     }
