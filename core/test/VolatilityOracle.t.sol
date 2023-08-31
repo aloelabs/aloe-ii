@@ -76,7 +76,7 @@ contract VolatilityOracleTest is Test {
             assertEq(fggTime, block.timestamp);
             assertEq(index, 0);
             assertEq(time, block.timestamp);
-            assertEqDecimal(iv, MAX_SIGMA, 18);
+            assertEqDecimal(iv, IV_MAX, 18);
         }
 
         vm.expectRevert(bytes("Aloe: cardinality"));

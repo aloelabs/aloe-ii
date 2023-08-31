@@ -4,8 +4,8 @@ pragma solidity 0.8.17;
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 
 import {
-    MIN_SIGMA,
-    MAX_SIGMA,
+    IV_MIN,
+    IV_MAX,
     MAX_LEVERAGE,
     LIQUIDATION_INCENTIVE,
     MANIPULATION_THRESHOLD_DIVISOR
@@ -82,16 +82,16 @@ library BalanceSheet {
 
     function computeProbePrices(
         uint160 sqrtMeanPriceX96,
-        uint256 sigma,
-        uint256 n,
+        uint256 iv,
+        uint256 nSigma,
         uint56 metric
     ) internal pure returns (uint160 a, uint160 b, bool isSus) {
         unchecked {
-            sigma = n * SoladyMath.clamp(sigma, MIN_SIGMA, MAX_SIGMA);
-            isSus = metric > _manipulationThreshold(_effectiveCollateralFactor(sigma));
+            iv = nSigma * SoladyMath.clamp(iv, IV_MIN, IV_MAX);
+            isSus = metric > _manipulationThreshold(_effectiveCollateralFactor(iv));
 
-            a = uint160((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 - sigma)) / 1e9);
-            b = uint160(SoladyMath.min((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 + sigma)) / 1e9, type(uint160).max));
+            a = uint160((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 - iv)) / 1e9);
+            b = uint160(SoladyMath.min((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 + iv)) / 1e9, type(uint160).max));
         }
     }
 
@@ -130,11 +130,11 @@ library BalanceSheet {
     }
 
     /// @dev Equivalent to \\( \frac{1 - σ}{1 + \frac{1}{liquidationIncentive} + \frac{1}{maxLeverage}} \\) where
-    /// \\( σ = \frac{clampedAndScaledSigma}{10^{18}} \\) in floating point
-    function _effectiveCollateralFactor(uint256 clampedAndScaledSigma) private pure returns (uint256 cf) {
+    /// \\( σ = \frac{clampedAndScaledIV}{10^{18}} \\) in floating point
+    function _effectiveCollateralFactor(uint256 clampedAndScaledIV) private pure returns (uint256 cf) {
         unchecked {
             cf =
-                ((1e18 - clampedAndScaledSigma) * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE)) /
+                ((1e18 - clampedAndScaledIV) * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE)) /
                 (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE);
         }
     }

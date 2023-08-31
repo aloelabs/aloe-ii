@@ -4,7 +4,7 @@ pragma solidity 0.8.17;
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {
-    MAX_SIGMA,
+    IV_MAX,
     IV_SCALE,
     IV_CHANGE_PER_SECOND,
     UNISWAP_AVG_WINDOW,
@@ -38,7 +38,7 @@ contract VolatilityOracle {
 
         if (lastWrites[pool].time == 0) {
             feeGrowthGlobals[pool][0] = _getFeeGrowthGlobalsNow(pool);
-            lastWrites[pool] = LastWrite({index: 0, time: uint32(block.timestamp), iv: uint216(MAX_SIGMA)});
+            lastWrites[pool] = LastWrite({index: 0, time: uint32(block.timestamp), iv: uint216(IV_MAX)});
         }
     }
 

@@ -23,6 +23,10 @@ uint256 constant BORROWS_SCALER = type(uint72).max * ONE;
 /// > - MAX_RATE: (exp(maxAPR / secondsPerYear) - 1) * 1e12
 uint256 constant MAX_RATE = 706354;
 
+/*//////////////////////////////////////////////////////////////
+                        FACTORY DEFAULTS
+//////////////////////////////////////////////////////////////*/
+
 /// @dev The default amount of Ether required to take on debt in a `Borrower`. The `Factory` can override this value
 /// on a per-market basis.
 uint216 constant DEFAULT_ANTE = 0.1 ether;
@@ -31,12 +35,13 @@ uint216 constant DEFAULT_ANTE = 0.1 ether;
 /// solvency. The `Factory` can override this value on a per-market basis.
 uint8 constant DEFAULT_N_SIGMA = 5;
 
-/// @dev The minimum implied volatility. Clamped to this **before** multiplying by `DEFAULT_N_SIGMA`
-uint256 constant MIN_SIGMA = 0.01e18;
+/// @dev The default portion of interest that will accrue to a `Lender`'s `RESERVE` address.
+/// Expressed as a reciprocal, e.g. 8 → 12.5%
+uint8 constant DEFAULT_RESERVE_FACTOR = 8;
 
-/// @dev The maximum implied volatility. Clamped to this **before** multiplying by `DEFAULT_N_SIGMA`
-/// To avoid underflow in `BalanceSheet.computeProbePrices`, ensure that `MAX_SIGMA * DEFAULT_N_SIGMA <= 1e18`
-uint256 constant MAX_SIGMA = 0.18e18;
+/*//////////////////////////////////////////////////////////////
+                        GOVERNANCE BOUNDS
+//////////////////////////////////////////////////////////////*/
 
 /// @dev The lower bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 4 → 25%
 uint256 constant MIN_RESERVE_FACTOR = 4;
@@ -44,13 +49,30 @@ uint256 constant MIN_RESERVE_FACTOR = 4;
 /// @dev The upper bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 20 → 5%
 uint256 constant MAX_RESERVE_FACTOR = 20;
 
-/// @dev \\( 1 + \frac{1}{\text{MAX_LEVERAGE}} \\) should correspond to the maximum feasible single-block
+/*//////////////////////////////////////////////////////////////
+                            LIQUIDATION
+//////////////////////////////////////////////////////////////*/
+
+/// @dev \\( 1 + \frac{1}{\text{MAX_LEVERAGE}} \\) should be greater than the maximum feasible single-block
 /// `accrualFactor` so that liquidators have time to respond to interest updates
 uint256 constant MAX_LEVERAGE = 200;
 
-uint256 constant LIQUIDATION_INCENTIVE = 20; // Expressed as reciprocal, e.g. 20 --> 5%
+uint256 constant LIQUIDATION_INCENTIVE = 20; // Expressed as reciprocal, e.g. 20 → 5%
 
 uint256 constant LIQUIDATION_GRACE_PERIOD = 2 minutes;
+
+/*//////////////////////////////////////////////////////////////
+                            IV AND TWAP
+//////////////////////////////////////////////////////////////*/
+
+/// @dev The minimum implied volatility. Clamped to this **before** multiplying by `nSigma`.
+/// Expressed as a wad percentage at `IV_SCALE`, e.g. {0.01e18, 24 hours} → 1% daily → 19% annual
+uint256 constant IV_MIN = 0.01e18;
+
+/// @dev The maximum implied volatility. Clamped to this **before** multiplying by `nSigma`.
+/// Expressed as a wad percentage at `IV_SCALE`, e.g. {0.18e18, 24 hours} → 18% daily → 344% annual
+/// To avoid underflow in `BalanceSheet.computeProbePrices`, ensure that `IV_MAX * nSigma <= 1e18`
+uint256 constant IV_MAX = 0.18e18;
 
 uint256 constant IV_SCALE = 24 hours;
 
