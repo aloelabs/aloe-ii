@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 
-import {Volatility, Oracle, TickMath} from "src/libraries/Volatility.sol";
+import "src/libraries/Volatility.sol";
 
 contract VolatilityTest is Test {
     function setUp() public {}
@@ -35,7 +35,7 @@ contract VolatilityTest is Test {
             ),
             1 days
         );
-        assertEq(dailyIV, 20405953567249984); // 2.041%
+        assertEq(dailyIV, 20405953633598983); // 2.041%
 
         dailyIV = Volatility.estimate(
             metadata,
@@ -52,7 +52,7 @@ contract VolatilityTest is Test {
             ),
             1 hours
         );
-        assertEq(dailyIV, 4165347829168579); // 0.417%
+        assertEq(dailyIV, 4165347781963646); // 0.417%
 
         dailyIV = Volatility.estimate(
             metadata,
@@ -65,7 +65,7 @@ contract VolatilityTest is Test {
             ),
             1 days
         );
-        assertEq(dailyIV, 6970260198990240); // 0.697%
+        assertEq(dailyIV, 6970260292291641); // 0.697%
 
         dailyIV = Volatility.estimate(
             metadata,
@@ -177,14 +177,14 @@ contract VolatilityTest is Test {
 
     function test_spec_computeTickTVL() public {
         uint256 tickTVL;
-        tickTVL = Volatility.computeTickTVLX64(1, 19000, TickMath.getSqrtRatioAtTick(19000), 100000000000);
-        assertEq(tickTVL, 238460396558056720196173824);
-        tickTVL = Volatility.computeTickTVLX64(10, 19000, TickMath.getSqrtRatioAtTick(19000), 9763248618769789);
-        assertEq(tickTVL, 232762454487181009148555451957248);
-        tickTVL = Volatility.computeTickTVLX64(60, -19000, TickMath.getSqrtRatioAtTick(-19000), 100000000000);
-        assertEq(tickTVL, 2138446074761944812648136704);
-        tickTVL = Volatility.computeTickTVLX64(60, -3000, TickMath.getSqrtRatioAtTick(-3000), 999999999);
-        assertEq(tickTVL, 47558380999913911951032320);
+        tickTVL = Volatility.computeTickTVL(1, 19000, TickMath.getSqrtRatioAtTick(19000), 100000000000);
+        assertEq(tickTVL, 12926964);
+        tickTVL = Volatility.computeTickTVL(10, 19000, TickMath.getSqrtRatioAtTick(19000), 9763248618769789);
+        assertEq(tickTVL, 12618077941403);
+        tickTVL = Volatility.computeTickTVL(60, -19000, TickMath.getSqrtRatioAtTick(-19000), 100000000000);
+        assertEq(tickTVL, 115925394);
+        tickTVL = Volatility.computeTickTVL(60, -3000, TickMath.getSqrtRatioAtTick(-3000), 999999999);
+        assertEq(tickTVL, 2578145);
     }
 
     function test_computeTickTVL(
@@ -200,7 +200,7 @@ contract VolatilityTest is Test {
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(currentTick);
 
         // Ensure it doesn't revert
-        uint256 tickTVL = Volatility.computeTickTVLX64(_tickSpacing, currentTick, sqrtPriceX96, tickLiquidity);
+        uint256 tickTVL = Volatility.computeTickTVL(_tickSpacing, currentTick, sqrtPriceX96, tickLiquidity);
 
         // Check that it's non-zero in cases where we don't expect truncation
         int24 lowerBound = TickMath.MIN_TICK / 2;
@@ -208,7 +208,7 @@ contract VolatilityTest is Test {
         if (tickLiquidity > 1_000_000 && currentTick < lowerBound && currentTick > upperBound) assertGt(tickTVL, 0);
     }
 
-    function test_noRevert_computeTickTVLX64(
+    function test_noRevert_computeTickTVL(
         uint8 tier,
         int24 tick,
         uint128 liquidity
@@ -225,7 +225,7 @@ contract VolatilityTest is Test {
 
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
 
-        Volatility.computeTickTVLX64(
+        Volatility.computeTickTVL(
             tickSpacing,
             tick,
             sqrtPriceX96,
@@ -263,7 +263,7 @@ contract VolatilityTest is Test {
         uint32 feeGrowthSampleAge,
         uint256 feeGrowthGlobalA0X128,
         uint256 feeGrowthGlobalA1X128,
-        uint224 feeGrowthGlobalDelta0X128,
+        uint96 feeGrowthGlobalDelta0X128,
         uint224 feeGrowthGlobalDelta1X128,
         uint48 gammas,
         int24 tick,

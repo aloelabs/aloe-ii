@@ -4,6 +4,7 @@ pragma solidity 0.8.17;
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 
+import {msb} from "./Log2.sol";
 import {square, mulDiv96, mulDiv128, mulDiv224} from "./MulDiv.sol";
 import {Oracle} from "./Oracle.sol";
 import {TickMath} from "./TickMath.sol";
@@ -68,15 +69,13 @@ library Volatility {
             // the error you get from using geometric mean price is <1% even with high drift and volatility.
             uint256 volumeGamma0Gamma1 = revenue1Gamma0 + amount0ToAmount1(revenue0Gamma1, data.sqrtMeanPriceX96);
 
-            // Fits in uint128
-            uint256 sqrtTickTVLX32 = FixedPointMathLib.sqrt(
-                computeTickTVLX64(metadata.tickSpacing, data.currentTick, data.sqrtPriceX96, data.tickLiquidity)
-            );
-            if (sqrtTickTVLX32 == 0) return 0;
+            uint256 tickTvl = computeTickTVL(metadata.tickSpacing, data.currentTick, data.sqrtPriceX96, data.tickLiquidity);
+            uint256 f = msb(tickTvl) >> 1;
 
-            // Fits in uint48
-            uint256 timeAdjustmentX32 = FixedPointMathLib.sqrt((scale << 64) / (b.timestamp - a.timestamp));
-            return (uint256(2e18) * timeAdjustmentX32 * FixedPointMathLib.sqrt(volumeGamma0Gamma1)) / sqrtTickTVLX32;
+            if (tickTvl == 0) return 0;
+            return (uint256(2e18) * FixedPointMathLib.sqrt(
+                Math.mulDiv(volumeGamma0Gamma1, scale << (f << 1), (b.timestamp - a.timestamp) * tickTvl)
+            )) >> f;
         }
     }
 
@@ -118,8 +117,8 @@ library Volatility {
                 temp = type(uint256).max - feeGrowthGlobalAX128 + feeGrowthGlobalBX128;
             }
 
-            temp = Math.mulDiv(temp, secondsAgo * gamma, secondsPerLiquidityX128 * 1e6);
-            return temp > type(uint128).max ? type(uint128).max : uint128(temp);
+            temp = Math.mulDiv(temp, secondsAgo * gamma, uint256(secondsPerLiquidityX128) * 1e6);
+            return uint128(Math.min(temp, type(uint128).max));
         }
     }
 
@@ -130,47 +129,47 @@ library Volatility {
      * @param sqrtPriceX96 The current price (from pool.slot0())
      * @param liquidity The liquidity depth at currentTick (from pool.liquidity())
      */
-    function computeTickTVLX64(
+    function computeTickTVL(
         int24 tickSpacing,
         int24 tick,
         uint160 sqrtPriceX96,
         uint128 liquidity
     ) internal pure returns (uint256 tickTVL) {
-        tick = TickMath.floor(tick, tickSpacing);
+        unchecked {
+            tick = TickMath.floor(tick, tickSpacing);
 
-        // both value0 and value1 fit in uint192
-        (uint256 value0, uint256 value1) = _getValueOfLiquidity(
-            sqrtPriceX96,
-            TickMath.getSqrtRatioAtTick(tick),
-            TickMath.getSqrtRatioAtTick(tick + tickSpacing),
-            liquidity
-        );
-        tickTVL = (value0 + value1) << 64;
+            tickTVL = _getValueOfLiquidity(
+                sqrtPriceX96,
+                TickMath.getSqrtRatioAtTick(tick),
+                TickMath.getSqrtRatioAtTick(tick + tickSpacing),
+                liquidity
+            );
+        }
     }
 
     /**
      * @notice Computes the value of the liquidity in terms of token1
-     * @dev Each return value can fit in a uint192 if necessary
+     * @dev The return value can fit in uint193 if necessary
      * @param sqrtRatioX96 A sqrt price representing the current pool prices
      * @param sqrtRatioAX96 A sqrt price representing the lower tick boundary
      * @param sqrtRatioBX96 A sqrt price representing the upper tick boundary
      * @param liquidity The liquidity being valued
-     * @return value0 The value of amount0 underlying `liquidity`, in terms of token1
-     * @return value1 The amount of token1
+     * @return value The total value of `liquidity`, in terms of token1
      */
     function _getValueOfLiquidity(
         uint160 sqrtRatioX96,
         uint160 sqrtRatioAX96,
         uint160 sqrtRatioBX96,
         uint128 liquidity
-    ) private pure returns (uint256 value0, uint256 value1) {
+    ) private pure returns (uint256 value) {
         assert(sqrtRatioAX96 <= sqrtRatioX96 && sqrtRatioX96 <= sqrtRatioBX96);
 
         unchecked {
             uint256 numerator = Math.mulDiv(uint256(liquidity) << 128, sqrtRatioX96, sqrtRatioBX96);
 
-            value0 = mulDiv224(numerator, sqrtRatioBX96 - sqrtRatioX96);
-            value1 = mulDiv96(liquidity, sqrtRatioX96 - sqrtRatioAX96);
+            value =
+                mulDiv224(numerator, sqrtRatioBX96 - sqrtRatioX96) +
+                mulDiv96(liquidity, sqrtRatioX96 - sqrtRatioAX96);
         }
     }
 }
