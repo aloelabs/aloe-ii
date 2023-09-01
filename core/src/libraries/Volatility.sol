@@ -2,9 +2,8 @@
 pragma solidity 0.8.17;
 
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 
-import {msb} from "./Log2.sol";
 import {square, mulDiv96, mulDiv128, mulDiv224} from "./MulDiv.sol";
 import {Oracle} from "./Oracle.sol";
 import {TickMath} from "./TickMath.sol";
@@ -47,35 +46,36 @@ library Volatility {
         FeeGrowthGlobals memory b,
         uint256 scale
     ) internal pure returns (uint256) {
+        uint256 tickTvl = computeTickTvl(metadata.tickSpacing, data.currentTick, data.sqrtPriceX96, data.tickLiquidity);
+
+        // Return early to avoid division by 0
+        if (data.secondsPerLiquidityX128 == 0 || b.timestamp - a.timestamp == 0 || tickTvl == 0) return 0;
+
+        uint256 revenue0Gamma1 = computeRevenueGamma(
+            a.feeGrowthGlobal0X128,
+            b.feeGrowthGlobal0X128,
+            data.secondsPerLiquidityX128,
+            data.oracleLookback,
+            metadata.gamma1
+        );
+        uint256 revenue1Gamma0 = computeRevenueGamma(
+            a.feeGrowthGlobal1X128,
+            b.feeGrowthGlobal1X128,
+            data.secondsPerLiquidityX128,
+            data.oracleLookback,
+            metadata.gamma0
+        );
+        // This is an approximation. Ideally the fees earned during each swap would be multiplied by the price
+        // *at that swap*. But for prices simulated with GBM and swap sizes either normally or uniformly distributed,
+        // the error you get from using geometric mean price is <1% even with high drift and volatility.
+        uint256 volumeGamma0Gamma1 = revenue1Gamma0 + amount0ToAmount1(revenue0Gamma1, data.sqrtMeanPriceX96);
+        // Clamp to prevent overflow later on
+        if (volumeGamma0Gamma1 > (1 << 128)) volumeGamma0Gamma1 = (1 << 128);
+
         unchecked {
-            if (data.secondsPerLiquidityX128 == 0 || b.timestamp - a.timestamp == 0) return 0;
-
-            uint128 revenue0Gamma1 = computeRevenueGamma(
-                a.feeGrowthGlobal0X128,
-                b.feeGrowthGlobal0X128,
-                data.secondsPerLiquidityX128,
-                data.oracleLookback,
-                metadata.gamma1
-            );
-            uint128 revenue1Gamma0 = computeRevenueGamma(
-                a.feeGrowthGlobal1X128,
-                b.feeGrowthGlobal1X128,
-                data.secondsPerLiquidityX128,
-                data.oracleLookback,
-                metadata.gamma0
-            );
-            // This is an approximation. Ideally the fees earned during each swap would be multiplied by the price
-            // *at that swap*. But for prices simulated with GBM and swap sizes either normally or uniformly distributed,
-            // the error you get from using geometric mean price is <1% even with high drift and volatility.
-            uint256 volumeGamma0Gamma1 = revenue1Gamma0 + amount0ToAmount1(revenue0Gamma1, data.sqrtMeanPriceX96);
-
-            uint256 tickTvl = computeTickTVL(metadata.tickSpacing, data.currentTick, data.sqrtPriceX96, data.tickLiquidity);
-            uint256 f = msb(tickTvl) >> 1;
-
-            if (tickTvl == 0) return 0;
-            return (uint256(2e18) * FixedPointMathLib.sqrt(
-                Math.mulDiv(volumeGamma0Gamma1, scale << (f << 1), (b.timestamp - a.timestamp) * tickTvl)
-            )) >> f;
+            // Scale volume to the target time frame
+            volumeGamma0Gamma1 = (volumeGamma0Gamma1 * scale) / (b.timestamp - a.timestamp);
+            return SoladyMath.sqrt((4e36 * volumeGamma0Gamma1) / tickTvl);
         }
     }
 
@@ -85,7 +85,7 @@ library Volatility {
      * @param sqrtPriceX96 The sqrt(price) at which the conversion should hold true
      * @return amount1 An equivalent amount of token1
      */
-    function amount0ToAmount1(uint128 amount0, uint160 sqrtPriceX96) internal pure returns (uint256 amount1) {
+    function amount0ToAmount1(uint256 amount0, uint160 sqrtPriceX96) internal pure returns (uint256 amount1) {
         uint256 priceX128 = square(sqrtPriceX96);
         amount1 = mulDiv128(amount0, priceX128);
     }
@@ -105,20 +105,19 @@ library Volatility {
         uint160 secondsPerLiquidityX128,
         uint32 secondsAgo,
         uint24 gamma
-    ) internal pure returns (uint128) {
+    ) internal pure returns (uint256) {
         unchecked {
-            uint256 temp;
+            uint256 delta;
 
             if (feeGrowthGlobalBX128 >= feeGrowthGlobalAX128) {
                 // feeGrowthGlobal has increased from time A to time B
-                temp = feeGrowthGlobalBX128 - feeGrowthGlobalAX128;
+                delta = feeGrowthGlobalBX128 - feeGrowthGlobalAX128;
             } else {
                 // feeGrowthGlobal has overflowed between time A and time B
-                temp = type(uint256).max - feeGrowthGlobalAX128 + feeGrowthGlobalBX128;
+                delta = type(uint256).max - feeGrowthGlobalAX128 + feeGrowthGlobalBX128;
             }
 
-            temp = Math.mulDiv(temp, secondsAgo * gamma, uint256(secondsPerLiquidityX128) * 1e6);
-            return uint128(Math.min(temp, type(uint128).max));
+            return Math.mulDiv(delta, secondsAgo * uint256(gamma), secondsPerLiquidityX128 * uint256(1e6));
         }
     }
 
@@ -129,16 +128,16 @@ library Volatility {
      * @param sqrtPriceX96 The current price (from pool.slot0())
      * @param liquidity The liquidity depth at currentTick (from pool.liquidity())
      */
-    function computeTickTVL(
+    function computeTickTvl(
         int24 tickSpacing,
         int24 tick,
         uint160 sqrtPriceX96,
         uint128 liquidity
-    ) internal pure returns (uint256 tickTVL) {
+    ) internal pure returns (uint256 tickTvl) {
         unchecked {
             tick = TickMath.floor(tick, tickSpacing);
 
-            tickTVL = _getValueOfLiquidity(
+            tickTvl = _getValueOfLiquidity(
                 sqrtPriceX96,
                 TickMath.getSqrtRatioAtTick(tick),
                 TickMath.getSqrtRatioAtTick(tick + tickSpacing),
