@@ -444,13 +444,13 @@ contract Borrower is IUniswapV3MintCallback {
         (prices, ) = _getPrices(nSigma, oracleSeed);
     }
 
-    function _getPrices(uint256 n, uint40 oracleSeed) private view returns (Prices memory prices, bool isSus) {
+    function _getPrices(uint256 nSigma, uint40 oracleSeed) private view returns (Prices memory prices, bool isSus) {
         uint56 metric;
-        uint256 sigma;
+        uint256 iv;
         // compute current price and volatility
-        (metric, prices.c, sigma) = ORACLE.consult(UNISWAP_POOL, oracleSeed);
+        (metric, prices.c, iv) = ORACLE.consult(UNISWAP_POOL, oracleSeed);
         // compute prices at which solvency will be checked
-        (prices.a, prices.b, isSus) = BalanceSheet.computeProbePrices(prices.c, sigma, n, metric);
+        (prices.a, prices.b, isSus) = BalanceSheet.computeProbePrices(prices.c, iv, nSigma, metric);
     }
 
     function _getAssets(

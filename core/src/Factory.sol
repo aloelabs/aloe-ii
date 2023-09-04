@@ -6,7 +6,12 @@ import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmu
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {DEFAULT_ANTE, DEFAULT_N_SIGMA, UNISWAP_AVG_WINDOW} from "./libraries/constants/Constants.sol";
+import {
+    DEFAULT_ANTE,
+    DEFAULT_N_SIGMA,
+    DEFAULT_RESERVE_FACTOR,
+    UNISWAP_AVG_WINDOW
+} from "./libraries/constants/Constants.sol";
 
 import {Borrower} from "./Borrower.sol";
 import {Lender} from "./Lender.sol";
@@ -104,8 +109,8 @@ contract Factory {
         Lender lender0 = Lender(LENDER_IMPLEMENTATION.cloneDeterministic({salt: salt, data: abi.encodePacked(asset0)}));
         Lender lender1 = Lender(LENDER_IMPLEMENTATION.cloneDeterministic({salt: salt, data: abi.encodePacked(asset1)}));
 
-        lender0.initialize(RATE_MODEL, 8);
-        lender1.initialize(RATE_MODEL, 8);
+        lender0.initialize(RATE_MODEL, DEFAULT_RESERVE_FACTOR);
+        lender1.initialize(RATE_MODEL, DEFAULT_RESERVE_FACTOR);
         isLender[address(lender0)] = true;
         isLender[address(lender1)] = true;
 
