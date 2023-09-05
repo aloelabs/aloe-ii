@@ -437,7 +437,7 @@ contract LenderHarness {
         // Expect revert if `to` doesn't repay enough
         if (amountOut > 0) {
             vm.prank(msg.sender);
-            vm.expectRevert(bytes("Aloe: insufficient pre-pay"));
+            vm.expectRevert(bytes("Aloe: flash failed"));
             LENDER.flash(amountOut, FLASH_BORROWER, abi.encode(amountIn % amountOut));
         }
 

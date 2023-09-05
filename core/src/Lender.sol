@@ -138,11 +138,7 @@ contract Lender is Ledger {
         _save(cache, /* didChangeBorrowBase: */ false);
 
         // Ensure tokens are transferred
-        ERC20 asset_ = asset();
-        bool didPrepay = cache.lastBalance <= asset_.balanceOf(address(this));
-        if (!didPrepay) {
-            asset_.safeTransferFrom(msg.sender, address(this), amount);
-        }
+        _ensurePayment(cache.lastBalance);
 
         emit Deposit(msg.sender, beneficiary, amount, shares);
     }
@@ -265,7 +261,7 @@ contract Lender is Ledger {
         uint256 balance = asset_.balanceOf(address(this));
         asset_.safeTransfer(address(to), amount);
         to.onFlashLoan(msg.sender, amount, data);
-        require(balance <= asset_.balanceOf(address(this)), "Aloe: insufficient pre-pay");
+        require(balance <= asset_.balanceOf(address(this)), "Aloe: flash failed");
 
         lastAccrualTime = lastAccrualTime_;
     }
@@ -517,5 +513,15 @@ contract Lender is Ledger {
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
         lastAccrualTime = uint32(block.timestamp); // Disables reentrancy guard if there was one
+    }
+
+    function _ensurePayment(uint256 expectedBalance) private {
+        unchecked {
+            ERC20 asset_ = asset();
+            int256 shortfall = int256(expectedBalance - asset_.balanceOf(address(this)));
+            if (shortfall > 0) {
+                asset_.safeTransferFrom(msg.sender, address(this), uint256(shortfall));
+            }
+        }
     }
 }
