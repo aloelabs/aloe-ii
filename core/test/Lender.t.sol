@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
-import {MAX_RATE} from "src/libraries/constants/Constants.sol";
+import {MAX_RATE, MAX_LEVERAGE} from "src/libraries/constants/Constants.sol";
 
 import "src/Lender.sol";
 import "src/RateModel.sol";
@@ -248,7 +248,7 @@ contract LenderTest is Test {
         lender.repay(100e6, cindy);
     }
 
-    function test_borrow() public {
+    function test_spec_borrow() public {
         address alice = test_deposit();
 
         address jim = makeAddr("jim");
@@ -266,13 +266,153 @@ contract LenderTest is Test {
         lender.accrueInterest();
 
         assertEq(asset.balanceOf(jim), 10e6);
-        assertEq(lender.borrowBalance(jim), 10000057);
+        assertEq(lender.borrowBalance(jim), 10000058);
 
         assertEq(lender.underlyingBalance(alice), 100000050);
         assertEq(lender.underlyingBalanceStored(alice), 100000050);
     }
 
-    function test_rpowMax() public {
+    function test_fuzz_borrow(uint256 amount, address recipient, address caller) public {
+        vm.prank(caller);
+        vm.expectRevert(bytes("Aloe: not a borrower"));
+        lender.borrow(amount, recipient);
+
+        // Allow `caller` to borrow (equivalent to `whitelist` but we don't want to depend on that fn here)
+        stdstore.target(address(lender)).sig("borrows(address)").with_key(caller).checked_write(1);
+
+        // The `lender` doesn't yet have any assets to loan out
+        if (amount > 0) {
+            vm.prank(caller);
+            vm.expectRevert();
+            lender.borrow(amount, recipient);
+        }
+
+        // Give the `lender` enough inventory for the borrow to go through (plus a little extra)
+        uint256 lastBalance = amount < type(uint112).max ? amount : type(uint112).max;
+        deal(address(asset), address(lender), lastBalance);
+        vm.store(
+            address(lender),
+            bytes32(uint256(0)),
+            bytes32(uint256((lastBalance << 112) + (block.timestamp << 224)))
+        );
+
+        if (amount > type(uint112).max) {
+            vm.prank(caller);
+            vm.expectRevert();
+            lender.borrow(amount, recipient);
+            return;
+        }
+
+        vm.prank(caller);
+        lender.borrow(amount, recipient);
+
+        // Check impact of the borrow
+        uint256 expectedUnits = (amount * BORROWS_SCALER) / lender.borrowIndex();
+        assertEq(lender.lastBalance(), lastBalance - amount);
+        assertEq(lender.borrowBase(), expectedUnits);
+        assertEq(lender.borrows(caller), 1 + expectedUnits);
+        assertEq(lender.borrowBalance(caller), amount);
+        if (recipient == address(lender)) {
+            assertEq(asset.balanceOf(recipient), lastBalance);
+        } else {
+            assertEq(asset.balanceOf(recipient), amount);
+        }
+    }
+
+    function test_fuzz_borrowTwice(uint112 amount, address recipient, address caller, uint112 anotherAmount) public {
+        // Allow `caller` to borrow (equivalent to `whitelist` but we don't want to depend on that fn here)
+        stdstore.target(address(lender)).sig("borrows(address)").with_key(caller).checked_write(1);
+
+        // Give the `lender` enough inventory for the borrow to go through (plus a little extra)
+        uint256 lastBalance = type(uint112).max;
+        deal(address(asset), address(lender), lastBalance);
+        vm.store(
+            address(lender),
+            bytes32(uint256(0)),
+            bytes32(uint256((lastBalance << 112) + (block.timestamp << 224)))
+        );
+
+        vm.prank(caller);
+        lender.borrow(amount, recipient);
+
+        // Check impact of the borrow
+        uint256 expectedUnits = (amount * BORROWS_SCALER) / lender.borrowIndex();
+        assertEq(lender.lastBalance(), lastBalance - amount);
+        assertEq(lender.borrowBase(), expectedUnits);
+        assertEq(lender.borrows(caller), 1 + expectedUnits);
+        assertEq(lender.borrowBalance(caller), amount);
+        if (recipient == address(lender)) {
+            assertEq(asset.balanceOf(recipient), lastBalance);
+        } else {
+            assertEq(asset.balanceOf(recipient), amount);
+        }
+
+        if (uint256(amount) + anotherAmount > type(uint112).max) {
+            vm.prank(caller);
+            vm.expectRevert();
+            lender.borrow(anotherAmount, recipient);
+            return;
+        }
+    }
+
+    function test_math_rpowMax() public {
+        assertLt(FixedPointMathLib.rpow(ONE + MAX_RATE, 1 seconds, ONE), ONE + ONE / MAX_LEVERAGE);
         assertEq(FixedPointMathLib.rpow(ONE + MAX_RATE, 1 weeks, ONE), 1532963220989);
+    }
+
+    function test_math_borrowUnitsUniqueness(uint112 amount, uint72 borrowIndex) public {
+        borrowIndex = uint72(bound(borrowIndex, 1e12, type(uint72).max));
+
+        uint256 units = (amount * BORROWS_SCALER) / borrowIndex;
+
+        // Show that `units` will fit in uint184
+        assertLe(units, type(uint184).max);
+
+        // Show that the only way for `units` to be 0 is for `amount` to also be 0
+        if (amount == 0) assertEq(units, 0);
+        else assertGt(units, 0);
+
+        // Show that changing `amount`, even by only 1, causes the `units` calculation to change too
+        if (amount < type(uint112).max) {
+            assertGt(((amount + 1) * BORROWS_SCALER) / borrowIndex, units);
+        } else {
+            assertLt(((amount - 1) * BORROWS_SCALER) / borrowIndex, units);
+        }
+
+        // Show that as long as `borrowIndex` doesn't change, the original `amount` can be recovered exactly
+        assertEq(FixedPointMathLib.unsafeDivUp(units * borrowIndex, BORROWS_SCALER), amount);
+    }
+
+    function test_math_repayability(uint112 amount, uint72 borrowIndexA, uint72 borrowIndexB) public {
+        borrowIndexA = uint72(bound(borrowIndexA, 1e12, type(uint72).max));
+        borrowIndexB = uint72(bound(borrowIndexB, borrowIndexA, type(uint72).max));
+
+        // The `units` that would be added to the `borrows` mapping when the user takes out `amount`
+        uint256 units = (amount * BORROWS_SCALER) / borrowIndexA;
+        // The value that would be returned by `lender.borrowBalance`
+        uint256 maxRepay = FixedPointMathLib.mulDivUp(units, borrowIndexB, BORROWS_SCALER);
+
+        // Extra little check here, not the main emphasis of this test
+        {
+            // The "official" `maxRepay` should closely match this floor-ed approximation.
+            // (We're assuming some time has passed, so borrowIndexB > borrowIndexA)
+            uint256 expectedMaxRepay = (uint256(amount) * borrowIndexB) / borrowIndexA;
+            if (maxRepay != expectedMaxRepay) assertEq(maxRepay, expectedMaxRepay + 1);
+        }
+
+        // The initial computation that would be done in `lender.repay` to determine how many
+        // units to subtract from the `borrows` mapping entry.
+        // This is the value we really want to test!
+        uint256 repayUnits = (maxRepay * BORROWS_SCALER) / borrowIndexB;
+
+        // The user should always be allowed to pay their debt in full
+        assertGe(repayUnits, units);
+
+        // Some repayUnits will be wasted due to rounding errors, but those errors should be bounded
+        assertLt(repayUnits, units + FixedPointMathLib.unsafeDivUp(BORROWS_SCALER, borrowIndexB));
+
+        // Overshooting, even by just 1, should break the threshold
+        assertLt((maxRepay + 0) * BORROWS_SCALER, units * borrowIndexB + BORROWS_SCALER);
+        assertGe((maxRepay + 1) * BORROWS_SCALER, units * borrowIndexB + BORROWS_SCALER);
     }
 }

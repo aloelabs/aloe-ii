@@ -203,7 +203,7 @@ contract Lender is Ledger {
 
     function borrow(uint256 amount, address recipient) external returns (uint256 units) {
         uint256 b = borrows[msg.sender];
-        require(b > 0, "Aloe: not a borrower");
+        require(b != 0, "Aloe: not a borrower");
 
         // Accrue interest and update reserves
         (Cache memory cache, ) = _load();
@@ -211,11 +211,11 @@ contract Lender is Ledger {
         unchecked {
             // Convert `amount` to `units`
             units = (amount * BORROWS_SCALER) / cache.borrowIndex;
-        }
 
-        // Track borrows
+            // Track borrows
+            borrows[msg.sender] = b + units;
+        }
         cache.borrowBase += units;
-        borrows[msg.sender] = b + units;
         // Assume tokens are transferred
         cache.lastBalance -= amount;
 
@@ -272,7 +272,7 @@ contract Lender is Ledger {
         uint256 balance = asset_.balanceOf(address(this));
         asset_.safeTransfer(address(to), amount);
         to.onFlashLoan(msg.sender, amount, data);
-        require(balance <= asset_.balanceOf(address(this)), "Aloe: flash failed");
+        require(balance <= asset_.balanceOf(address(this)), "Aloe: insufficient pre-pay");
 
         lastAccrualTime = lastAccrualTime_;
     }
