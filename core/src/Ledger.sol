@@ -197,7 +197,7 @@ contract Ledger {
 
         (Cache memory cache, , ) = _previewInterest(_getCache());
         unchecked {
-            return ((b - 1) * cache.borrowIndex) / BORROWS_SCALER;
+            return ((b - 1) * cache.borrowIndex).unsafeDivUp(BORROWS_SCALER);
         }
     }
 
@@ -206,7 +206,7 @@ contract Ledger {
         if (b == 0) return 0;
 
         unchecked {
-            return ((b - 1) * borrowIndex) / BORROWS_SCALER;
+            return ((b - 1) * borrowIndex).unsafeDivUp(BORROWS_SCALER);
         }
     }
 

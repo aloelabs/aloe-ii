@@ -138,7 +138,11 @@ contract Lender is Ledger {
         _save(cache, /* didChangeBorrowBase: */ false);
 
         // Ensure tokens are transferred
-        _ensurePayment(cache.lastBalance);
+        ERC20 asset_ = asset();
+        bool didPrepay = cache.lastBalance <= asset_.balanceOf(address(this));
+        if (!didPrepay) {
+            asset_.safeTransferFrom(msg.sender, address(this), amount);
+        }
 
         emit Deposit(msg.sender, beneficiary, amount, shares);
     }
@@ -199,13 +203,15 @@ contract Lender is Ledger {
 
     function borrow(uint256 amount, address recipient) external returns (uint256 units) {
         uint256 b = borrows[msg.sender];
-        require(b != 0, "Aloe: not a borrower");
+        require(b > 0, "Aloe: not a borrower");
 
         // Accrue interest and update reserves
         (Cache memory cache, ) = _load();
 
-        // Convert `amount` to `units`
-        units = amount.mulDivUp(BORROWS_SCALER, cache.borrowIndex);
+        unchecked {
+            // Convert `amount` to `units`
+            units = (amount * BORROWS_SCALER) / cache.borrowIndex;
+        }
 
         // Track borrows
         cache.borrowBase += units;
@@ -222,7 +228,7 @@ contract Lender is Ledger {
         emit Borrow(msg.sender, recipient, amount, units);
     }
 
-    function repay(uint256 amount, address beneficiary) external returns (uint256 units) {
+    function repay(uint256 amount, address beneficiary) public returns (uint256 units) {
         uint256 b = borrows[beneficiary];
 
         // Accrue interest and update reserves
@@ -231,7 +237,12 @@ contract Lender is Ledger {
         unchecked {
             // Convert `amount` to `units`
             units = (amount * BORROWS_SCALER) / cache.borrowIndex;
-            require(units < b, "Aloe: repay too much");
+            if (!(units < b)) {
+                units = b - 1;
+
+                uint256 maxRepay = (units * cache.borrowIndex).unsafeDivUp(BORROWS_SCALER);
+                require(b > 1 && amount <= maxRepay, "Aloe: repay too much");
+            }
 
             // Track borrows
             borrows[beneficiary] = b - units;
@@ -513,15 +524,5 @@ contract Lender is Ledger {
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
         lastAccrualTime = uint32(block.timestamp); // Disables reentrancy guard if there was one
-    }
-
-    function _ensurePayment(uint256 expectedBalance) private {
-        unchecked {
-            ERC20 asset_ = asset();
-            int256 shortfall = int256(expectedBalance - asset_.balanceOf(address(this)));
-            if (shortfall > 0) {
-                asset_.safeTransferFrom(msg.sender, address(this), uint256(shortfall));
-            }
-        }
     }
 }
