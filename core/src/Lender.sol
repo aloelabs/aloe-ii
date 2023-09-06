@@ -228,7 +228,7 @@ contract Lender is Ledger {
         emit Borrow(msg.sender, recipient, amount, units);
     }
 
-    function repay(uint256 amount, address beneficiary) public returns (uint256 units) {
+    function repay(uint256 amount, address beneficiary) external returns (uint256 units) {
         uint256 b = borrows[beneficiary];
 
         // Accrue interest and update reserves
