@@ -103,12 +103,11 @@ contract Router {
     }
 
     /**
-     * @notice Indicates whether `redeem` will suffice to redeem all of `owner`'s shares (static case), or if a gassier
-     * call to `redeemMax` will be necessary (dynamic case). Only need to worry about this in off-chain contexts.
-     * @dev In most cases, `lender.balanceOf(owner)` returns a static number of shares, and a standard `lender.redeem`
+     * @notice Indicates whether `lender.maxRedeem(owner)` is dynamic, i.e. whether it's changing over time or not
+     * @dev In most cases, `lender.maxRedeem(owner)` returns a static number of shares, and a standard `lender.redeem`
      * call can successfully redeem everything. However, if the user has a courier or if utilization is too high, the
-     * number of shares may change block by block. In that case, to redeem the maximum value, you should call
-     * `lender.redeemMax` instead. It's less gas efficient, but guaranteed to work.
+     * number of shares may change block by block. In that case, to redeem the maximum value, you can pass
+     * `type(uint256).max` to `lender.redeem`.
      */
     function isMaxRedeemDynamic(Lender lender, address owner) external view returns (bool) {
         // NOTE: If the first statement is true, the second statement will also be true (unless this is the block in which
