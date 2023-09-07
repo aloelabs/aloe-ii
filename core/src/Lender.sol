@@ -160,12 +160,16 @@ contract Lender is Ledger {
      * @notice Burns `shares` from `owner` and sends `amount` of underlying tokens to `receiver`. If
      * `owner` has a courier, additional shares will be transferred from `owner` to the courier as a fee.
      * @dev `redeem` is more efficient than `withdraw` and is the recommended way of withdrawing
-     * @param shares The number of shares to burn in exchange for underlying tokens
+     * @param shares The number of shares to burn in exchange for underlying tokens. To burn all your shares,
+     * you can pass `maxRedeem(owner)`. If `maxRedeem(owner)` is changing over time (due to a courier or
+     * high utilization) you can pass `type(uint256).max` and it will be computed in-place.
      * @param recipient The receiver of `amount` of underlying tokens
      * @param owner The user from whom shares are taken (for both the burn and possible fee transfer)
      * @return amount The number of underlying tokens transferred to `recipient`
      */
     function redeem(uint256 shares, address recipient, address owner) public returns (uint256 amount) {
+        if (shares == type(uint256).max) shares = maxRedeem(owner);
+
         if (msg.sender != owner) {
             uint256 allowed = allowance[owner][msg.sender];
             if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
