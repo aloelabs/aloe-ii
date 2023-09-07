@@ -187,7 +187,7 @@ contract LenderReferralsTest is Test {
         assertEq(lender.underlyingBalance(to), amount / 2);
 
         uint256 val = uint256(vm.load(address(lender), bytes32(uint256(1))));
-        val += ((amount / 4) * uint256(type(uint72).max));
+        val += uint256(amount / 4) << 72;
         val += (1e12) << 184;
         vm.store(address(lender), bytes32(uint256(1)), bytes32(val));
 
@@ -222,7 +222,7 @@ contract LenderReferralsTest is Test {
 
         if (to == wallet || to == lender.RESERVE()) {
             vm.prank(to);
-            vm.expectRevert(bytes(""));
+            vm.expectRevert(bytes("Aloe: courier"));
             lender.deposit(amount, to, id);
             return;
         }
@@ -232,7 +232,7 @@ contract LenderReferralsTest is Test {
         lender.deposit(amount / 2, to, id);
 
         uint256 val = uint256(vm.load(address(lender), bytes32(uint256(1))));
-        val += ((amount / 4) * uint256(type(uint72).max));
+        val += uint256(amount / 4) << 72;
         val += uint256(1e12) << 184;
         vm.store(address(lender), bytes32(uint256(1)), bytes32(val));
 
@@ -247,7 +247,7 @@ contract LenderReferralsTest is Test {
         // pretend that borrower pays off a big loan so that lender can make full payout
         deal(address(asset), address(lender), type(uint128).max);
         val = uint256(vm.load(address(lender), bytes32(uint256(1))));
-        val -= ((amount / 4) * uint256(type(uint72).max));
+        val -= uint256(amount / 4) << 72;
         vm.store(address(lender), bytes32(uint256(1)), bytes32(val));
         val = uint256(vm.load(address(lender), bytes32(uint256(0))));
         val += uint256(amount / 2) << 112;

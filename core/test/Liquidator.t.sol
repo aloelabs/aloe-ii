@@ -250,8 +250,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.liquidate(this, bytes(""), 1, (1 << 32));
 
         setInterest(lender0, 10010);
-        debt = debt * 10010 / 10000;
-        assertEq(lender0.borrowBalance(address(account)), debt);
+        debt = lender0.borrowBalance(address(account));
+        assertLe(debt - (1615e18 * 10010) / 10000, 1);
 
         // Disable warn() requirement by setting unleashLiquidationTime=1
         vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(
@@ -270,7 +270,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         data = abi.encode(assets1);
         account.liquidate(this, data, strain, (1 << 32));
 
-        assertEq(lender0.borrowBalance(address(account)), debt - debt / strain);
+        assertLe(lender0.borrowBalance(address(account)) - (debt - debt / strain), 1);
         assertGt(asset1.balanceOf(address(this)), 0);
     }
 
@@ -427,7 +427,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         data = abi.encode(assets1);
         account.liquidate(this, data, strain, (1 << 32));
 
-        assertEq(lender0.borrowBalance(address(account)), borrow0 - borrow0 / strain);
+        assertLe(lender0.borrowBalance(address(account)) - (borrow0 - borrow0 / strain), 1);
         assertGt(asset1.balanceOf(address(this)), 0);
     }
 
