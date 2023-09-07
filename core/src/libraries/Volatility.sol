@@ -2,7 +2,7 @@
 pragma solidity 0.8.17;
 
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
-import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
+import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 
 import {square, mulDiv96, mulDiv128, mulDiv224} from "./MulDiv.sol";
 import {Oracle} from "./Oracle.sol";
@@ -46,37 +46,36 @@ library Volatility {
         FeeGrowthGlobals memory b,
         uint256 scale
     ) internal pure returns (uint256) {
+        uint256 tickTvl = computeTickTvl(metadata.tickSpacing, data.currentTick, data.sqrtPriceX96, data.tickLiquidity);
+
+        // Return early to avoid division by 0
+        if (data.secondsPerLiquidityX128 == 0 || b.timestamp - a.timestamp == 0 || tickTvl == 0) return 0;
+
+        uint256 revenue0Gamma1 = computeRevenueGamma(
+            a.feeGrowthGlobal0X128,
+            b.feeGrowthGlobal0X128,
+            data.secondsPerLiquidityX128,
+            data.oracleLookback,
+            metadata.gamma1
+        );
+        uint256 revenue1Gamma0 = computeRevenueGamma(
+            a.feeGrowthGlobal1X128,
+            b.feeGrowthGlobal1X128,
+            data.secondsPerLiquidityX128,
+            data.oracleLookback,
+            metadata.gamma0
+        );
+        // This is an approximation. Ideally the fees earned during each swap would be multiplied by the price
+        // *at that swap*. But for prices simulated with GBM and swap sizes either normally or uniformly distributed,
+        // the error you get from using geometric mean price is <1% even with high drift and volatility.
+        uint256 volumeGamma0Gamma1 = revenue1Gamma0 + amount0ToAmount1(revenue0Gamma1, data.sqrtMeanPriceX96);
+        // Clamp to prevent overflow later on
+        if (volumeGamma0Gamma1 > (1 << 128)) volumeGamma0Gamma1 = (1 << 128);
+
         unchecked {
-            if (data.secondsPerLiquidityX128 == 0 || b.timestamp - a.timestamp == 0) return 0;
-
-            uint128 revenue0Gamma1 = computeRevenueGamma(
-                a.feeGrowthGlobal0X128,
-                b.feeGrowthGlobal0X128,
-                data.secondsPerLiquidityX128,
-                data.oracleLookback,
-                metadata.gamma1
-            );
-            uint128 revenue1Gamma0 = computeRevenueGamma(
-                a.feeGrowthGlobal1X128,
-                b.feeGrowthGlobal1X128,
-                data.secondsPerLiquidityX128,
-                data.oracleLookback,
-                metadata.gamma0
-            );
-            // This is an approximation. Ideally the fees earned during each swap would be multiplied by the price
-            // *at that swap*. But for prices simulated with GBM and swap sizes either normally or uniformly distributed,
-            // the error you get from using geometric mean price is <1% even with high drift and volatility.
-            uint256 volumeGamma0Gamma1 = revenue1Gamma0 + amount0ToAmount1(revenue0Gamma1, data.sqrtMeanPriceX96);
-
-            // Fits in uint128
-            uint256 sqrtTickTVLX32 = FixedPointMathLib.sqrt(
-                computeTickTVLX64(metadata.tickSpacing, data.currentTick, data.sqrtPriceX96, data.tickLiquidity)
-            );
-            if (sqrtTickTVLX32 == 0) return 0;
-
-            // Fits in uint48
-            uint256 timeAdjustmentX32 = FixedPointMathLib.sqrt((scale << 64) / (b.timestamp - a.timestamp));
-            return (uint256(2e18) * timeAdjustmentX32 * FixedPointMathLib.sqrt(volumeGamma0Gamma1)) / sqrtTickTVLX32;
+            // Scale volume to the target time frame
+            volumeGamma0Gamma1 = (volumeGamma0Gamma1 * scale) / (b.timestamp - a.timestamp);
+            return SoladyMath.sqrt((4e36 * volumeGamma0Gamma1) / tickTvl);
         }
     }
 
@@ -86,7 +85,7 @@ library Volatility {
      * @param sqrtPriceX96 The sqrt(price) at which the conversion should hold true
      * @return amount1 An equivalent amount of token1
      */
-    function amount0ToAmount1(uint128 amount0, uint160 sqrtPriceX96) internal pure returns (uint256 amount1) {
+    function amount0ToAmount1(uint256 amount0, uint160 sqrtPriceX96) internal pure returns (uint256 amount1) {
         uint256 priceX128 = square(sqrtPriceX96);
         amount1 = mulDiv128(amount0, priceX128);
     }
@@ -106,20 +105,19 @@ library Volatility {
         uint160 secondsPerLiquidityX128,
         uint32 secondsAgo,
         uint24 gamma
-    ) internal pure returns (uint128) {
+    ) internal pure returns (uint256) {
         unchecked {
-            uint256 temp;
+            uint256 delta;
 
             if (feeGrowthGlobalBX128 >= feeGrowthGlobalAX128) {
                 // feeGrowthGlobal has increased from time A to time B
-                temp = feeGrowthGlobalBX128 - feeGrowthGlobalAX128;
+                delta = feeGrowthGlobalBX128 - feeGrowthGlobalAX128;
             } else {
                 // feeGrowthGlobal has overflowed between time A and time B
-                temp = type(uint256).max - feeGrowthGlobalAX128 + feeGrowthGlobalBX128;
+                delta = type(uint256).max - feeGrowthGlobalAX128 + feeGrowthGlobalBX128;
             }
 
-            temp = Math.mulDiv(temp, secondsAgo * gamma, secondsPerLiquidityX128 * 1e6);
-            return temp > type(uint128).max ? type(uint128).max : uint128(temp);
+            return Math.mulDiv(delta, secondsAgo * uint256(gamma), secondsPerLiquidityX128 * uint256(1e6));
         }
     }
 
@@ -130,47 +128,47 @@ library Volatility {
      * @param sqrtPriceX96 The current price (from pool.slot0())
      * @param liquidity The liquidity depth at currentTick (from pool.liquidity())
      */
-    function computeTickTVLX64(
+    function computeTickTvl(
         int24 tickSpacing,
         int24 tick,
         uint160 sqrtPriceX96,
         uint128 liquidity
-    ) internal pure returns (uint256 tickTVL) {
-        tick = TickMath.floor(tick, tickSpacing);
+    ) internal pure returns (uint256 tickTvl) {
+        unchecked {
+            tick = TickMath.floor(tick, tickSpacing);
 
-        // both value0 and value1 fit in uint192
-        (uint256 value0, uint256 value1) = _getValueOfLiquidity(
-            sqrtPriceX96,
-            TickMath.getSqrtRatioAtTick(tick),
-            TickMath.getSqrtRatioAtTick(tick + tickSpacing),
-            liquidity
-        );
-        tickTVL = (value0 + value1) << 64;
+            tickTvl = _getValueOfLiquidity(
+                sqrtPriceX96,
+                TickMath.getSqrtRatioAtTick(tick),
+                TickMath.getSqrtRatioAtTick(tick + tickSpacing),
+                liquidity
+            );
+        }
     }
 
     /**
      * @notice Computes the value of the liquidity in terms of token1
-     * @dev Each return value can fit in a uint192 if necessary
+     * @dev The return value can fit in uint193 if necessary
      * @param sqrtRatioX96 A sqrt price representing the current pool prices
      * @param sqrtRatioAX96 A sqrt price representing the lower tick boundary
      * @param sqrtRatioBX96 A sqrt price representing the upper tick boundary
      * @param liquidity The liquidity being valued
-     * @return value0 The value of amount0 underlying `liquidity`, in terms of token1
-     * @return value1 The amount of token1
+     * @return value The total value of `liquidity`, in terms of token1
      */
     function _getValueOfLiquidity(
         uint160 sqrtRatioX96,
         uint160 sqrtRatioAX96,
         uint160 sqrtRatioBX96,
         uint128 liquidity
-    ) private pure returns (uint256 value0, uint256 value1) {
+    ) private pure returns (uint256 value) {
         assert(sqrtRatioAX96 <= sqrtRatioX96 && sqrtRatioX96 <= sqrtRatioBX96);
 
         unchecked {
             uint256 numerator = Math.mulDiv(uint256(liquidity) << 128, sqrtRatioX96, sqrtRatioBX96);
 
-            value0 = mulDiv224(numerator, sqrtRatioBX96 - sqrtRatioX96);
-            value1 = mulDiv96(liquidity, sqrtRatioX96 - sqrtRatioAX96);
+            value =
+                mulDiv224(numerator, sqrtRatioBX96 - sqrtRatioX96) +
+                mulDiv96(liquidity, sqrtRatioX96 - sqrtRatioAX96);
         }
     }
 }
