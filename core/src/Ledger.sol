@@ -284,7 +284,7 @@ contract Ledger {
      * @param owner The address that would burn Vault shares when redeeming
      * @return The maximum number of Vault shares that can be redeemed
      */
-    function maxRedeem(address owner) external view returns (uint256) {
+    function maxRedeem(address owner) public view returns (uint256) {
         (Cache memory cache, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());
 
         uint256 a = _nominalShares(owner, inventory, newTotalSupply);

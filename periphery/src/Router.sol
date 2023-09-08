@@ -76,14 +76,18 @@ contract Router {
         uint256 deadline,
         bytes calldata signature
     ) external returns (uint256 units) {
+        IPermit2.PermitTransferFrom memory permitMsg = IPermit2.PermitTransferFrom({
+            permitted: IPermit2.TokenPermissions({token: lender.asset(), amount: amount}),
+            nonce: nonce,
+            deadline: deadline
+        });
+
+        if (amount == type(uint256).max) amount = lender.borrowBalance(beneficiary);
+
         // Transfer tokens from the caller to the lender.
         PERMIT2.permitTransferFrom(
             // The permit message.
-            IPermit2.PermitTransferFrom({
-                permitted: IPermit2.TokenPermissions({token: lender.asset(), amount: amount}),
-                nonce: nonce,
-                deadline: deadline
-            }),
+            permitMsg,
             // The transfer recipient and amount.
             IPermit2.SignatureTransferDetails({to: address(lender), requestedAmount: amount}),
             // The owner of the tokens, which must also be
@@ -98,22 +102,13 @@ contract Router {
         units = lender.repay(amount, beneficiary);
     }
 
-    function redeemWithChecks(
-        Lender lender,
-        uint256 shares,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external returns (uint256 amount) {
-        lender.permit(msg.sender, address(this), shares, deadline, v, r, s);
-
-        uint256 maxRedeem = lender.maxRedeem(msg.sender);
-        if (shares > maxRedeem) shares = maxRedeem;
-
-        amount = lender.redeem(shares, msg.sender, msg.sender);
-    }
-
+    /**
+     * @notice Indicates whether `lender.maxRedeem(owner)` is dynamic, i.e. whether it's changing over time or not
+     * @dev In most cases, `lender.maxRedeem(owner)` returns a static number of shares, and a standard `lender.redeem`
+     * call can successfully redeem everything. However, if the user has a courier or if utilization is too high, the
+     * number of shares may change block by block. In that case, to redeem the maximum value, you can pass
+     * `type(uint256).max` to `lender.redeem`.
+     */
     function isMaxRedeemDynamic(Lender lender, address owner) external view returns (bool) {
         // NOTE: If the first statement is true, the second statement will also be true (unless this is the block in which
         // they deposited for the first time). We include the first statement only to reduce computation.
