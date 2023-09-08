@@ -35,7 +35,7 @@ contract VolatilityTest is Test {
             ),
             1 days
         );
-        assertEq(dailyIV, 20405953567249984); // 2.041%
+        assertEq(dailyIV, 20405953715139097); // 2.041%
 
         dailyIV = Volatility.estimate(
             metadata,
@@ -52,7 +52,7 @@ contract VolatilityTest is Test {
             ),
             1 hours
         );
-        assertEq(dailyIV, 4165347829168579); // 0.417%
+        assertEq(dailyIV, 4165347859745125); // 0.417%
 
         dailyIV = Volatility.estimate(
             metadata,
@@ -65,7 +65,7 @@ contract VolatilityTest is Test {
             ),
             1 days
         );
-        assertEq(dailyIV, 6970260198990240); // 0.697%
+        assertEq(dailyIV, 6970260375825778); // 0.697%
 
         dailyIV = Volatility.estimate(
             metadata,
@@ -162,7 +162,7 @@ contract VolatilityTest is Test {
     }
 
     function test_spec_computeRevenueGamma() public {
-        uint128 revenueGamma = Volatility.computeRevenueGamma(11111111111, 222222222222, 3975297179, 5000, 100);
+        uint256 revenueGamma = Volatility.computeRevenueGamma(11111111111, 222222222222, 3975297179, 5000, 100);
         assertEq(revenueGamma, 26);
     }
 
@@ -175,19 +175,19 @@ contract VolatilityTest is Test {
         Volatility.computeRevenueGamma(feeGrowthGlobalAX128, feeGrowthGlobalBX128, secondsPerLiquidityX128, 5000, 100);
     }
 
-    function test_spec_computeTickTVL() public {
-        uint256 tickTVL;
-        tickTVL = Volatility.computeTickTVLX64(1, 19000, TickMath.getSqrtRatioAtTick(19000), 100000000000);
-        assertEq(tickTVL, 238460396558056720196173824);
-        tickTVL = Volatility.computeTickTVLX64(10, 19000, TickMath.getSqrtRatioAtTick(19000), 9763248618769789);
-        assertEq(tickTVL, 232762454487181009148555451957248);
-        tickTVL = Volatility.computeTickTVLX64(60, -19000, TickMath.getSqrtRatioAtTick(-19000), 100000000000);
-        assertEq(tickTVL, 2138446074761944812648136704);
-        tickTVL = Volatility.computeTickTVLX64(60, -3000, TickMath.getSqrtRatioAtTick(-3000), 999999999);
-        assertEq(tickTVL, 47558380999913911951032320);
+    function test_spec_computeTickTvl() public {
+        uint256 tickTvl;
+        tickTvl = Volatility.computeTickTvl(1, 19000, TickMath.getSqrtRatioAtTick(19000), 100000000000);
+        assertEq(tickTvl, 12926964);
+        tickTvl = Volatility.computeTickTvl(10, 19000, TickMath.getSqrtRatioAtTick(19000), 9763248618769789);
+        assertEq(tickTvl, 12618077941403);
+        tickTvl = Volatility.computeTickTvl(60, -19000, TickMath.getSqrtRatioAtTick(-19000), 100000000000);
+        assertEq(tickTvl, 115925394);
+        tickTvl = Volatility.computeTickTvl(60, -3000, TickMath.getSqrtRatioAtTick(-3000), 999999999);
+        assertEq(tickTvl, 2578145);
     }
 
-    function test_computeTickTVL(
+    function test_computeTickTvl(
         int24 currentTick,
         uint8 tickSpacing,
         uint128 tickLiquidity
@@ -200,15 +200,15 @@ contract VolatilityTest is Test {
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(currentTick);
 
         // Ensure it doesn't revert
-        uint256 tickTVL = Volatility.computeTickTVLX64(_tickSpacing, currentTick, sqrtPriceX96, tickLiquidity);
+        uint256 tickTvl = Volatility.computeTickTvl(_tickSpacing, currentTick, sqrtPriceX96, tickLiquidity);
 
         // Check that it's non-zero in cases where we don't expect truncation
         int24 lowerBound = TickMath.MIN_TICK / 2;
         int24 upperBound = TickMath.MAX_TICK / 2;
-        if (tickLiquidity > 1_000_000 && currentTick < lowerBound && currentTick > upperBound) assertGt(tickTVL, 0);
+        if (tickLiquidity > 1_000_000 && currentTick < lowerBound && currentTick > upperBound) assertGt(tickTvl, 0);
     }
 
-    function test_noRevert_computeTickTVLX64(
+    function test_noRevert_computeTickTvl(
         uint8 tier,
         int24 tick,
         uint128 liquidity
@@ -225,7 +225,7 @@ contract VolatilityTest is Test {
 
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
 
-        Volatility.computeTickTVLX64(
+        Volatility.computeTickTvl(
             tickSpacing,
             tick,
             sqrtPriceX96,
@@ -263,8 +263,8 @@ contract VolatilityTest is Test {
         uint32 feeGrowthSampleAge,
         uint256 feeGrowthGlobalA0X128,
         uint256 feeGrowthGlobalA1X128,
-        uint224 feeGrowthGlobalDelta0X128,
-        uint224 feeGrowthGlobalDelta1X128,
+        uint96 feeGrowthGlobalDelta0X128,
+        uint128 feeGrowthGlobalDelta1X128,
         uint48 gammas,
         int24 tick,
         int24 arithmeticMeanTick,
@@ -275,6 +275,7 @@ contract VolatilityTest is Test {
     ) public view {
         scale = uint32(bound(scale, 1 minutes, 2 days));
         oracleLookback = uint32(bound(oracleLookback, 15 seconds, 1 days));
+        secondsPerLiquidityX128 = uint160(bound(secondsPerLiquidityX128, feeGrowthSampleAge, type(uint160).max));
 
         Volatility.PoolMetadata memory metadata = Volatility.PoolMetadata(
             uint24(gammas % (1 << 24)),
