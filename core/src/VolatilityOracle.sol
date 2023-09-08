@@ -46,6 +46,7 @@ contract VolatilityOracle {
         unchecked {
             // Read `lastWrite` info from storage
             LastWrite memory lastWrite = lastWrites[pool];
+            require(lastWrite.time > 0);
 
             // We need to call `Oracle.consult` even if we're going to return early, so go ahead and do it
             (Oracle.PoolData memory data, uint56 metric) = Oracle.consult(pool, seed);
@@ -71,9 +72,9 @@ contract VolatilityOracle {
             // Only update IV if the feeGrowthGlobals samples are approximately `FEE_GROWTH_AVG_WINDOW` hours apart
             if (
                 _isInInterval({
-                    min: FEE_GROWTH_AVG_WINDOW - 3 * FEE_GROWTH_SAMPLE_PERIOD,
+                    min: FEE_GROWTH_AVG_WINDOW - FEE_GROWTH_SAMPLE_PERIOD / 2,
                     x: b.timestamp - a.timestamp,
-                    max: FEE_GROWTH_AVG_WINDOW + 3 * FEE_GROWTH_SAMPLE_PERIOD
+                    max: FEE_GROWTH_AVG_WINDOW + FEE_GROWTH_SAMPLE_PERIOD / 2
                 })
             ) {
                 // Estimate, then clamp so it lies within [previous - maxChange, previous + maxChange]
@@ -166,11 +167,9 @@ contract VolatilityOracle {
                 atOrAfter = arr[(i + 1) % FEE_GROWTH_ARRAY_LENGTH];
 
                 if (_isInInterval(beforeOrAt.timestamp, target, atOrAfter.timestamp)) break;
-                if (beforeOrAt.timestamp <= target) {
-                    l = i + 1;
-                } else {
-                    r = i - 1;
-                }
+
+                if (target < beforeOrAt.timestamp) r = i - 1;
+                else l = i + 1;
             }
 
             uint256 errorA = target - beforeOrAt.timestamp;
