@@ -5,8 +5,8 @@ pragma solidity 0.8.17;
 uint256 constant ONE = 1e12;
 
 /// @dev An additional scaling factor applied to borrowed amounts before dividing by `borrowIndex` and storing.
-/// uint72 matches the type of `borrowIndex` in `Ledger` to guarantee that the stored borrow units fit in uint256.
-uint256 constant BORROWS_SCALER = type(uint72).max * ONE;
+/// 72 matches the type of `borrowIndex` in `Ledger` to guarantee that the stored borrow units fit in uint256.
+uint256 constant BORROWS_SCALER = ONE << 72;
 
 /// @dev The maximum percentage yield per second, scaled up by 1e12. The current value is equivalent to
 /// `((1 + 706354 / 1e12) ** (24 * 60 * 60)) - 1` ⇒ +6.3% per day or +53% per week. If the rate is consistently at

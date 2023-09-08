@@ -208,12 +208,14 @@ contract Lender is Ledger {
         // Accrue interest and update reserves
         (Cache memory cache, ) = _load();
 
-        // Convert `amount` to `units`
-        units = amount.mulDivUp(BORROWS_SCALER, cache.borrowIndex);
+        unchecked {
+            // Convert `amount` to `units`
+            units = (amount * BORROWS_SCALER) / cache.borrowIndex;
 
-        // Track borrows
+            // Track borrows
+            borrows[msg.sender] = b + units;
+        }
         cache.borrowBase += units;
-        borrows[msg.sender] = b + units;
         // Assume tokens are transferred
         cache.lastBalance -= amount;
 
@@ -235,7 +237,12 @@ contract Lender is Ledger {
         unchecked {
             // Convert `amount` to `units`
             units = (amount * BORROWS_SCALER) / cache.borrowIndex;
-            require(units < b, "Aloe: repay too much");
+            if (!(units < b)) {
+                units = b - 1;
+
+                uint256 maxRepay = (units * cache.borrowIndex).unsafeDivUp(BORROWS_SCALER);
+                require(b > 1 && amount <= maxRepay, "Aloe: repay too much");
+            }
 
             // Track borrows
             borrows[beneficiary] = b - units;

@@ -511,9 +511,11 @@ contract LenderHarness {
         if (count == 0) return 0;
 
         address beneficiary = borrowers[i % count];
-        // uint256 amount = LENDER.borrowBalance(beneficiary);
-        // if (amount > type(uint112).max) amount = type(uint112).max;
-        return repay(uint112(LENDER.borrowBalance(beneficiary)), beneficiary);
+        uint256 units = repay(uint112(LENDER.borrowBalance(beneficiary)), beneficiary);
+
+        require(LENDER.borrows(beneficiary) == 1, "repay: didn't repay max units");
+        require(LENDER.borrowBalance(beneficiary) == 0, "repay: didn't repay max amount");
+        return units;
     }
 
     /*//////////////////////////////////////////////////////////////
