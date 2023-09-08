@@ -47,9 +47,9 @@ contract Factory {
 
     IRateModel public immutable RATE_MODEL;
 
-    ERC20 public immutable REWARDS_TOKEN;
-
     address public immutable LENDER_IMPLEMENTATION;
+
+    ERC20 public rewardsToken;
 
     /*//////////////////////////////////////////////////////////////
                              WORLD STORAGE
@@ -80,12 +80,12 @@ contract Factory {
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(VolatilityOracle oracle, IRateModel rateModel, ERC20 rewardsToken) {
+    constructor(VolatilityOracle oracle, IRateModel rateModel, ERC20 rewardsToken_) {
         ORACLE = oracle;
         RATE_MODEL = rateModel;
-        REWARDS_TOKEN = rewardsToken;
-
         LENDER_IMPLEMENTATION = address(new Lender(address(this)));
+
+        rewardsToken = rewardsToken_;
     }
 
     function pause(IUniswapV3Pool pool) external {
@@ -178,6 +178,6 @@ contract Factory {
             }
         }
 
-        REWARDS_TOKEN.safeTransfer(beneficiary, earned);
+        rewardsToken.safeTransfer(beneficiary, earned);
     }
 }

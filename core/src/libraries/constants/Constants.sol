@@ -29,7 +29,7 @@ uint256 constant MAX_RATE = 706354;
 
 /// @dev The default amount of Ether required to take on debt in a `Borrower`. The `Factory` can override this value
 /// on a per-market basis.
-uint216 constant DEFAULT_ANTE = 0.1 ether;
+uint216 constant DEFAULT_ANTE = 0.01 ether;
 
 /// @dev The default number of standard deviations of price movement used to determine probe prices for `Borrower`
 /// solvency. The `Factory` can override this value on a per-market basis.
