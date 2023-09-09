@@ -10,6 +10,12 @@ import {
     DEFAULT_ANTE,
     DEFAULT_N_SIGMA,
     DEFAULT_RESERVE_FACTOR,
+    CONSTRAINT_N_SIGMA_MIN,
+    CONSTRAINT_N_SIGMA_MAX,
+    CONSTRAINT_RESERVE_FACTOR_MIN,
+    CONSTRAINT_RESERVE_FACTOR_MAX,
+    CONSTRAINT_ANTE_MAX,
+    CONSTRAINT_PAUSE_INTERVAL_MAX,
     UNISWAP_AVG_WINDOW
 } from "./libraries/constants/Constants.sol";
 
@@ -43,11 +49,21 @@ contract Factory {
         uint32 pausedUntilTime;
     }
 
+    struct MarketConfig {
+        Parameters parameters;
+        IRateModel rateModel0;
+        IRateModel rateModel1;
+        uint8 reserveFactor0;
+        uint8 reserveFactor1;
+    }
+
+    address public immutable GOVERNOR;
+
     VolatilityOracle public immutable ORACLE;
 
-    IRateModel public immutable RATE_MODEL;
-
     address public immutable LENDER_IMPLEMENTATION;
+
+    IRateModel public immutable DEFAULT_RATE_MODEL;
 
     ERC20 public rewardsToken;
 
@@ -80,12 +96,11 @@ contract Factory {
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(VolatilityOracle oracle, IRateModel rateModel, ERC20 rewardsToken_) {
+    constructor(address governor, address reserve, VolatilityOracle oracle, IRateModel defaultRateModel) {
+        GOVERNOR = governor;
         ORACLE = oracle;
-        RATE_MODEL = rateModel;
-        LENDER_IMPLEMENTATION = address(new Lender(address(this)));
-
-        rewardsToken = rewardsToken_;
+        LENDER_IMPLEMENTATION = address(new Lender(reserve));
+        DEFAULT_RATE_MODEL = defaultRateModel;
     }
 
     function pause(IUniswapV3Pool pool) external {
@@ -96,7 +111,7 @@ contract Factory {
     }
 
     /*//////////////////////////////////////////////////////////////
-                             WORLD CREATION
+                            WORLD MANAGEMENT
     //////////////////////////////////////////////////////////////*/
 
     function createMarket(IUniswapV3Pool pool) external {
@@ -105,19 +120,31 @@ contract Factory {
         address asset0 = pool.token0();
         address asset1 = pool.token1();
 
+        // Deploy market-specific components
         bytes32 salt = keccak256(abi.encodePacked(pool));
         Lender lender0 = Lender(LENDER_IMPLEMENTATION.cloneDeterministic({salt: salt, data: abi.encodePacked(asset0)}));
         Lender lender1 = Lender(LENDER_IMPLEMENTATION.cloneDeterministic({salt: salt, data: abi.encodePacked(asset1)}));
+        Borrower borrowerImplementation = new Borrower(ORACLE, pool, lender0, lender1);
 
-        lender0.initialize(RATE_MODEL, DEFAULT_RESERVE_FACTOR);
-        lender1.initialize(RATE_MODEL, DEFAULT_RESERVE_FACTOR);
+        // Store deployment addresses
+        getMarket[pool] = Market(lender0, lender1, borrowerImplementation);
         isLender[address(lender0)] = true;
         isLender[address(lender1)] = true;
 
-        Borrower borrowerImplementation = new Borrower(ORACLE, pool, lender0, lender1);
+        // Initialize lenders and set default market config
+        lender0.initialize();
+        lender1.initialize();
+        _setMarketConfig(
+            pool,
+            MarketConfig(
+                Parameters(DEFAULT_ANTE, DEFAULT_N_SIGMA, 0),
+                DEFAULT_RATE_MODEL,
+                DEFAULT_RATE_MODEL,
+                DEFAULT_RESERVE_FACTOR,
+                DEFAULT_RESERVE_FACTOR
+            )
+        );
 
-        getMarket[pool] = Market(lender0, lender1, borrowerImplementation);
-        getParameters[pool] = Parameters(DEFAULT_ANTE, DEFAULT_N_SIGMA, 0);
         emit CreateMarket(pool, lender0, lender1);
     }
 
@@ -179,5 +206,50 @@ contract Factory {
         }
 
         rewardsToken.safeTransfer(beneficiary, earned);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                               GOVERNANCE
+    //////////////////////////////////////////////////////////////*/
+
+    function governRewardsToken(ERC20 rewardsToken_) external {
+        require(msg.sender == GOVERNOR && address(rewardsToken) == address(0));
+        rewardsToken = rewardsToken_;
+    }
+
+    function governRewardsRate(Lender lender, uint56 rate) external {
+        require(msg.sender == GOVERNOR);
+        lender.setRewardsRate(rate);
+    }
+
+    function governMarketConfig(IUniswapV3Pool pool, MarketConfig memory marketConfig) external {
+        require(msg.sender == GOVERNOR);
+
+        require(
+            // nSigma: min, max
+            (CONSTRAINT_N_SIGMA_MIN <= marketConfig.parameters.nSigma &&
+                marketConfig.parameters.nSigma <= CONSTRAINT_N_SIGMA_MAX) &&
+                // ante: max
+                (marketConfig.parameters.ante <= CONSTRAINT_ANTE_MAX) &&
+                // pauseUntilTime: max
+                (marketConfig.parameters.pausedUntilTime <= block.timestamp + CONSTRAINT_PAUSE_INTERVAL_MAX) &&
+                // reserveFactor0: min, max
+                (CONSTRAINT_RESERVE_FACTOR_MIN <= marketConfig.reserveFactor0 &&
+                    marketConfig.reserveFactor0 <= CONSTRAINT_RESERVE_FACTOR_MAX) &&
+                // reserveFactor1: min, max
+                (CONSTRAINT_RESERVE_FACTOR_MIN <= marketConfig.reserveFactor1 &&
+                    marketConfig.reserveFactor1 <= CONSTRAINT_RESERVE_FACTOR_MAX),
+            "Aloe: constraints"
+        );
+
+        _setMarketConfig(pool, marketConfig);
+    }
+
+    function _setMarketConfig(IUniswapV3Pool pool, MarketConfig memory marketConfig) private {
+        getParameters[pool] = marketConfig.parameters;
+
+        Market memory market = getMarket[pool];
+        market.lender0.setRateModelAndReserveFactor(marketConfig.rateModel0, marketConfig.reserveFactor0);
+        market.lender1.setRateModelAndReserveFactor(marketConfig.rateModel1, marketConfig.reserveFactor1);
     }
 }

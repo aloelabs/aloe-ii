@@ -36,18 +36,30 @@ uint216 constant DEFAULT_ANTE = 0.01 ether;
 uint8 constant DEFAULT_N_SIGMA = 5;
 
 /// @dev The default portion of interest that will accrue to a `Lender`'s `RESERVE` address.
-/// Expressed as a reciprocal, e.g. 8 → 12.5%
-uint8 constant DEFAULT_RESERVE_FACTOR = 8;
+/// Expressed as a reciprocal, e.g. 16 → 6.25%
+uint8 constant DEFAULT_RESERVE_FACTOR = 16;
 
 /*//////////////////////////////////////////////////////////////
-                        GOVERNANCE BOUNDS
+                        GOVERNANCE CONSTRAINTS
 //////////////////////////////////////////////////////////////*/
 
+/// @dev The lowest number of standard deviations of price movement allowed for determining `Borrower` probe prices
+uint8 constant CONSTRAINT_N_SIGMA_MIN = 4;
+
+/// @dev The highest number of standard deviations of price movement allowed for determining `Borrower` probe prices
+uint8 constant CONSTRAINT_N_SIGMA_MAX = 5;
+
 /// @dev The lower bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 4 → 25%
-uint256 constant MIN_RESERVE_FACTOR = 4;
+uint8 constant CONSTRAINT_RESERVE_FACTOR_MIN = 4;
 
 /// @dev The upper bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 20 → 5%
-uint256 constant MAX_RESERVE_FACTOR = 20;
+uint8 constant CONSTRAINT_RESERVE_FACTOR_MAX = 20;
+
+/// @dev The maximum amount of Ether that `Borrower`s can be required to post before taking on debt
+uint216 constant CONSTRAINT_ANTE_MAX = 0.1 ether;
+
+/// @dev The maximum uninterrupted amount of time for which borrowing can be paused by governance
+uint32 constant CONSTRAINT_PAUSE_INTERVAL_MAX = 2 days;
 
 /*//////////////////////////////////////////////////////////////
                             LIQUIDATION

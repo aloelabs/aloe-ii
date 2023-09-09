@@ -39,7 +39,8 @@ contract ERC4626InvariantsTest is Test {
                 abi.encodePacked(address(asset))
             ));
             RateModel rateModel = new RateModel();
-            lender.initialize(rateModel, 8); // TODO: replace 8 with an env var
+            lender.initialize();
+            lender.setRateModelAndReserveFactor(rateModel, 8); // TODO: replace 8 with an env var
 
             vault = ERC4626(address(lender));
             vaultHarness = new ERC4626Harness(lender);

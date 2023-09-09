@@ -5,7 +5,7 @@ import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
-import {BORROWS_SCALER, ONE, MIN_RESERVE_FACTOR, MAX_RESERVE_FACTOR} from "./libraries/constants/Constants.sol";
+import {BORROWS_SCALER, ONE} from "./libraries/constants/Constants.sol";
 import {Q112} from "./libraries/constants/Q.sol";
 import {Rewards} from "./libraries/Rewards.sol";
 
@@ -50,23 +50,32 @@ contract Lender is Ledger {
 
     constructor(address reserve) Ledger(reserve) {}
 
-    function initialize(IRateModel rateModel_, uint8 reserveFactor_) external {
+    function initialize() external {
         require(borrowIndex == 0);
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
 
         initialDomainSeparator = _computeDomainSeparator();
         initialChainId = block.chainid;
+    }
 
+    /// @notice Sets the `rateModel` and `reserveFactor`. Only the `FACTORY` can call this.
+    function setRateModelAndReserveFactor(IRateModel rateModel_, uint8 reserveFactor_) external {
+        require(msg.sender == address(FACTORY));
         rateModel = rateModel_;
-        require(MIN_RESERVE_FACTOR <= reserveFactor_ && reserveFactor_ <= MAX_RESERVE_FACTOR);
         reserveFactor = reserveFactor_;
     }
 
-    // TODO: governance-only functions for:
-    // - depositing/withdrawing the rewards token
-    // - setting the rewards rate
-    // - setting reserve factor and rate model
+    /**
+     * @notice Sets the rewards rate. May be 0. Only the `FACTORY` can call this.
+     * @param rate The rewards rate, specified in [token units per second]. If non-zero, keep between 10^19 and
+     * 10^24 token units per year for smooth operation. Assuming `FACTORY.rewardsToken()` has 18 decimals, this is
+     * between 10 and 1 million tokens per year.
+     */
+    function setRewardsRate(uint56 rate) external {
+        require(msg.sender == address(FACTORY));
+        Rewards.setRate(rate);
+    }
 
     function whitelist(address borrower) external {
         // Requirements:

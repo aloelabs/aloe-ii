@@ -50,9 +50,10 @@ contract BorrowerTest is Test, IManager {
         vm.rollFork(15_348_451);
 
         Factory factory = new Factory(
+            address(0),
+            address(0),
             VolatilityOracle(address(new VolatilityOracleMock())),
-            new RateModel(),
-            ERC20(address(0))
+            new RateModel()
         );
 
         factory.createMarket(pool);
