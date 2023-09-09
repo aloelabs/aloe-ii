@@ -111,7 +111,7 @@ contract Factory {
     }
 
     /*//////////////////////////////////////////////////////////////
-                            WORLD MANAGEMENT
+                             WORLD CREATION
     //////////////////////////////////////////////////////////////*/
 
     function createMarket(IUniswapV3Pool pool) external {
