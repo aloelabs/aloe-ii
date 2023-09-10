@@ -4,10 +4,26 @@ pragma solidity 0.8.17;
 import "forge-std/Test.sol";
 
 import {MAX_LEVERAGE} from "src/libraries/constants/Constants.sol";
-import {RateModel, SafeRateLib} from "src/RateModel.sol";
+import {IRateModel, RateModel, SafeRateLib} from "src/RateModel.sol";
+
+contract EvilRateModel is IRateModel {
+    function getYieldPerSecond(uint256 utilization, address) external view returns (uint256) {
+        console2.log(gasleft());
+
+        if (utilization % 3 == 0) return type(uint256).max;
+        else if (utilization % 3 == 1) {
+            while (true) {
+                utilization = gasleft();
+            }
+            return utilization;
+        }
+        revert();
+    }
+}
 
 contract RateModelTest is Test {
     using SafeRateLib for RateModel;
+    using SafeRateLib for IRateModel;
 
     RateModel model;
 
@@ -18,6 +34,17 @@ contract RateModelTest is Test {
     function test_accrualFactorRevert(uint256 elapsedTime, uint256 utilization) public {
         uint256 result = RateModel(address(0)).getAccrualFactor(utilization, elapsedTime);
         assertEq(result, 1e12);
+    }
+
+    function test_accrualFactorBehavesDespiteEvilModel(uint256 elapsedTime, uint256 utilization) public {
+        IRateModel evilModel = new EvilRateModel();
+
+        uint256 before = gasleft();
+        uint256 result = evilModel.getAccrualFactor(utilization, elapsedTime);
+        assertLe(before - gasleft(), 105000);
+
+        assertGe(result, 1e12);
+        assertLt(result, 1.533e12);
     }
 
     function test_accrualFactorIsWithinBounds( uint256 elapsedTime, uint256 utilization) public {

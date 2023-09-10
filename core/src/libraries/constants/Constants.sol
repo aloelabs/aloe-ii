@@ -86,23 +86,31 @@ uint256 constant IV_MIN = 0.01e18;
 /// To avoid underflow in `BalanceSheet.computeProbePrices`, ensure that `IV_MAX * nSigma <= 1e18`
 uint256 constant IV_MAX = 0.18e18;
 
+/// @dev The timescale of implied volatility, applied to measurements and calculations. When `BalanceSheet` detects
+/// that an `nSigma` event would cause insolvency in this time period, it enables liquidations. So if you squint your
+/// eyes and wave your hands enough, this is (in expectation) the time liquidators have to act before the protocol
+/// accrues bad debt.
 uint256 constant IV_SCALE = 24 hours;
 
-uint256 constant IV_CHANGE_PER_SECOND = 5e12;
+/// @dev The maximum rate at which (reported) implied volatility can change. Raw samples in `VolatilityOracle.update`
+/// are clamped (before being stored) so as not to exceed this rate.
+/// Expressed in wad percentage points at `IV_SCALE` **per second**, e.g. {462962962962, 24 hours} means daily IV can
+/// change by 0.0000463 percentage points per second → 4 percentage points per day.
+uint256 constant IV_CHANGE_PER_SECOND = 462962962962;
 
 /// @dev To estimate volume, we need 2 samples. One is always at the current block, the other is from
-/// `FEE_GROWTH_AVG_WINDOW` seconds ago, +/- `3 * FEE_GROWTH_SAMPLE_PERIOD`. Larger values make the resulting volume
+/// `FEE_GROWTH_AVG_WINDOW` seconds ago, +/- `FEE_GROWTH_SAMPLE_PERIOD / 2`. Larger values make the resulting volume
 /// estimate more robust, but may cause the oracle to miss brief spikes in activity.
 uint256 constant FEE_GROWTH_AVG_WINDOW = 6 hours;
 
 /// @dev The length of the circular buffer that stores feeGrowthGlobals samples.
 /// Must be in interval
 /// \\( \left[ \frac{\text{FEE_GROWTH_AVG_WINDOW}}{\text{FEE_GROWTH_SAMPLE_PERIOD}}, 256 \right) \\)
-uint256 constant FEE_GROWTH_ARRAY_LENGTH = 72;
+uint256 constant FEE_GROWTH_ARRAY_LENGTH = 48;
 
-/// @dev The minimum number of seconds that must elapse before a new feeGrowthGlobals sample will be stored. This also
+/// @dev The minimum number of seconds that must elapse before a new feeGrowthGlobals sample will be stored. This
 /// controls how often the oracle can update IV.
-uint256 constant FEE_GROWTH_SAMPLE_PERIOD = 5 minutes;
+uint256 constant FEE_GROWTH_SAMPLE_PERIOD = 15 minutes;
 
 /// @dev To compute Uniswap mean price & liquidity, we need 2 samples. One is always at the current block, the other is
 /// from `UNISWAP_AVG_WINDOW` seconds ago. Larger values make the resulting price/liquidity values harder to

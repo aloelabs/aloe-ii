@@ -43,7 +43,7 @@ library SafeRateLib {
         // but this is slightly more gas efficient.
         bytes memory encodedCall = abi.encodeCall(IRateModel.getYieldPerSecond, (utilization, address(this)));
         assembly ("memory-safe") {
-            let success := staticcall(10000, rateModel, add(encodedCall, 32), mload(encodedCall), 0, 32)
+            let success := staticcall(100000, rateModel, add(encodedCall, 32), mload(encodedCall), 0, 32)
             rate := mul(success, mload(0))
         }
 

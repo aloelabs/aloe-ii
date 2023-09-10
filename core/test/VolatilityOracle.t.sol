@@ -10,7 +10,7 @@ contract VolatilityOracleTest is Test {
     uint256 constant SIX_HOURS_LATER = 70_045_000;
     uint256 constant TWELVE_HOURS_LATER = 70_090_000;
 
-    uint256 constant BLOCKS_PER_MINUTE = 567;
+    uint256 constant BLOCKS_PER_SECOND = 2;
 
     VolatilityOracle oracle;
 
@@ -49,12 +49,8 @@ contract VolatilityOracleTest is Test {
         for (uint256 i = 0; i < count; i++) {
             IUniswapV3Pool pool = IUniswapV3Pool(pools[i]);
 
-            (uint56 metricConsult, uint160 priceConsult, uint256 ivConsult) = oracle.consult(pool, (1 << 32));
-            (uint56 metricUpdate, uint160 priceUpdate, uint256 ivUpdate) = oracle.update(pool, (1 << 32));
-
-            assertEq(metricConsult, metricUpdate);
-            assertEq(priceUpdate, priceConsult);
-            assertEqDecimal(ivUpdate, ivConsult, 18);
+            vm.expectRevert(bytes(""));
+            oracle.update(pool, (1 << 32));
         }
     }
 
@@ -95,7 +91,7 @@ contract VolatilityOracleTest is Test {
 
             (uint256 index, uint256 time, uint256 ivOldExpected) = oracle.lastWrites(pool);
             assertEq(index, 0);
-            assertGe(block.timestamp, time + 6 hours + 15 minutes);
+            assertGe(block.timestamp, time + 6 hours + 7.5 minutes);
 
             (, , uint256 ivOld) = oracle.consult(pool, (1 << 32));
             (, , uint256 ivNew) = oracle.update(pool, (1 << 32));
@@ -149,7 +145,6 @@ contract VolatilityOracleTest is Test {
             (, , uint256 iv) = oracle.update(pool, (1 << 32));
             (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(address(oracle));
 
-            // NOTE: When compiling without --via-ir, foundry doesn't count correctly
             assertEq(reads.length, 10);
             assertEq(writes.length, 4);
 
@@ -162,20 +157,25 @@ contract VolatilityOracleTest is Test {
     }
 
     function test_historical_updateSequenceETHUSDC() public {
+        uint256 currentBlock = 109019618;
+        vm.createSelectFork("optimism", currentBlock);
+
         IUniswapV3Pool pool = IUniswapV3Pool(pools[1]); // WETH/USDC
+        oracle = new VolatilityOracle();
         oracle.prepare(pool);
+
         vm.makePersistent(address(oracle));
 
-        uint256 currentBlock = START_BLOCK;
         (uint256 currentIndex, uint256 currentTime, uint256 currentIV) = oracle.lastWrites(pool);
 
         uint256 initialTime = currentTime;
 
-        for (uint256 i = 0; i < 100; i++) {
+        for (uint256 i = 0; i < 48; i++) {
             console2.log(currentTime, currentIV);
 
-            currentBlock += (2 + uint256(blockhash(block.number)) % 10) * BLOCKS_PER_MINUTE * 5;
-            vm.rollFork(currentBlock);
+            uint256 interval = FEE_GROWTH_SAMPLE_PERIOD * 2;
+            currentBlock += BLOCKS_PER_SECOND * interval;
+            vm.createSelectFork("optimism", currentBlock);
 
             (, , uint256 ivWritten) = oracle.update(pool, (1 << 32));
             (uint256 newIndex, uint256 newTime, uint256 ivStored) = oracle.lastWrites(pool);
@@ -183,8 +183,9 @@ contract VolatilityOracleTest is Test {
             assertEqDecimal(ivStored, ivWritten, 18);
             assertEq(newIndex, (currentIndex + 1) % FEE_GROWTH_ARRAY_LENGTH);
 
-            assertLe(ivWritten, currentIV + (newTime - currentTime) * IV_CHANGE_PER_SECOND);
-            assertGe(ivWritten, currentIV - (newTime - currentTime) * IV_CHANGE_PER_SECOND);
+            uint256 maxChange = (newTime - currentTime) * IV_CHANGE_PER_SECOND;
+            assertLe(ivWritten, currentIV + maxChange);
+            assertGe(ivWritten + maxChange, currentIV);
 
             currentIndex = newIndex;
             currentTime = newTime;
@@ -203,8 +204,8 @@ contract VolatilityOracleTest is Test {
         uint256 totalGas = 0;
 
         for (uint256 i = 0; i < 600; i++) {
-            currentBlock += (1 + uint256(blockhash(block.number)) % 3) * BLOCKS_PER_MINUTE * 60;
-            vm.rollFork(currentBlock);
+            currentBlock += (1 + uint256(blockhash(block.number)) % 3) * 7200;
+            vm.createSelectFork("optimism", currentBlock);
 
             uint256 g = gasleft();
             (uint56 metric, uint160 sqrtPriceX96, uint256 iv) = oracle.update(pool, (1 << 32));
