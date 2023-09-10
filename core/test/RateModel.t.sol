@@ -38,7 +38,10 @@ contract RateModelTest is Test {
 
     function test_accrualFactorBehavesDespiteEvilModel(uint256 elapsedTime, uint256 utilization) public {
         IRateModel evilModel = new EvilRateModel();
+
+        uint256 before = gasleft();
         uint256 result = evilModel.getAccrualFactor(utilization, elapsedTime);
+        assertLe(before - gasleft(), 105000);
 
         assertGe(result, 1e12);
         assertLt(result, 1.533e12);
