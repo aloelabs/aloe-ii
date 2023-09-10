@@ -300,7 +300,7 @@ contract Ledger {
      * @return The maximum amount of `asset()` that can be withdrawn
      */
     function maxWithdraw(address owner) external view returns (uint256) {
-        return convertToAssets(this.maxRedeem(owner));
+        return convertToAssets(maxRedeem(owner));
     }
 
     /*//////////////////////////////////////////////////////////////
