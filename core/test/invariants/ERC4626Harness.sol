@@ -190,7 +190,9 @@ contract ERC4626Harness {
     function redeem(uint256 shares, address receiver, address owner) public returns (uint256 assets) {
         // MUST revert if all of `shares` cannot be redeemed
         uint256 maxRedeem = VAULT.maxRedeem(owner);
-        if (shares > maxRedeem) {
+        if (shares == type(uint256).max) {
+            shares = maxRedeem;
+        } else if (shares > maxRedeem) {
             vm.prank(msg.sender);
             vm.expectRevert();
             VAULT.redeem(shares, receiver, owner);
