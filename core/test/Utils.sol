@@ -48,7 +48,7 @@ contract VolatilityOracleMock {
 
     function consult(IUniswapV3Pool pool, uint40 seed) external view returns (uint56, uint160, uint256) {
         (Oracle.PoolData memory data, uint56 metric) = Oracle.consult(pool, seed);
-        return (metric, data.sqrtMeanPriceX96, 0.025e18);
+        return (metric, data.sqrtMeanPriceX96, 0.025e12);
     }
 }
 

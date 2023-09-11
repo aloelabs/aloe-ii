@@ -35,7 +35,7 @@ contract VolatilityTest is Test {
             ),
             1 days
         );
-        assertEq(dailyIV, 20405953715139097); // 2.041%
+        assertEq(dailyIV, 20405953715); // 2.041%
 
         dailyIV = Volatility.estimate(
             metadata,
@@ -52,7 +52,7 @@ contract VolatilityTest is Test {
             ),
             1 hours
         );
-        assertEq(dailyIV, 4165347859745125); // 0.417%
+        assertEq(dailyIV, 4165347859); // 0.417%
 
         dailyIV = Volatility.estimate(
             metadata,
@@ -65,7 +65,7 @@ contract VolatilityTest is Test {
             ),
             1 days
         );
-        assertEq(dailyIV, 6970260375825778); // 0.697%
+        assertEq(dailyIV, 6970260375); // 0.697%
 
         dailyIV = Volatility.estimate(
             metadata,
@@ -272,7 +272,7 @@ contract VolatilityTest is Test {
         uint32 oracleLookback,
         uint128 tickLiquidity,
         uint32 scale
-    ) public view {
+    ) public {
         scale = uint32(bound(scale, 1 minutes, 2 days));
         oracleLookback = uint32(bound(oracleLookback, 15 seconds, 1 days));
         secondsPerLiquidityX128 = uint160(bound(secondsPerLiquidityX128, feeGrowthSampleAge, type(uint160).max));
@@ -313,7 +313,7 @@ contract VolatilityTest is Test {
             b.timestamp = feeGrowthSampleAge;
         }
 
-        Volatility.estimate(metadata, data, a, b, scale);
+        assertLt(Volatility.estimate(metadata, data, a, b, scale), 1 << 128);
     }
 
     function boundTick(int24 tick, int24 tickSpacing) private pure returns (int24) {
