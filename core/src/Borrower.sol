@@ -296,19 +296,17 @@ contract Borrower is IUniswapV3MintCallback {
         _saveSlot0(uint160(msg.sender), _formatted(State.Ready));
 
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-        unchecked {
-            if (liabilities0 + liabilities1 > 0) {
-                (uint256 ante, uint256 nSigma, uint256 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
-                (Prices memory prices, bool seemsLegit) = _getPrices(oracleSeed, nSigma);
+        if (liabilities0 > 0 || liabilities1 > 0) {
+            (uint256 ante, uint256 nSigma, uint256 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
+            (Prices memory prices, bool seemsLegit) = _getPrices(oracleSeed, nSigma);
 
-                require(
-                    seemsLegit && (block.timestamp > pausedUntilTime) && (address(this).balance >= ante),
-                    "Aloe: missing ante / sus price"
-                );
+            require(
+                seemsLegit && (block.timestamp > pausedUntilTime) && (address(this).balance >= ante),
+                "Aloe: missing ante / sus price"
+            );
 
-                Assets memory assets = _getAssets(positions_, prices, false);
-                require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
-            }
+            Assets memory assets = _getAssets(positions_, prices, false);
+            require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
         }
     }
 
