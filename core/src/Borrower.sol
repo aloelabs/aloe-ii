@@ -149,7 +149,7 @@ contract Borrower is IUniswapV3MintCallback {
 
         {
             // Fetch prices from oracle
-            Prices memory prices = getPrices(oracleSeed);
+            (Prices memory prices, ) = getPrices(oracleSeed);
             // Tally assets without actually withdrawing Uniswap positions
             Assets memory assets = _getAssets(positions.read(), prices, false);
             // Fetch liabilities from lenders
@@ -188,7 +188,7 @@ contract Borrower is IUniswapV3MintCallback {
         _saveSlot0(slot0_, _formatted(State.Locked));
 
         // Fetch prices from oracle
-        Prices memory prices = getPrices(oracleSeed);
+        (Prices memory prices, ) = getPrices(oracleSeed);
 
         uint256 liabilities0;
         uint256 liabilities1;
@@ -295,21 +295,21 @@ contract Borrower is IUniswapV3MintCallback {
         int24[] memory positions_ = positions.write(callee.callback(data, msg.sender));
         _saveSlot0(uint160(msg.sender), _formatted(State.Ready));
 
-        (uint256 ante, uint256 nSigma, uint256 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
-
-        (Prices memory prices, bool isSus) = _getPrices(nSigma, oracleSeed);
-        Assets memory assets = _getAssets(positions_, prices, false);
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-
-        require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
         unchecked {
-            if (liabilities0 + liabilities1 > 0)
+            if (liabilities0 + liabilities1 > 0) {
+                (uint256 ante, uint256 nSigma, uint256 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
+                (Prices memory prices, bool seemsLegit) = _getPrices(oracleSeed, nSigma);
+
                 require(
-                    address(this).balance > ante && !isSus && block.timestamp > pausedUntilTime,
+                    seemsLegit && (block.timestamp > pausedUntilTime) && (address(this).balance >= ante),
                     "Aloe: missing ante / sus price"
                 );
+
+                Assets memory assets = _getAssets(positions_, prices, false);
+                require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
+            }
         }
-        if (isSus) FACTORY.pause(UNISWAP_POOL);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -439,18 +439,21 @@ contract Borrower is IUniswapV3MintCallback {
         return positions.read();
     }
 
-    function getPrices(uint40 oracleSeed) public view returns (Prices memory prices) {
+    function getPrices(uint40 oracleSeed) public view returns (Prices memory prices, bool seemsLegit) {
         (, uint256 nSigma, ) = FACTORY.getParameters(UNISWAP_POOL);
-        (prices, ) = _getPrices(nSigma, oracleSeed);
+        (prices, seemsLegit) = _getPrices(oracleSeed, nSigma);
     }
 
-    function _getPrices(uint256 nSigma, uint40 oracleSeed) private view returns (Prices memory prices, bool isSus) {
+    function _getPrices(
+        uint40 oracleSeed,
+        uint256 nSigma
+    ) private view returns (Prices memory prices, bool seemsLegit) {
         uint56 metric;
         uint256 iv;
         // compute current price and volatility
         (metric, prices.c, iv) = ORACLE.consult(UNISWAP_POOL, oracleSeed);
         // compute prices at which solvency will be checked
-        (prices.a, prices.b, isSus) = BalanceSheet.computeProbePrices(prices.c, iv, nSigma, metric);
+        (prices.a, prices.b, seemsLegit) = BalanceSheet.computeProbePrices(prices.c, iv, nSigma, metric);
     }
 
     function _getAssets(
