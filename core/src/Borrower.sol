@@ -16,7 +16,6 @@ import {TickMath} from "./libraries/TickMath.sol";
 
 import {Factory} from "./Factory.sol";
 import {Lender} from "./Lender.sol";
-import {VolatilityOracle} from "./VolatilityOracle.sol";
 
 interface ILiquidator {
     receive() external payable;
@@ -63,9 +62,6 @@ contract Borrower is IUniswapV3MintCallback {
     /// @notice The factory that created this contract
     Factory public immutable FACTORY;
 
-    /// @notice The oracle to use for prices and implied volatility
-    VolatilityOracle public immutable ORACLE;
-
     /// @notice The Uniswap pair in which the vault will manage positions
     IUniswapV3Pool public immutable UNISWAP_POOL;
 
@@ -101,9 +97,8 @@ contract Borrower is IUniswapV3MintCallback {
                        CONSTRUCTOR & INITIALIZER
     //////////////////////////////////////////////////////////////*/
 
-    constructor(VolatilityOracle oracle, IUniswapV3Pool pool, Lender lender0, Lender lender1) {
+    constructor(IUniswapV3Pool pool, Lender lender0, Lender lender1) {
         FACTORY = Factory(msg.sender);
-        ORACLE = oracle;
         UNISWAP_POOL = pool;
         LENDER0 = lender0;
         LENDER1 = lender1;
@@ -149,7 +144,7 @@ contract Borrower is IUniswapV3MintCallback {
 
         {
             // Fetch prices from oracle
-            Prices memory prices = getPrices(oracleSeed);
+            Prices memory prices = FACTORY.getPrices(UNISWAP_POOL, oracleSeed);
             // Tally assets without actually withdrawing Uniswap positions
             Assets memory assets = _getAssets(positions.read(), prices, false);
             // Fetch liabilities from lenders
@@ -188,7 +183,7 @@ contract Borrower is IUniswapV3MintCallback {
         _saveSlot0(slot0_, _formatted(State.Locked));
 
         // Fetch prices from oracle
-        Prices memory prices = getPrices(oracleSeed);
+        Prices memory prices = FACTORY.getPrices(UNISWAP_POOL, oracleSeed);
 
         uint256 liabilities0;
         uint256 liabilities1;
@@ -295,21 +290,17 @@ contract Borrower is IUniswapV3MintCallback {
         int24[] memory positions_ = positions.write(callee.callback(data, msg.sender));
         _saveSlot0(uint160(msg.sender), _formatted(State.Ready));
 
-        (uint256 ante, uint256 nSigma, uint256 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
-
-        (Prices memory prices, bool isSus) = _getPrices(nSigma, oracleSeed);
-        Assets memory assets = _getAssets(positions_, prices, false);
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-
-        require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
         unchecked {
-            if (liabilities0 + liabilities1 > 0)
-                require(
-                    address(this).balance > ante && !isSus && block.timestamp > pausedUntilTime,
-                    "Aloe: missing ante / sus price"
-                );
+            if (liabilities0 + liabilities1 > 0) {
+                // (Prices memory prices, bool isAllowedToBorrow) = FACTORY.getBorrowerPacket(UNISWAP_POOL, oracleSeed);
+                // require(isAllowedToBorrow, "Aloe: missing ante / sus price");
+                Prices memory prices = FACTORY.getBorrowerPacket(UNISWAP_POOL, oracleSeed);
+
+                Assets memory assets = _getAssets(positions_, prices, false); // TODO: make sure I wasn't relying on _getAssets logic to check stuff, for example, that Uniswap positions are formatted correctly
+                require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
+            }
         }
-        if (isSus) FACTORY.pause(UNISWAP_POOL);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -437,20 +428,6 @@ contract Borrower is IUniswapV3MintCallback {
 
     function getUniswapPositions() external view returns (int24[] memory) {
         return positions.read();
-    }
-
-    function getPrices(uint40 oracleSeed) public view returns (Prices memory prices) {
-        (, uint256 nSigma, ) = FACTORY.getParameters(UNISWAP_POOL);
-        (prices, ) = _getPrices(nSigma, oracleSeed);
-    }
-
-    function _getPrices(uint256 nSigma, uint40 oracleSeed) private view returns (Prices memory prices, bool isSus) {
-        uint56 metric;
-        uint256 iv;
-        // compute current price and volatility
-        (metric, prices.c, iv) = ORACLE.consult(UNISWAP_POOL, oracleSeed);
-        // compute prices at which solvency will be checked
-        (prices.a, prices.b, isSus) = BalanceSheet.computeProbePrices(prices.c, iv, nSigma, metric);
     }
 
     function _getAssets(

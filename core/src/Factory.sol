@@ -18,6 +18,7 @@ import {
     CONSTRAINT_PAUSE_INTERVAL_MAX,
     UNISWAP_AVG_WINDOW
 } from "./libraries/constants/Constants.sol";
+import {BalanceSheet, Prices} from "./libraries/BalanceSheet.sol";
 
 import {Borrower} from "./Borrower.sol";
 import {Lender} from "./Lender.sol";
@@ -103,13 +104,6 @@ contract Factory {
         DEFAULT_RATE_MODEL = defaultRateModel;
     }
 
-    function pause(IUniswapV3Pool pool) external {
-        require(isBorrower[msg.sender]);
-        unchecked {
-            getParameters[pool].pausedUntilTime = uint32(block.timestamp) + UNISWAP_AVG_WINDOW;
-        }
-    }
-
     /*//////////////////////////////////////////////////////////////
                              WORLD CREATION
     //////////////////////////////////////////////////////////////*/
@@ -124,7 +118,7 @@ contract Factory {
         bytes32 salt = keccak256(abi.encodePacked(pool));
         Lender lender0 = Lender(LENDER_IMPLEMENTATION.cloneDeterministic({salt: salt, data: abi.encodePacked(asset0)}));
         Lender lender1 = Lender(LENDER_IMPLEMENTATION.cloneDeterministic({salt: salt, data: abi.encodePacked(asset1)}));
-        Borrower borrowerImplementation = new Borrower(ORACLE, pool, lender0, lender1);
+        Borrower borrowerImplementation = new Borrower(pool, lender0, lender1);
 
         // Store deployment addresses
         getMarket[pool] = Market(lender0, lender1, borrowerImplementation);
@@ -251,5 +245,48 @@ contract Factory {
         Market memory market = getMarket[pool];
         market.lender0.setRateModelAndReserveFactor(marketConfig.rateModel0, marketConfig.reserveFactor0);
         market.lender1.setRateModelAndReserveFactor(marketConfig.rateModel1, marketConfig.reserveFactor1);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                 PRICES
+    //////////////////////////////////////////////////////////////*/
+
+    function pause(IUniswapV3Pool pool, uint40 oracleSeed) external {
+        (, bool seemsLegit) = _getPrices(pool, oracleSeed, getParameters[pool].nSigma);
+
+        if (!seemsLegit) {
+            unchecked {
+                getParameters[pool].pausedUntilTime = uint32(block.timestamp) + UNISWAP_AVG_WINDOW;
+            }
+        }
+    }
+
+    function getBorrowerPacket(IUniswapV3Pool pool, uint40 oracleSeed) external view returns (Prices memory prices) {
+        Parameters memory parameters = getParameters[pool];
+
+        bool isAllowedToBorrow;
+        (prices, isAllowedToBorrow) = _getPrices(pool, oracleSeed, parameters.nSigma);
+        isAllowedToBorrow =
+            isAllowedToBorrow &&
+            (block.timestamp > parameters.pausedUntilTime) &&
+            (msg.sender.balance >= parameters.ante);
+        require(isAllowedToBorrow, "Aloe: missing ante / sus price");
+    }
+
+    function getPrices(IUniswapV3Pool pool, uint40 oracleSeed) external view returns (Prices memory prices) {
+        (prices, ) = _getPrices(pool, oracleSeed, getParameters[pool].nSigma);
+    }
+
+    function _getPrices(
+        IUniswapV3Pool pool,
+        uint40 oracleSeed,
+        uint256 nSigma
+    ) private view returns (Prices memory prices, bool seemsLegit) {
+        uint56 metric;
+        uint256 iv;
+        // compute current price and volatility
+        (metric, prices.c, iv) = ORACLE.consult(pool, oracleSeed);
+        // compute prices at which solvency will be checked
+        (prices.a, prices.b, seemsLegit) = BalanceSheet.computeProbePrices(prices.c, iv, nSigma, metric);
     }
 }

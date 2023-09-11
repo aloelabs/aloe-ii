@@ -85,10 +85,10 @@ library BalanceSheet {
         uint256 iv,
         uint256 nSigma,
         uint56 metric
-    ) internal pure returns (uint160 a, uint160 b, bool isSus) {
+    ) internal pure returns (uint160 a, uint160 b, bool seemsLegit) {
         unchecked {
             iv = nSigma * SoladyMath.clamp(iv, IV_MIN, IV_MAX);
-            isSus = metric > _manipulationThreshold(_effectiveCollateralFactor(iv));
+            seemsLegit = metric < _manipulationThreshold(_effectiveCollateralFactor(iv));
 
             a = uint160((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 - iv)) / 1e9);
             b = uint160(SoladyMath.min((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 + iv)) / 1e9, type(uint160).max));

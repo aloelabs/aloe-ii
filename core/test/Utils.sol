@@ -14,11 +14,6 @@ import {Lender} from "src/Lender.sol";
 import {RateModel} from "src/RateModel.sol";
 import {VolatilityOracle} from "src/VolatilityOracle.sol";
 
-function deploySingleBorrower(IUniswapV3Pool pool, Lender lender0, Lender lender1) returns (Borrower) {
-    address oracleMock = address(new VolatilityOracleMock());
-    return new Borrower(VolatilityOracle(oracleMock), pool, lender0, lender1);
-}
-
 contract FactoryForLenderTests is Factory {
     constructor(
         RateModel rateModel,

@@ -10,6 +10,8 @@ import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.so
 contract BalanceSheetTest is Test {
     function setUp() public {}
 
+    // TODO: test that when liabilities are both 0, isHealthy is strictly true.
+
     /// @dev See https://www.desmos.com/calculator/hrrpjqy4t1
     function test_spec_computeProbePrices() public {
         bool isSus;
