@@ -87,7 +87,7 @@ library BalanceSheet {
         uint56 metric
     ) internal pure returns (uint160 a, uint160 b, bool isSus) {
         unchecked {
-            iv = SoladyMath.clamp(nSigma * iv, PROBE_PERCENT_MIN, PROBE_PERCENT_MAX);
+            iv = SoladyMath.clamp((nSigma * iv) / 10, PROBE_PERCENT_MIN, PROBE_PERCENT_MAX);
             isSus = metric > _manipulationThreshold(_effectiveCollateralFactor(iv));
 
             a = uint160((sqrtMeanPriceX96 * SoladyMath.sqrt(1e12 - iv)) / 1e6);

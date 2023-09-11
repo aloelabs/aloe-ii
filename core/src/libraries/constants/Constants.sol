@@ -32,8 +32,8 @@ uint256 constant MAX_RATE = 706354;
 uint216 constant DEFAULT_ANTE = 0.01 ether;
 
 /// @dev The default number of standard deviations of price movement used to determine probe prices for `Borrower`
-/// solvency. The `Factory` can override this value on a per-market basis.
-uint8 constant DEFAULT_N_SIGMA = 5;
+/// solvency. The `Factory` can override this value on a per-market basis. Expressed x10, e.g. 50 → 5σ
+uint8 constant DEFAULT_N_SIGMA = 50;
 
 /// @dev The default portion of interest that will accrue to a `Lender`'s `RESERVE` address.
 /// Expressed as a reciprocal, e.g. 16 → 6.25%
@@ -43,11 +43,13 @@ uint8 constant DEFAULT_RESERVE_FACTOR = 16;
                         GOVERNANCE CONSTRAINTS
 //////////////////////////////////////////////////////////////*/
 
-/// @dev The lowest number of standard deviations of price movement allowed for determining `Borrower` probe prices
-uint8 constant CONSTRAINT_N_SIGMA_MIN = 4;
+/// @dev The lowest number of standard deviations of price movement allowed for determining `Borrower` probe prices.
+/// Expressed x10, e.g. 40 → 4σ
+uint8 constant CONSTRAINT_N_SIGMA_MIN = 40;
 
-/// @dev The highest number of standard deviations of price movement allowed for determining `Borrower` probe prices
-uint8 constant CONSTRAINT_N_SIGMA_MAX = 5;
+/// @dev The highest number of standard deviations of price movement allowed for determining `Borrower` probe prices.
+/// Expressed x10, e.g. 80 → 8σ
+uint8 constant CONSTRAINT_N_SIGMA_MAX = 80;
 
 /// @dev The lower bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 4 → 25%
 uint8 constant CONSTRAINT_RESERVE_FACTOR_MIN = 4;
@@ -108,7 +110,7 @@ uint32 constant IV_SCALE = 24 hours;
 /// @dev The initial value of implied volatility, used when `VolatilityOracle.prepare` is called for a new pool.
 /// Expressed as a 1e12 percentage at `IV_SCALE`, e.g. {0.20e12, 24 hours} → 20% daily → 382% annual. Error on the
 /// side of making this too large (resulting in low LTV).
-uint128 constant IV_COLD_START = uint128(PROBE_PERCENT_MAX / DEFAULT_N_SIGMA);
+uint128 constant IV_COLD_START = uint128((PROBE_PERCENT_MAX * 10) / CONSTRAINT_N_SIGMA_MIN);
 
 /// @dev The maximum rate at which (reported) implied volatility can change. Raw samples in `VolatilityOracle.update`
 /// are clamped (before being stored) so as not to exceed this rate.
