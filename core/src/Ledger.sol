@@ -76,8 +76,13 @@ contract Ledger {
                          GOVERNABLE PARAMETERS
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @dev `rateModel.getYieldPerSecond` is given 100000 gas, and the output is clamped to `MAX_RATE`. If
+     * the call reverts, it's treated the same as if it returned 0.
+     */
     IRateModel public rateModel;
 
+    /// @dev The portion of interest that accrues to the `RESERVE`. Expressed as a reciprocal, e.g. 16 → 6.25%
     uint8 public reserveFactor;
 
     /*//////////////////////////////////////////////////////////////

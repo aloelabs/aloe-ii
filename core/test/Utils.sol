@@ -22,13 +22,16 @@ function deploySingleBorrower(IUniswapV3Pool pool, Lender lender0, Lender lender
 contract FactoryForLenderTests is Factory {
     constructor(
         RateModel rateModel,
-        ERC20 rewardsToken
-    ) Factory(VolatilityOracle(address(0)), rateModel, rewardsToken) {}
+        ERC20 rewardsToken_
+    ) Factory(address(0), address(this), VolatilityOracle(address(0)), rateModel) {
+        rewardsToken = rewardsToken_;
+    }
 
     function deploySingleLender(ERC20 asset) external returns (Lender) {
         address proxy = ClonesWithImmutableArgs.clone(LENDER_IMPLEMENTATION, abi.encodePacked(address(asset)));
 
-        Lender(proxy).initialize(RATE_MODEL, 8);
+        Lender(proxy).initialize();
+        Lender(proxy).setRateModelAndReserveFactor(DEFAULT_RATE_MODEL, 8);
         return Lender(proxy);
     }
 }
