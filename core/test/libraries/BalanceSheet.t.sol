@@ -147,11 +147,11 @@ contract BalanceSheetTest is Test {
         a = square(uint160(a));
         b = square(uint160(b));
 
-        if (iv < PROBE_PERCENT_MIN / nSigma) iv = PROBE_PERCENT_MIN / nSigma;
-        else if (iv > PROBE_PERCENT_MAX / nSigma) iv = PROBE_PERCENT_MAX / nSigma;
+        if (iv < PROBE_PERCENT_MIN * 10 / nSigma) iv = PROBE_PERCENT_MIN * 10 / nSigma;
+        else if (iv > PROBE_PERCENT_MAX * 10 / nSigma) iv = PROBE_PERCENT_MAX * 10 / nSigma;
 
-        assertApproxEqRel(a, SoladyMath.fullMulDiv(price, 1e12 - nSigma * iv, 1e12), 0.0001e18);
-        assertApproxEqRel(b, SoladyMath.fullMulDiv(price, 1e12 + nSigma * iv, 1e12), 0.0001e18);
+        assertApproxEqRel(a, SoladyMath.fullMulDiv(price, 1e12 - (nSigma * iv) / 10, 1e12), 0.0001e18);
+        assertApproxEqRel(b, SoladyMath.fullMulDiv(price, 1e12 + (nSigma * iv) / 10, 1e12), 0.0001e18);
     }
 
     function test_constants() public {
