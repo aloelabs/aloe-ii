@@ -77,7 +77,8 @@ uint256 constant LIQUIDATION_INCENTIVE = 20;
 uint256 constant LIQUIDATION_GRACE_PERIOD = 2 minutes;
 
 /// @dev The minimum loan-to-value ratio. Actual ratio is based on implied volatility; this is just a lower bound.
-/// Expressed as a 1e12 percentage, e.g. 0.10e12 → 10%
+/// Expressed as a 1e12 percentage, e.g. 0.10e12 → 10%. Must be greater than `TickMath.MIN_SQRT_RATIO` because
+/// we reuse a base 1.0001 logarithm in `BalanceSheet`
 uint256 constant LTV_MIN = 0.10e12;
 
 /// @dev The maximum loan-to-value ratio. Actual ratio is based on implied volatility; this is just a upper bound.
