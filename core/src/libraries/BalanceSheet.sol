@@ -4,10 +4,10 @@ pragma solidity 0.8.17;
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 
 import {
-    LTV_MIN,
-    LTV_MAX,
     MAX_LEVERAGE,
     LIQUIDATION_INCENTIVE,
+    PROBE_PERCENT_MIN,
+    PROBE_PERCENT_MAX,
     MANIPULATION_THRESHOLD_DIVISOR
 } from "./constants/Constants.sol";
 import {square, mulDiv128} from "./MulDiv.sol";
@@ -32,18 +32,6 @@ struct Prices {
 /// @notice Provides functions for computing a `Borrower`'s health
 /// @author Aloe Labs, Inc.
 library BalanceSheet {
-    /// @dev The minimum percentage that can be added/subtracted to the TWAP to get probe prices
-    uint256 internal constant PROBE_PERCENT_MIN =
-        1e12 -
-            (LTV_MAX * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE)) /
-            (LIQUIDATION_INCENTIVE * MAX_LEVERAGE);
-
-    /// @dev The maximum percentage that can be added/subtracted to the TWAP to get probe prices
-    uint256 internal constant PROBE_PERCENT_MAX =
-        1e12 -
-            (LTV_MIN * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE)) /
-            (LIQUIDATION_INCENTIVE * MAX_LEVERAGE);
-
     function isHealthy(
         Prices memory prices,
         Assets memory mem,

@@ -65,6 +65,17 @@ uint32 constant CONSTRAINT_PAUSE_INTERVAL_MAX = 2 days;
                             LIQUIDATION
 //////////////////////////////////////////////////////////////*/
 
+/// @dev \\( 1 + \frac{1}{\text{MAX_LEVERAGE}} \\) should be greater than the maximum feasible single-block
+/// `accrualFactor` so that liquidators have time to respond to interest updates
+uint256 constant MAX_LEVERAGE = 200;
+
+/// @dev The discount that liquidators receive when swapping assets. Expressed as reciprocal, e.g. 20 → 5%
+uint256 constant LIQUIDATION_INCENTIVE = 20;
+
+/// @dev The minimum time that must pass between `Borrower.warn` and `Borrower.liquidate` for any liquidation that
+/// involves the swap callbacks (`swap1For0` and `swap0For1`). There is no grace period for in-kind liquidations.
+uint256 constant LIQUIDATION_GRACE_PERIOD = 2 minutes;
+
 /// @dev The minimum loan-to-value ratio. Actual ratio is based on implied volatility; this is just a lower bound.
 /// Expressed as a 1e12 percentage, e.g. 0.10e12 → 10%
 uint256 constant LTV_MIN = 0.10e12;
@@ -73,13 +84,15 @@ uint256 constant LTV_MIN = 0.10e12;
 /// Expressed as a 1e12 percentage, e.g. 0.90e12 → 90%
 uint256 constant LTV_MAX = 0.90e12;
 
-/// @dev \\( 1 + \frac{1}{\text{MAX_LEVERAGE}} \\) should be greater than the maximum feasible single-block
-/// `accrualFactor` so that liquidators have time to respond to interest updates
-uint256 constant MAX_LEVERAGE = 200;
+/// @dev The minimum percentage that can be added/subtracted to the TWAP to get probe prices in `BalanceSheet`
+uint256 constant PROBE_PERCENT_MIN = 1e12 -
+    (LTV_MAX * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE)) /
+    (LIQUIDATION_INCENTIVE * MAX_LEVERAGE);
 
-uint256 constant LIQUIDATION_INCENTIVE = 20; // Expressed as reciprocal, e.g. 20 → 5%
-
-uint256 constant LIQUIDATION_GRACE_PERIOD = 2 minutes;
+/// @dev The maximum percentage that can be added/subtracted to the TWAP to get probe prices in `BalanceSheet`
+uint256 constant PROBE_PERCENT_MAX = 1e12 -
+    (LTV_MIN * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE)) /
+    (LIQUIDATION_INCENTIVE * MAX_LEVERAGE);
 
 /*//////////////////////////////////////////////////////////////
                             IV AND TWAP
@@ -94,7 +107,7 @@ uint32 constant IV_SCALE = 24 hours;
 /// @dev The initial value of implied volatility, used when `VolatilityOracle.prepare` is called for a new pool.
 /// Expressed as a 1e12 percentage at `IV_SCALE`, e.g. {0.20e12, 24 hours} → 20% daily → 382% annual. Error on the
 /// side of making this too large (resulting in low LTV).
-uint128 constant IV_COLD_START = 0.20e12;
+uint128 constant IV_COLD_START = uint128(PROBE_PERCENT_MAX / DEFAULT_N_SIGMA);
 
 /// @dev The maximum rate at which (reported) implied volatility can change. Raw samples in `VolatilityOracle.update`
 /// are clamped (before being stored) so as not to exceed this rate.

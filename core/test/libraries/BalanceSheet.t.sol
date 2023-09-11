@@ -3,7 +3,15 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {CONSTRAINT_N_SIGMA_MIN, CONSTRAINT_N_SIGMA_MAX, LTV_MIN, IV_COLD_START} from "src/libraries/constants/Constants.sol";
+import {
+    DEFAULT_N_SIGMA,
+    CONSTRAINT_N_SIGMA_MIN,
+    CONSTRAINT_N_SIGMA_MAX,
+    LTV_MIN,
+    PROBE_PERCENT_MIN,
+    PROBE_PERCENT_MAX,
+    IV_COLD_START
+} from "src/libraries/constants/Constants.sol";
 import {BalanceSheet, TickMath, square} from "src/libraries/BalanceSheet.sol";
 
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
@@ -128,7 +136,9 @@ contract BalanceSheetTest is Test {
         // The upper bound is due to the fact that the result (specifically `b`) must fit in uint160. The maximum
         // volatility factor is 1 + IV_AWARE_PROBE_PERCENT_MAX, so we divide `TickMath.MAX_SQRT_RATIO` by
         // sqrt(1e12 + IV_AWARE_PROBE_PERCENT_MAX)
-        sqrtMeanPriceX96 = uint160(bound(sqrtMeanPriceX96, (1 << 40), uint256(TickMath.MAX_SQRT_RATIO) * 1e6 / 1376408));
+        sqrtMeanPriceX96 = uint160(
+            bound(sqrtMeanPriceX96, (1 << 40), (uint256(TickMath.MAX_SQRT_RATIO) * 1e6) / 1376408)
+        );
         nSigma = uint160(bound(nSigma, CONSTRAINT_N_SIGMA_MIN, CONSTRAINT_N_SIGMA_MAX));
 
         (uint256 a, uint256 b, ) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, iv, nSigma, 0);
@@ -137,16 +147,17 @@ contract BalanceSheetTest is Test {
         a = square(uint160(a));
         b = square(uint160(b));
 
-        if (iv < BalanceSheet.PROBE_PERCENT_MIN / nSigma) iv = BalanceSheet.PROBE_PERCENT_MIN / nSigma;
-        else if (iv > BalanceSheet.PROBE_PERCENT_MAX / nSigma) iv = BalanceSheet.PROBE_PERCENT_MAX / nSigma;
+        if (iv < PROBE_PERCENT_MIN / nSigma) iv = PROBE_PERCENT_MIN / nSigma;
+        else if (iv > PROBE_PERCENT_MAX / nSigma) iv = PROBE_PERCENT_MAX / nSigma;
 
         assertApproxEqRel(a, SoladyMath.fullMulDiv(price, 1e12 - nSigma * iv, 1e12), 0.0001e18);
         assertApproxEqRel(b, SoladyMath.fullMulDiv(price, 1e12 + nSigma * iv, 1e12), 0.0001e18);
     }
 
     function test_constants() public {
-        assertEq(BalanceSheet.PROBE_PERCENT_MIN, 50500000000);
-        assertEq(BalanceSheet.PROBE_PERCENT_MAX, 894500000000);
+        // Just checking that things are reasonable
+        assertEqDecimal(PROBE_PERCENT_MIN, 50500000000, 12);
+        assertEqDecimal(PROBE_PERCENT_MAX, 894500000000, 12);
 
         // Necessary for collateral factor computation to work
         assertGt(LTV_MIN, TickMath.MIN_SQRT_RATIO);
