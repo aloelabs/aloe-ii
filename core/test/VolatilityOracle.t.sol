@@ -40,7 +40,7 @@ contract VolatilityOracleTest is Test {
 
             assertGt(metric, 0);
             assertGt(price, 0);
-            assertEqDecimal(iv, 0, 18);
+            assertEqDecimal(iv, 0, 12);
         }
     }
 
@@ -72,7 +72,7 @@ contract VolatilityOracleTest is Test {
             assertEq(fggTime, block.timestamp);
             assertEq(index, 0);
             assertEq(time, block.timestamp);
-            assertEqDecimal(iv, IV_MAX, 18);
+            assertEqDecimal(iv, IV_COLD_START, 12);
         }
 
         vm.expectRevert(bytes("Aloe: cardinality"));
@@ -96,12 +96,12 @@ contract VolatilityOracleTest is Test {
             (, , uint256 ivOld) = oracle.consult(pool, (1 << 32));
             (, , uint256 ivNew) = oracle.update(pool, (1 << 32));
 
-            assertEqDecimal(ivOld, ivOldExpected, 18);
-            assertEqDecimal(ivNew, ivOld, 18);
+            assertEqDecimal(ivOld, ivOldExpected, 12);
+            assertEqDecimal(ivNew, ivOld, 12);
 
             (index, time, ivNew) = oracle.lastWrites(pool);
 
-            assertEqDecimal(ivNew, ivOld, 18);
+            assertEqDecimal(ivNew, ivOld, 12);
             assertEq(index, 1);
             assertEq(time, block.timestamp);
         }
@@ -125,7 +125,7 @@ contract VolatilityOracleTest is Test {
             (, , uint256 ivNew) = oracle.update(pool, (1 << 32));
             (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(address(oracle));
 
-            assertEqDecimal(ivNew, ivOld, 18);
+            assertEqDecimal(ivNew, ivOld, 12);
             assertEq(reads.length, 1);
             assertEq(writes.length, 0);
         }
@@ -180,7 +180,7 @@ contract VolatilityOracleTest is Test {
             (, , uint256 ivWritten) = oracle.update(pool, (1 << 32));
             (uint256 newIndex, uint256 newTime, uint256 ivStored) = oracle.lastWrites(pool);
 
-            assertEqDecimal(ivStored, ivWritten, 18);
+            assertEqDecimal(ivStored, ivWritten, 12);
             assertEq(newIndex, (currentIndex + 1) % FEE_GROWTH_ARRAY_LENGTH);
 
             uint256 maxChange = (newTime - currentTime) * IV_CHANGE_PER_SECOND;

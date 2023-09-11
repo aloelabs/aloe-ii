@@ -37,14 +37,14 @@ library Volatility {
      * @param a The pool's cumulative feeGrowthGlobals some time in the past
      * @param b The pool's cumulative feeGrowthGlobals as of the current block
      * @param scale The timescale (in seconds) in which IV should be reported, e.g. hourly, daily, annualized
-     * @return An estimate of the implied volatility scaled by 1e18
+     * @return An estimate of the implied volatility scaled by 1e12
      */
     function estimate(
         PoolMetadata memory metadata,
         Oracle.PoolData memory data,
         FeeGrowthGlobals memory a,
         FeeGrowthGlobals memory b,
-        uint256 scale
+        uint32 scale
     ) internal pure returns (uint256) {
         uint256 tickTvl = computeTickTvl(metadata.tickSpacing, data.currentTick, data.sqrtPriceX96, data.tickLiquidity);
 
@@ -73,9 +73,8 @@ library Volatility {
         if (volumeGamma0Gamma1 > (1 << 128)) volumeGamma0Gamma1 = (1 << 128);
 
         unchecked {
-            // Scale volume to the target time frame
-            volumeGamma0Gamma1 = (volumeGamma0Gamma1 * scale) / (b.timestamp - a.timestamp);
-            return SoladyMath.sqrt((4e36 * volumeGamma0Gamma1) / tickTvl);
+            // Scale volume to the target time frame, divide by `tickTvl`, and sqrt for final result
+            return SoladyMath.sqrt((4e24 * volumeGamma0Gamma1 * scale) / (b.timestamp - a.timestamp) / tickTvl);
         }
     }
 

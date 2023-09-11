@@ -4,8 +4,8 @@ pragma solidity 0.8.17;
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 
 import {
-    IV_MIN,
-    IV_MAX,
+    LTV_MIN,
+    LTV_MAX,
     MAX_LEVERAGE,
     LIQUIDATION_INCENTIVE,
     MANIPULATION_THRESHOLD_DIVISOR
@@ -32,6 +32,18 @@ struct Prices {
 /// @notice Provides functions for computing a `Borrower`'s health
 /// @author Aloe Labs, Inc.
 library BalanceSheet {
+    /// @dev The minimum percentage that can be added/subtracted to the TWAP to get probe prices
+    uint256 internal constant PROBE_PERCENT_MIN =
+        1e12 -
+            (LTV_MAX * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE)) /
+            (LIQUIDATION_INCENTIVE * MAX_LEVERAGE);
+
+    /// @dev The maximum percentage that can be added/subtracted to the TWAP to get probe prices
+    uint256 internal constant PROBE_PERCENT_MAX =
+        1e12 -
+            (LTV_MIN * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE)) /
+            (LIQUIDATION_INCENTIVE * MAX_LEVERAGE);
+
     function isHealthy(
         Prices memory prices,
         Assets memory mem,
@@ -87,11 +99,11 @@ library BalanceSheet {
         uint56 metric
     ) internal pure returns (uint160 a, uint160 b, bool isSus) {
         unchecked {
-            iv = nSigma * SoladyMath.clamp(iv, IV_MIN, IV_MAX);
+            iv = SoladyMath.clamp(nSigma * iv, PROBE_PERCENT_MIN, PROBE_PERCENT_MAX);
             isSus = metric > _manipulationThreshold(_effectiveCollateralFactor(iv));
 
-            a = uint160((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 - iv)) / 1e9);
-            b = uint160(SoladyMath.min((sqrtMeanPriceX96 * SoladyMath.sqrt(1e18 + iv)) / 1e9, type(uint160).max));
+            a = uint160((sqrtMeanPriceX96 * SoladyMath.sqrt(1e12 - iv)) / 1e6);
+            b = uint160(SoladyMath.min((sqrtMeanPriceX96 * SoladyMath.sqrt(1e12 + iv)) / 1e6, type(uint160).max));
         }
     }
 
@@ -123,18 +135,17 @@ library BalanceSheet {
         }
     }
 
-    /// @dev Equivalent to \\( \frac{log_{1.0001} \left( \frac{10^{18}}{cf} \right)}{12} \\)
-    /// assuming `MANIPULATION_THRESHOLD_DIVISOR` is 24
+    /// @dev Equivalent to \\( \frac{log_{1.0001} \left( \frac{10^{12}}{cf} \right)}{\text{MANIPULATION_THRESHOLD_DIVISOR}} \\)
     function _manipulationThreshold(uint256 cf) private pure returns (uint24) {
-        return uint24(-TickMath.getTickAtSqrtRatio(uint160(cf)) - 501937) / MANIPULATION_THRESHOLD_DIVISOR;
+        return uint24(-TickMath.getTickAtSqrtRatio(uint160(cf)) - 778261) / (2 * MANIPULATION_THRESHOLD_DIVISOR);
     }
 
     /// @dev Equivalent to \\( \frac{1 - σ}{1 + \frac{1}{liquidationIncentive} + \frac{1}{maxLeverage}} \\) where
-    /// \\( σ = \frac{clampedAndScaledIV}{10^{18}} \\) in floating point
+    /// \\( σ = \frac{clampedAndScaledIV}{10^{12}} \\) in floating point
     function _effectiveCollateralFactor(uint256 clampedAndScaledIV) private pure returns (uint256 cf) {
         unchecked {
             cf =
-                ((1e18 - clampedAndScaledIV) * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE)) /
+                ((1e12 - clampedAndScaledIV) * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE)) /
                 (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE);
         }
     }

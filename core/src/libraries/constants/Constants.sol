@@ -65,6 +65,14 @@ uint32 constant CONSTRAINT_PAUSE_INTERVAL_MAX = 2 days;
                             LIQUIDATION
 //////////////////////////////////////////////////////////////*/
 
+/// @dev The minimum loan-to-value ratio. Actual ratio is based on implied volatility; this is just a lower bound.
+/// Expressed as a 1e12 percentage, e.g. 0.10e12 → 10%
+uint256 constant LTV_MIN = 0.10e12;
+
+/// @dev The maximum loan-to-value ratio. Actual ratio is based on implied volatility; this is just a upper bound.
+/// Expressed as a 1e12 percentage, e.g. 0.90e12 → 90%
+uint256 constant LTV_MAX = 0.90e12;
+
 /// @dev \\( 1 + \frac{1}{\text{MAX_LEVERAGE}} \\) should be greater than the maximum feasible single-block
 /// `accrualFactor` so that liquidators have time to respond to interest updates
 uint256 constant MAX_LEVERAGE = 200;
@@ -77,26 +85,22 @@ uint256 constant LIQUIDATION_GRACE_PERIOD = 2 minutes;
                             IV AND TWAP
 //////////////////////////////////////////////////////////////*/
 
-/// @dev The minimum implied volatility. Clamped to this **before** multiplying by `nSigma`.
-/// Expressed as a wad percentage at `IV_SCALE`, e.g. {0.01e18, 24 hours} → 1% daily → 19% annual
-uint256 constant IV_MIN = 0.01e18;
-
-/// @dev The maximum implied volatility. Clamped to this **before** multiplying by `nSigma`.
-/// Expressed as a wad percentage at `IV_SCALE`, e.g. {0.18e18, 24 hours} → 18% daily → 344% annual
-/// To avoid underflow in `BalanceSheet.computeProbePrices`, ensure that `IV_MAX * nSigma <= 1e18`
-uint256 constant IV_MAX = 0.18e18;
-
 /// @dev The timescale of implied volatility, applied to measurements and calculations. When `BalanceSheet` detects
 /// that an `nSigma` event would cause insolvency in this time period, it enables liquidations. So if you squint your
 /// eyes and wave your hands enough, this is (in expectation) the time liquidators have to act before the protocol
 /// accrues bad debt.
-uint256 constant IV_SCALE = 24 hours;
+uint32 constant IV_SCALE = 24 hours;
+
+/// @dev The initial value of implied volatility, used when `VolatilityOracle.prepare` is called for a new pool.
+/// Expressed as a 1e12 percentage at `IV_SCALE`, e.g. {0.20e12, 24 hours} → 20% daily → 382% annual. Error on the
+/// side of making this too large (resulting in low LTV).
+uint128 constant IV_COLD_START = 0.20e12;
 
 /// @dev The maximum rate at which (reported) implied volatility can change. Raw samples in `VolatilityOracle.update`
 /// are clamped (before being stored) so as not to exceed this rate.
-/// Expressed in wad percentage points at `IV_SCALE` **per second**, e.g. {462962962962, 24 hours} means daily IV can
+/// Expressed in 1e12 percentage points at `IV_SCALE` **per second**, e.g. {462962, 24 hours} means daily IV can
 /// change by 0.0000463 percentage points per second → 4 percentage points per day.
-uint256 constant IV_CHANGE_PER_SECOND = 462962962962;
+uint256 constant IV_CHANGE_PER_SECOND = 462962;
 
 /// @dev To estimate volume, we need 2 samples. One is always at the current block, the other is from
 /// `FEE_GROWTH_AVG_WINDOW` seconds ago, +/- `FEE_GROWTH_SAMPLE_PERIOD / 2`. Larger values make the resulting volume
@@ -124,5 +128,5 @@ uint32 constant UNISWAP_AVG_WINDOW = 30 minutes;
 /// threshold is calculated as follows:
 ///
 /// \\( \text{manipulationThreshold} =
-/// 2 \cdot \frac{log_{1.0001}\left( \frac{1}{\text{collateralFactor}} \right)}{\text{MANIPULATION_THRESHOLD_DIVISOR}} \\)
-uint24 constant MANIPULATION_THRESHOLD_DIVISOR = 24;
+/// \frac{log_{1.0001}\left( \frac{1}{\text{collateralFactor}} \right)}{\text{MANIPULATION_THRESHOLD_DIVISOR}} \\)
+uint24 constant MANIPULATION_THRESHOLD_DIVISOR = 12;
