@@ -297,8 +297,8 @@ contract Borrower is IUniswapV3MintCallback {
 
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         if (liabilities0 > 0 || liabilities1 > 0) {
-            (uint256 ante, uint256 nSigma, uint256 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
-            (Prices memory prices, bool seemsLegit) = _getPrices(oracleSeed, nSigma);
+            (uint208 ante, uint8 nSigma, uint8 mtd, uint32 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
+            (Prices memory prices, bool seemsLegit) = _getPrices(oracleSeed, nSigma, mtd);
 
             require(
                 seemsLegit && (block.timestamp > pausedUntilTime) && (address(this).balance >= ante),
@@ -438,20 +438,27 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function getPrices(uint40 oracleSeed) public view returns (Prices memory prices, bool seemsLegit) {
-        (, uint256 nSigma, ) = FACTORY.getParameters(UNISWAP_POOL);
-        (prices, seemsLegit) = _getPrices(oracleSeed, nSigma);
+        (, uint8 nSigma, uint8 manipulationThresholdDivisor, ) = FACTORY.getParameters(UNISWAP_POOL);
+        (prices, seemsLegit) = _getPrices(oracleSeed, nSigma, manipulationThresholdDivisor);
     }
 
     function _getPrices(
         uint40 oracleSeed,
-        uint256 nSigma
+        uint8 nSigma,
+        uint8 manipulationThresholdDivisor
     ) private view returns (Prices memory prices, bool seemsLegit) {
         uint56 metric;
         uint256 iv;
         // compute current price and volatility
         (metric, prices.c, iv) = ORACLE.consult(UNISWAP_POOL, oracleSeed);
         // compute prices at which solvency will be checked
-        (prices.a, prices.b, seemsLegit) = BalanceSheet.computeProbePrices(prices.c, iv, nSigma, metric);
+        (prices.a, prices.b, seemsLegit) = BalanceSheet.computeProbePrices(
+            metric,
+            prices.c,
+            iv,
+            nSigma,
+            manipulationThresholdDivisor
+        );
     }
 
     function _getAssets(

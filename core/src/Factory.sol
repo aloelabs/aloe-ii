@@ -9,9 +9,12 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {
     DEFAULT_ANTE,
     DEFAULT_N_SIGMA,
+    DEFAULT_MANIPULATION_THRESHOLD_DIVISOR,
     DEFAULT_RESERVE_FACTOR,
     CONSTRAINT_N_SIGMA_MIN,
     CONSTRAINT_N_SIGMA_MAX,
+    CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN,
+    CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX,
     CONSTRAINT_RESERVE_FACTOR_MIN,
     CONSTRAINT_RESERVE_FACTOR_MAX,
     CONSTRAINT_ANTE_MAX,
@@ -44,8 +47,9 @@ contract Factory {
     }
 
     struct Parameters {
-        uint216 ante;
+        uint208 ante;
         uint8 nSigma;
+        uint8 manipulationThresholdDivisor;
         uint32 pausedUntilTime;
     }
 
@@ -139,7 +143,7 @@ contract Factory {
         _setMarketConfig(
             pool,
             MarketConfig(
-                Parameters(DEFAULT_ANTE, DEFAULT_N_SIGMA, 0),
+                Parameters(DEFAULT_ANTE, DEFAULT_N_SIGMA, DEFAULT_MANIPULATION_THRESHOLD_DIVISOR, 0),
                 DEFAULT_RATE_MODEL,
                 DEFAULT_RATE_MODEL,
                 DEFAULT_RESERVE_FACTOR,
@@ -228,11 +232,16 @@ contract Factory {
         require(msg.sender == GOVERNOR);
 
         require(
-            // nSigma: min, max
-            (CONSTRAINT_N_SIGMA_MIN <= marketConfig.parameters.nSigma &&
-                marketConfig.parameters.nSigma <= CONSTRAINT_N_SIGMA_MAX) &&
-                // ante: max
-                (marketConfig.parameters.ante <= CONSTRAINT_ANTE_MAX) &&
+            // ante: max
+            (marketConfig.parameters.ante <= CONSTRAINT_ANTE_MAX) &&
+                // nSigma: min, max
+                (CONSTRAINT_N_SIGMA_MIN <= marketConfig.parameters.nSigma &&
+                    marketConfig.parameters.nSigma <= CONSTRAINT_N_SIGMA_MAX) &&
+                // manipulationThresholdDivisor: min, max
+                (CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN <=
+                    marketConfig.parameters.manipulationThresholdDivisor &&
+                    marketConfig.parameters.manipulationThresholdDivisor <=
+                    CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX) &&
                 // pauseUntilTime: max
                 (marketConfig.parameters.pausedUntilTime <= block.timestamp + CONSTRAINT_PAUSE_INTERVAL_MAX) &&
                 // reserveFactor0: min, max
