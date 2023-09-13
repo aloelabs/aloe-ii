@@ -119,8 +119,10 @@ library BalanceSheet {
     }
 
     /// @dev Equivalent to \\( \frac{log_{1.0001} \left( \frac{10^{12}}{cf} \right)}{\text{MANIPULATION_THRESHOLD_DIVISOR}} \\)
-    function _manipulationThreshold(uint256 cf, uint256 manipulationThresholdDivisor) private pure returns (uint24) {
-        return uint24(-TickMath.getTickAtSqrtRatio(uint160(cf)) - 778261) / uint24(2 * manipulationThresholdDivisor);
+    function _manipulationThreshold(uint256 cf, uint8 manipulationThresholdDivisor) private pure returns (uint24) {
+        unchecked {
+            return uint24(-TickMath.getTickAtSqrtRatio(uint160(cf)) - 778261) / (2 * manipulationThresholdDivisor);
+        }
     }
 
     /// @dev Equivalent to \\( \frac{1 - σ}{1 + \frac{1}{liquidationIncentive} + \frac{1}{maxLeverage}} \\) where

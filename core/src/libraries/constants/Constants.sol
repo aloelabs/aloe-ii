@@ -61,8 +61,10 @@ uint8 constant CONSTRAINT_N_SIGMA_MIN = 40;
 /// Expressed x10, e.g. 80 → 8σ
 uint8 constant CONSTRAINT_N_SIGMA_MAX = 80;
 
+/// @dev The minimum value of the `manipulationThresholdDivisor`, described above
 uint8 constant CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN = 12;
 
+/// @dev The maximum value of the `manipulationThresholdDivisor`, described above
 uint8 constant CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX = 20;
 
 /// @dev The lower bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 4 → 25%
