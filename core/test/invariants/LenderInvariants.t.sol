@@ -232,4 +232,14 @@ contract LenderInvariantsTest is Test {
             1 * count // max error of 1 per user
         );
     }
+
+    function invariant_borrowBalanceIsNonZeroIfUnitsExist() public {
+        uint256 count = lenderHarness.getBorrowerCount();
+        for (uint256 i = 0; i < count; i++) {
+            address borrower = lenderHarness.borrowers(i);
+
+            if (lender.borrows(borrower) > 1) assertGt(lender.borrowBalanceStored(borrower), 0);
+            else assertEq(lender.borrowBalanceStored(borrower), 0);
+        }
+    }
 }
