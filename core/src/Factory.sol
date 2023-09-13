@@ -103,8 +103,10 @@ contract Factory {
         DEFAULT_RATE_MODEL = defaultRateModel;
     }
 
-    function pause(IUniswapV3Pool pool) external {
-        require(isBorrower[msg.sender]);
+    function pause(IUniswapV3Pool pool, uint40 oracleSeed) external {
+        (, bool seemsLegit) = getMarket[pool].borrowerImplementation.getPrices(oracleSeed);
+        if (seemsLegit) return;
+
         unchecked {
             getParameters[pool].pausedUntilTime = uint32(block.timestamp) + UNISWAP_AVG_WINDOW;
         }
