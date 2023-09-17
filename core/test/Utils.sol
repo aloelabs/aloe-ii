@@ -24,6 +24,7 @@ contract FactoryForLenderTests is Factory {
 
     function deploySingleLender(ERC20 asset) external returns (Lender) {
         address proxy = ClonesWithImmutableArgs.clone(LENDER_IMPLEMENTATION, abi.encodePacked(address(asset)));
+        isLender[proxy] = true;
 
         Lender(proxy).initialize();
         Lender(proxy).setRateModelAndReserveFactor(DEFAULT_RATE_MODEL, 8);

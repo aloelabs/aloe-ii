@@ -10,7 +10,7 @@ import {log2Up, exp2} from "./Log2.sol";
 library Rewards {
     event RewardsRateSet(uint56 rate);
 
-    event RewardsClaimed(address user, uint112 amount);
+    event RewardsClaimed(address indexed user, uint112 amount);
 
     bytes32 private constant _REWARDS_SLOT = keccak256("aloe.ii.rewards");
 
