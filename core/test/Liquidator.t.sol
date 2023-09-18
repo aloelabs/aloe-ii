@@ -231,7 +231,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        uint256 debt = 1615e18;
+        uint256 debt = 1595e18;
 
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
@@ -252,7 +252,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         setInterest(lender0, 10010);
         debt = lender0.borrowBalance(address(account));
-        assertLe(debt - (1615e18 * 10010) / 10000, 1);
+        assertLe(debt - (1595e18 * 10010) / 10000, 1);
 
         // Disable warn() requirement by setting unleashLiquidationTime=1
         vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(
@@ -281,7 +281,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        uint256 debt = 1615e18;
+        uint256 debt = 1595e18;
 
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
@@ -372,9 +372,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 borrow0 = 1000e18;
         {
-            uint256 effectiveLiabilities0 = borrow0 + borrow0 / 200;
+            uint256 effectiveLiabilities0 = borrow0 + borrow0 / 20 + borrow0 / 200;
             uint256 margin1 = Math.mulDiv(effectiveLiabilities0, Math.mulDiv(prices.b, prices.b, Q96), Q96);
-            margin1 += Math.mulDiv(borrow0, Math.mulDiv(prices.c, prices.c, Q96), Q96) / 20;
             // give the account its margin
             deal(address(asset1), address(account), margin1 + 1);
         }
@@ -438,9 +437,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 borrow0 = 1000e18;
         {
-            uint256 effectiveLiabilities0 = borrow0 + borrow0 / 200;
+            uint256 effectiveLiabilities0 = borrow0 + borrow0 / 20 + borrow0 / 200;
             uint256 margin1 = Math.mulDiv(effectiveLiabilities0, Math.mulDiv(prices.b, prices.b, Q96), Q96);
-            margin1 += Math.mulDiv(borrow0, Math.mulDiv(prices.c, prices.c, Q96), Q96) / 20;
             // give the account its margin
             deal(address(asset1), address(account), margin1 + 1);
         }
