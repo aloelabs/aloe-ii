@@ -6,10 +6,12 @@ import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.so
 import {
     MAX_LEVERAGE,
     LIQUIDATION_INCENTIVE,
-    PROBE_PERCENT_MIN,
-    PROBE_PERCENT_MAX,
+    PROBE_SQRT_SCALER_MIN,
+    PROBE_SQRT_SCALER_MAX,
+    LTV_NUMERATOR,
     MANIPULATION_THRESHOLD_DIVISOR
 } from "./constants/Constants.sol";
+import {exp1e12} from "./Exp.sol";
 import {square, mulDiv128} from "./MulDiv.sol";
 import {TickMath} from "./TickMath.sol";
 
@@ -32,34 +34,21 @@ struct Prices {
 /// @notice Provides functions for computing a `Borrower`'s health
 /// @author Aloe Labs, Inc.
 library BalanceSheet {
+    using SoladyMath for uint256;
+
     function isHealthy(
         Prices memory prices,
         Assets memory mem,
         uint256 liabilities0,
         uint256 liabilities1
     ) internal pure returns (bool) {
-        (uint256 incentive1, ) = computeLiquidationIncentive(
-            mem.fixed0 + mem.fluid0C, // total assets0 at `prices.c` (the TWAP)
-            mem.fixed1 + mem.fluid1C, // total assets1 at `prices.c` (the TWAP)
-            liabilities0,
-            liabilities1,
-            prices.c
-        );
-        return isHealthy(prices, mem, liabilities0, liabilities1, incentive1);
-    }
-
-    function isHealthy(
-        Prices memory prices,
-        Assets memory mem,
-        uint256 liabilities0,
-        uint256 liabilities1,
-        uint256 incentive1
-    ) internal pure returns (bool) {
-        // The liquidation incentive is added to `liabilities1` because it's a potential liability, and we
-        // don't want to re-evaluate it at the probe prices (as would happen if we added it to `liabilities0`).
         unchecked {
-            liabilities0 += liabilities0 / MAX_LEVERAGE;
-            liabilities1 += liabilities1 / MAX_LEVERAGE + incentive1;
+            liabilities0 +=
+                (liabilities0 / MAX_LEVERAGE) +
+                (liabilities0.zeroFloorSub(mem.fixed0 + mem.fluid0C) / LIQUIDATION_INCENTIVE);
+            liabilities1 +=
+                (liabilities1 / MAX_LEVERAGE) +
+                (liabilities1.zeroFloorSub(mem.fixed1 + mem.fluid1C) / LIQUIDATION_INCENTIVE);
         }
 
         // combine
@@ -81,17 +70,21 @@ library BalanceSheet {
     }
 
     function computeProbePrices(
-        uint160 sqrtMeanPriceX96,
+        uint256 sqrtMeanPriceX96,
         uint256 iv,
         uint256 nSigma,
         uint56 metric
     ) internal pure returns (uint160 a, uint160 b, bool seemsLegit) {
         unchecked {
-            iv = SoladyMath.clamp((nSigma * iv) / 10, PROBE_PERCENT_MIN, PROBE_PERCENT_MAX);
-            seemsLegit = metric < _manipulationThreshold(_effectiveCollateralFactor(iv));
+            uint256 sqrtScaler = uint256(exp1e12(int256(nSigma * iv) / 20)).clamp(
+                PROBE_SQRT_SCALER_MIN,
+                PROBE_SQRT_SCALER_MAX
+            );
 
-            a = uint160((sqrtMeanPriceX96 * SoladyMath.sqrt(1e12 - iv)) / 1e6);
-            b = uint160(SoladyMath.min((sqrtMeanPriceX96 * SoladyMath.sqrt(1e12 + iv)) / 1e6, type(uint160).max));
+            seemsLegit = metric < _manipulationThreshold(_ltv(sqrtScaler));
+
+            a = uint160((sqrtMeanPriceX96 * 1e12).rawDiv(sqrtScaler));
+            b = uint160((sqrtMeanPriceX96 * sqrtScaler).rawDiv(1e12).min(type(uint160).max));
         }
     }
 
@@ -100,11 +93,9 @@ library BalanceSheet {
         uint256 assets1,
         uint256 liabilities0,
         uint256 liabilities1,
-        uint160 sqrtMeanPriceX96
-    ) internal pure returns (uint256 incentive1, uint256 meanPriceX128) {
+        uint256 meanPriceX128
+    ) internal pure returns (uint256 incentive1) {
         unchecked {
-            meanPriceX128 = square(sqrtMeanPriceX96);
-
             if (liabilities0 > assets0) {
                 // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
                 uint256 shortfall = liabilities0 - assets0;
@@ -123,18 +114,14 @@ library BalanceSheet {
         }
     }
 
-    /// @dev Equivalent to \\( \frac{log_{1.0001} \left( \frac{10^{12}}{cf} \right)}{\text{MANIPULATION_THRESHOLD_DIVISOR}} \\)
-    function _manipulationThreshold(uint256 cf) private pure returns (uint24) {
-        return uint24(-TickMath.getTickAtSqrtRatio(uint160(cf)) - 778261) / (2 * MANIPULATION_THRESHOLD_DIVISOR);
+    /// @dev Equivalent to \\( \frac{log_{1.0001} \left( \frac{10^{12}}{ltv} \right)}{\text{MANIPULATION_THRESHOLD_DIVISOR}} \\)
+    function _manipulationThreshold(uint256 ltv) private pure returns (uint24) {
+        return uint24(-TickMath.getTickAtSqrtRatio(uint160(ltv)) - 778261) / (2 * MANIPULATION_THRESHOLD_DIVISOR);
     }
 
-    /// @dev Equivalent to \\( \frac{1 - σ}{1 + \frac{1}{liquidationIncentive} + \frac{1}{maxLeverage}} \\) where
-    /// \\( σ = \frac{clampedAndScaledIV}{10^{12}} \\) in floating point
-    function _effectiveCollateralFactor(uint256 clampedAndScaledIV) private pure returns (uint256 cf) {
+    function _ltv(uint256 sqrtScaler) private pure returns (uint256 ltv) {
         unchecked {
-            cf =
-                ((1e12 - clampedAndScaledIV) * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE)) /
-                (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE);
+            ltv = LTV_NUMERATOR.rawDiv(sqrtScaler * sqrtScaler);
         }
     }
 }

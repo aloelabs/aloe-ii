@@ -10,7 +10,7 @@ import {LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
 import {Q128} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
-import {mulDiv128} from "./libraries/MulDiv.sol";
+import {square, mulDiv128} from "./libraries/MulDiv.sol";
 import {Positions} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 
@@ -189,28 +189,26 @@ contract Borrower is IUniswapV3MintCallback {
 
         // Fetch prices from oracle
         (Prices memory prices, ) = getPrices(oracleSeed);
+        uint256 priceX128 = square(prices.c);
 
         uint256 liabilities0;
         uint256 liabilities1;
-
         uint256 incentive1;
-        uint256 priceX128;
-
         {
             // Withdraw Uniswap positions while tallying assets
             Assets memory assets = _getAssets(positions.read(), prices, true);
             // Fetch liabilities from lenders
             (liabilities0, liabilities1) = _getLiabilities();
             // Calculate liquidation incentive
-            (incentive1, priceX128) = BalanceSheet.computeLiquidationIncentive(
+            incentive1 = BalanceSheet.computeLiquidationIncentive(
                 assets.fixed0 + assets.fluid0C, // total assets0 at `prices.c` (the TWAP)
                 assets.fixed1 + assets.fluid1C, // total assets1 at `prices.c` (the TWAP)
                 liabilities0,
                 liabilities1,
-                prices.c
+                priceX128
             );
             // Ensure only unhealthy accounts can be liquidated
-            require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1, incentive1), "Aloe: healthy");
+            require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
         }
 
         // NOTE: The health check values assets at the TWAP and is difficult to manipulate. However,

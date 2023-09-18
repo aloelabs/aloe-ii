@@ -47,7 +47,7 @@ contract RateModelTest is Test {
         assertLt(result, 1.533e12);
     }
 
-    function test_accrualFactorIsWithinBounds( uint256 elapsedTime, uint256 utilization) public {
+    function test_accrualFactorIsWithinBounds(uint256 elapsedTime, uint256 utilization) public {
         uint256 result = model.getAccrualFactor(utilization, elapsedTime);
 
         assertGe(result, 1e12);
