@@ -61,7 +61,7 @@ contract Lender is Ledger {
 
     /// @notice Sets the `rateModel` and `reserveFactor`. Only the `FACTORY` can call this.
     function setRateModelAndReserveFactor(IRateModel rateModel_, uint8 reserveFactor_) external {
-        require(msg.sender == address(FACTORY));
+        require(msg.sender == address(FACTORY) && reserveFactor_ > 0);
         rateModel = rateModel_;
         reserveFactor = reserveFactor_;
     }
