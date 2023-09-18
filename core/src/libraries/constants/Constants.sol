@@ -118,6 +118,11 @@ uint128 constant IV_COLD_START = uint128((PROBE_PERCENT_MAX * 10) / CONSTRAINT_N
 /// change by 0.0000463 percentage points per second → 4 percentage points per day.
 uint256 constant IV_CHANGE_PER_SECOND = 462962;
 
+/// @dev The maximum amount by which (reported) implied volatility can change with a single `VolatilityOracle.update`
+/// call. If updates happen as frequently as possible (every `FEE_GROWTH_SAMPLE_PERIOD`), this cap is no different
+/// from `IV_CHANGE_PER_SECOND` alone.
+uint256 constant IV_CHANGE_PER_UPDATE = IV_CHANGE_PER_SECOND * FEE_GROWTH_SAMPLE_PERIOD;
+
 /// @dev To estimate volume, we need 2 samples. One is always at the current block, the other is from
 /// `FEE_GROWTH_AVG_WINDOW` seconds ago, +/- `FEE_GROWTH_SAMPLE_PERIOD / 2`. Larger values make the resulting volume
 /// estimate more robust, but may cause the oracle to miss brief spikes in activity.
@@ -126,11 +131,11 @@ uint256 constant FEE_GROWTH_AVG_WINDOW = 6 hours;
 /// @dev The length of the circular buffer that stores feeGrowthGlobals samples.
 /// Must be in interval
 /// \\( \left[ \frac{\text{FEE_GROWTH_AVG_WINDOW}}{\text{FEE_GROWTH_SAMPLE_PERIOD}}, 256 \right) \\)
-uint256 constant FEE_GROWTH_ARRAY_LENGTH = 48;
+uint256 constant FEE_GROWTH_ARRAY_LENGTH = 32;
 
 /// @dev The minimum number of seconds that must elapse before a new feeGrowthGlobals sample will be stored. This
 /// controls how often the oracle can update IV.
-uint256 constant FEE_GROWTH_SAMPLE_PERIOD = 15 minutes;
+uint256 constant FEE_GROWTH_SAMPLE_PERIOD = 1 hours;
 
 /// @dev To compute Uniswap mean price & liquidity, we need 2 samples. One is always at the current block, the other is
 /// from `UNISWAP_AVG_WINDOW` seconds ago. Larger values make the resulting price/liquidity values harder to
