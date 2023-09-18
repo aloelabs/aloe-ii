@@ -36,13 +36,13 @@ uint208 constant DEFAULT_ANTE = 0.01 ether;
 uint8 constant DEFAULT_N_SIGMA = 50;
 
 /// @dev Assume someone is manipulating the Uniswap TWAP oracle. To steal money from the protocol and create bad debt,
-/// they would need to change the TWAP by a factor of (1 / collateralFactor), where the collateralFactor is a function
-/// of volatility. We have a manipulation metric that increases as an attacker tries to change the TWAP. If this metric
-/// rises above a certain threshold, certain functionality will be paused, e.g. no new debt can be created. The
-/// threshold is calculated as follows:
+/// they would need to change the TWAP by a factor of (1 / LTV), where the LTV is a function of volatility. We have a
+/// manipulation metric that increases as an attacker tries to change the TWAP. If this metric rises above a certain
+/// threshold, certain functionality will be paused, e.g. no new debt can be created. The threshold is calculated as
+/// follows:
 ///
 /// \\( \text{manipulationThreshold} =
-/// \frac{log_{1.0001}\left( \frac{1}{\text{collateralFactor}} \right)}{\text{MANIPULATION_THRESHOLD_DIVISOR}} \\)
+/// \frac{log_{1.0001}\left( \frac{1}{\text{LTV}} \right)}{\text{MANIPULATION_THRESHOLD_DIVISOR}} \\)
 uint8 constant DEFAULT_MANIPULATION_THRESHOLD_DIVISOR = 12;
 
 /// @dev The default portion of interest that will accrue to a `Lender`'s `RESERVE` address.
@@ -62,10 +62,10 @@ uint8 constant CONSTRAINT_N_SIGMA_MIN = 40;
 uint8 constant CONSTRAINT_N_SIGMA_MAX = 80;
 
 /// @dev The minimum value of the `manipulationThresholdDivisor`, described above
-uint8 constant CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN = 12;
+uint8 constant CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN = 10;
 
 /// @dev The maximum value of the `manipulationThresholdDivisor`, described above
-uint8 constant CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX = 20;
+uint8 constant CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX = 16;
 
 /// @dev The lower bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 4 → 25%
 uint8 constant CONSTRAINT_RESERVE_FACTOR_MIN = 4;
@@ -94,24 +94,24 @@ uint256 constant LIQUIDATION_INCENTIVE = 20;
 /// involves the swap callbacks (`swap1For0` and `swap0For1`). There is no grace period for in-kind liquidations.
 uint256 constant LIQUIDATION_GRACE_PERIOD = 2 minutes;
 
+/// @dev TODO:
+uint256 constant PROBE_SQRT_SCALER_MIN = 1.026248453011e12;
+
+/// @dev TODO:
+uint256 constant PROBE_SQRT_SCALER_MAX = 3.078745359035e12;
+
+/// @dev Equivalent to \\( \frac{10^{36}}{1 + \frac{1}{liquidationIncentive} + \frac{1}{maxLeverage}} \\)
+uint256 constant LTV_NUMERATOR = uint256(LIQUIDATION_INCENTIVE * MAX_LEVERAGE * 1e36) /
+    (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE);
+
 /// @dev The minimum loan-to-value ratio. Actual ratio is based on implied volatility; this is just a lower bound.
 /// Expressed as a 1e12 percentage, e.g. 0.10e12 → 10%. Must be greater than `TickMath.MIN_SQRT_RATIO` because
 /// we reuse a base 1.0001 logarithm in `BalanceSheet`
-uint256 constant LTV_MIN = 0.10e12;
+uint256 constant LTV_MIN = LTV_NUMERATOR / (PROBE_SQRT_SCALER_MAX * PROBE_SQRT_SCALER_MAX);
 
 /// @dev The maximum loan-to-value ratio. Actual ratio is based on implied volatility; this is just a upper bound.
 /// Expressed as a 1e12 percentage, e.g. 0.90e12 → 90%
-uint256 constant LTV_MAX = 0.90e12;
-
-/// @dev The minimum percentage that can be added/subtracted to the TWAP to get probe prices in `BalanceSheet`
-uint256 constant PROBE_PERCENT_MIN = 1e12 -
-    (LTV_MAX * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE)) /
-    (LIQUIDATION_INCENTIVE * MAX_LEVERAGE);
-
-/// @dev The maximum percentage that can be added/subtracted to the TWAP to get probe prices in `BalanceSheet`
-uint256 constant PROBE_PERCENT_MAX = 1e12 -
-    (LTV_MIN * (LIQUIDATION_INCENTIVE * MAX_LEVERAGE + LIQUIDATION_INCENTIVE + MAX_LEVERAGE)) /
-    (LIQUIDATION_INCENTIVE * MAX_LEVERAGE);
+uint256 constant LTV_MAX = LTV_NUMERATOR / (PROBE_SQRT_SCALER_MIN * PROBE_SQRT_SCALER_MIN);
 
 /*//////////////////////////////////////////////////////////////
                             IV AND TWAP
@@ -124,9 +124,9 @@ uint256 constant PROBE_PERCENT_MAX = 1e12 -
 uint32 constant IV_SCALE = 24 hours;
 
 /// @dev The initial value of implied volatility, used when `VolatilityOracle.prepare` is called for a new pool.
-/// Expressed as a 1e12 percentage at `IV_SCALE`, e.g. {0.20e12, 24 hours} → 20% daily → 382% annual. Error on the
+/// Expressed as a 1e12 percentage at `IV_SCALE`, e.g. {0.30e12, 24 hours} → 30% daily → 573% annual. Error on the
 /// side of making this too large (resulting in low LTV).
-uint128 constant IV_COLD_START = uint128((PROBE_PERCENT_MAX * 10) / CONSTRAINT_N_SIGMA_MIN);
+uint128 constant IV_COLD_START = 0.30e12;
 
 /// @dev The maximum rate at which (reported) implied volatility can change. Raw samples in `VolatilityOracle.update`
 /// are clamped (before being stored) so as not to exceed this rate.
