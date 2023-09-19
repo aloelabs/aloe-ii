@@ -8,6 +8,7 @@ import {IUniswapV3SwapCallback} from "v3-core/contracts/interfaces/callback/IUni
 import {
     DEFAULT_ANTE,
     DEFAULT_N_SIGMA,
+    MAX_LEVERAGE,
     PROBE_SQRT_SCALER_MIN,
     PROBE_SQRT_SCALER_MAX,
     LTV_MIN,
@@ -50,15 +51,6 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         // Warmup storage
         pool.slot0();
 
-        // vm.makePersistent([
-        //     address(pool),
-        //     address(asset0),
-        //     address(asset1),
-        //     address(factory),
-        //     address(lender0),
-        //     address(lender1),
-        //     address(account)
-        // ]);
         vm.makePersistent(address(asset0));
         vm.makePersistent(address(asset1));
         vm.makePersistent(address(pool));
@@ -78,8 +70,6 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         cmd[3] = "anvil";
         vm.ffi(cmd);
         vm.createSelectFork(vm.rpcUrl("anvil"));
-
-        // deal(address(account), DEFAULT_ANTE + 1);
     }
 
     function test_permissionsModify(
@@ -162,27 +152,144 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
     }
 
     function test_getPricesDependsOnFactoryParameters() external {
-        // TODO:
+        vm.selectFork(0);
+
+        vm.mockCall(
+            address(factory),
+            abi.encodeCall(factory.getParameters, (pool)),
+            abi.encode(uint208(0), uint8(40), uint8(12), uint32(0))
+        );
+
+        (Prices memory pricesA, ) = account.getPrices(1 << 32);
+
+        vm.mockCall(
+            address(factory),
+            abi.encodeCall(factory.getParameters, (pool)),
+            abi.encode(uint208(0), uint8(80), uint8(12), uint32(0))
+        );
+
+        (Prices memory pricesB, ) = account.getPrices(1 << 32);
+
+        assertEq(pricesB.c, pricesA.c);
+        assertLt(pricesB.a, pricesA.a);
+        assertGt(pricesB.b, pricesA.b);
     }
 
-    function test_leverageMixed() external {
-        // TODO:
+    function test_needsAnte() external {
+        vm.selectFork(0);
+
+        uint256 collateral0 = 1000e6;
+        uint256 borrow1 = 1;
+
+        deal(address(asset0), address(account), collateral0);
+        deal(address(asset1), address(lender1), 10 * borrow1);
+        lender1.deposit(10 * borrow1, address(this));
+
+        vm.expectRevert(bytes("Aloe: missing ante / sus price"));
+        account.modify(this, abi.encode(0, borrow1, true), 1 << 32);
+
+        (uint216 ante, , , ) = factory.getParameters(pool);
+        deal(address(account), ante);
+
+        account.modify(this, abi.encode(0, borrow1, true), 1 << 32);
     }
 
-    function test_leverageInKind0() external {
-        // TODO:
+    /// forge-config: default.fuzz.runs = 16
+    function test_leverageInKind0(uint128 iv) external {
+        vm.selectFork(0);
+        _mockIV(account.ORACLE(), pool, iv);
+
+        uint256 collateral0 = 1000e6;
+        uint256 borrow0 = collateral0 * MAX_LEVERAGE;
+
+        deal(address(asset0), address(account), collateral0);
+        deal(address(asset0), address(lender0), 10 * borrow0);
+        lender0.deposit(10 * borrow0, address(this));
+
+        (uint216 ante, , , ) = factory.getParameters(pool);
+        deal(address(account), ante);
+
+        account.modify(this, abi.encode(borrow0, 0, false), 1 << 32);
+
+        vm.expectRevert(bytes("Aloe: unhealthy"));
+        account.modify(this, abi.encode(borrow0 / 1e9, 0, false), 1 << 32);
     }
 
-    function test_leverageInKind1() external {
-        // TODO:
+    /// forge-config: default.fuzz.runs = 16
+    function test_leverageInKind1(uint128 iv) external {
+        vm.selectFork(0);
+        _mockIV(account.ORACLE(), pool, iv);
+
+        uint256 collateral1 = 1 ether;
+        uint256 borrow1 = collateral1 * MAX_LEVERAGE;
+
+        deal(address(asset1), address(account), collateral1);
+        deal(address(asset1), address(lender1), 10 * borrow1);
+        lender1.deposit(10 * borrow1, address(this));
+
+        (uint216 ante, , , ) = factory.getParameters(pool);
+        deal(address(account), ante);
+
+        account.modify(this, abi.encode(0, borrow1, false), 1 << 32);
+
+        vm.expectRevert(bytes("Aloe: unhealthy"));
+        account.modify(this, abi.encode(0, borrow1 / 1e9, false), 1 << 32);
     }
 
-    function test_ltvMinCollateralMixed() external {
-        // TODO:
+    /*//////////////////////////////////////////////////////////////
+                          LTV-COLLATERAL-MIXED
+    //////////////////////////////////////////////////////////////*/
+
+    /// forge-config: default.fuzz.runs = 16
+    function test_ltvMinCollateralMixed(bool doBorrow0) external {
+        _test_ltvCollateralMixed(true, doBorrow0);
     }
 
-    function test_ltvMaxCollateralMixed() external {
-        // TODO:
+    /// forge-config: default.fuzz.runs = 16
+    function test_ltvMaxCollateralMixed(bool doBorrow0) external {
+        _test_ltvCollateralMixed(false, doBorrow0);
+    }
+
+    function _test_ltvCollateralMixed(bool ltvMin, bool doBorrow0) private {
+        vm.selectFork(0);
+        _mockIV(account.ORACLE(), pool, ltvMin ? type(uint128).max : 0);
+
+        (Prices memory prices, ) = account.getPrices(1 << 32);
+
+        uint256 collateral0 = 500e6;
+        uint256 collateral1 = 0.5 ether;
+
+        uint256 borrow0;
+        uint256 borrow1;
+        if (doBorrow0) {
+            borrow0 =
+                ((collateral0 * 1.05e18) / 1.055e18) +
+                Math.mulDiv((collateral1 * (ltvMin ? LTV_MIN : LTV_MAX)) / 1e12, 1 << 128, square(prices.c));
+            deal(address(asset0), address(lender0), 10 * borrow0);
+            lender0.deposit(10 * borrow0, address(this));
+        } else {
+            borrow1 =
+                ((collateral1 * 1.05e18) / 1.055e18) +
+                mulDiv128((collateral0 * (ltvMin ? LTV_MIN : LTV_MAX)) / 1e12, square(prices.c));
+            deal(address(asset1), address(lender1), 10 * borrow1);
+            lender1.deposit(10 * borrow1, address(this));
+        }
+
+        deal(address(asset0), address(account), collateral0);
+        deal(address(asset1), address(account), collateral1);
+
+        (uint216 ante, , , ) = factory.getParameters(pool);
+        deal(address(account), ante);
+
+        account.modify(this, abi.encode(borrow0, borrow1, true), 1 << 32);
+
+        if (doBorrow0) {
+            vm.expectRevert(bytes("Aloe: unhealthy"));
+            account.modify(this, abi.encode(borrow0 / 1_000_000, 0, true), 1 << 32);
+        } else {
+            vm.expectRevert(bytes("Aloe: unhealthy"));
+            account.modify(this, abi.encode(0, borrow1 / 1_000_000, true), 1 << 32);
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -213,10 +320,10 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         (uint216 ante, , , ) = factory.getParameters(pool);
         deal(address(account), ante);
 
-        account.modify(this, abi.encode(0, borrow1), 1 << 32);
+        account.modify(this, abi.encode(0, borrow1, true), 1 << 32);
 
         vm.expectRevert(bytes("Aloe: unhealthy"));
-        account.modify(this, abi.encode(0, (borrow1 * 1) / 1_000_000), 1 << 32);
+        account.modify(this, abi.encode(0, borrow1 / 1_000_000, true), 1 << 32);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -237,7 +344,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
 
         (Prices memory prices, ) = account.getPrices(1 << 32);
 
-        uint256 collateral1 = 1e18;
+        uint256 collateral1 = 1 ether;
         uint256 borrow0 = Math.mulDiv((collateral1 * (ltvMin ? LTV_MIN : LTV_MAX)) / 1e12, 1 << 128, square(prices.c));
 
         deal(address(asset1), address(account), collateral1);
@@ -247,10 +354,10 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         (uint216 ante, , , ) = factory.getParameters(pool);
         deal(address(account), ante);
 
-        account.modify(this, abi.encode(borrow0, 0), 1 << 32);
+        account.modify(this, abi.encode(borrow0, 0, true), 1 << 32);
 
         vm.expectRevert(bytes("Aloe: unhealthy"));
-        account.modify(this, abi.encode((borrow0 * 1) / 1_000_000, 0), 1 << 32);
+        account.modify(this, abi.encode(borrow0 / 1_000_000, 0, true), 1 << 32);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -276,23 +383,25 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         _assertPercentDiffApproxEq(prices.a, prices.c, 0.0505e9, 1000); // 1 - (PROBE_SQRT_SCALER_MIN/1e12)^-2
         _assertPercentDiffApproxEq(prices.b, prices.c, 53185887, 1000); // (PROBE_SQRT_SCALER_MIN/1e12)^2 - 1
 
-        _manipulateTWAP(20, 295, upwards); // 3% up/down
+        _manipulateTWAP(20, upwards ? 205 : 130, upwards);
 
-        // After manipulation by 3%, prices should be sus at min IV / max LTV
+        // After manipulation, prices should be sus at min IV / max LTV
         vm.clearMockedCalls();
         _mockIV(account.ORACLE(), pool, 0);
         (prices, seemsLegit) = account.getPrices(1 << 32);
         assertFalse(seemsLegit);
 
-        // NOTE: This 3% number is dependent on chain history. All that really matters
-        // is that `seemsLegit` becomes false at a percentage *less* than (1 / LTV - 1).
-        // In this case LTV is 90%, and 3% < 11.1%.
+        // NOTE: The exact amount of manipulation is dependent on chain history. All that really
+        // matters is that `seemsLegit` becomes false at a percentage *less* than (1 / LTV - 1).
+        // In this case LTV is 90%, and 2% < 11.1%.
 
         // Manipulation shouldn't affect distance between probe prices
         _assertPercentDiffApproxEq(prices.a, prices.c, 0.0505e9, 1000); // 1 - (PROBE_SQRT_SCALER_MIN/1e12)^-2
         _assertPercentDiffApproxEq(prices.b, prices.c, 53185887, 1000); // (PROBE_SQRT_SCALER_MIN/1e12)^2 - 1
 
-        // TODO: test pausing
+        factory.pause(pool, 1 << 32);
+        (, , , uint32 pausedUntilTime) = factory.getParameters(pool);
+        assertGt(pausedUntilTime, block.timestamp);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -318,23 +427,25 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         _assertPercentDiffApproxEq(prices.a, prices.c, 0.8945e9, 1000); // 1 - (PROBE_SQRT_SCALER_MAX/1e12)^-2
         _assertPercentDiffApproxEq(prices.b, prices.c, 8.478672985e9, 1000); // (PROBE_SQRT_SCALER_MAX/1e12)^2 - 1
 
-        _manipulateTWAP(20, 3715, upwards); // 45% up/down
+        _manipulateTWAP(20, 3700, upwards);
 
-        // After manipulation by 45%, prices should be sus at min IV / max LTV
+        // After manipulation, prices should be sus at min IV / max LTV
         vm.clearMockedCalls();
         _mockIV(account.ORACLE(), pool, type(uint128).max);
         (prices, seemsLegit) = account.getPrices(1 << 32);
         assertFalse(seemsLegit);
 
-        // NOTE: This 45% number is dependent on chain history. All that really matters
-        // is that `seemsLegit` becomes false at a percentage *less* than (1 / LTV - 1).
+        // NOTE: The exact amount of manipulation is dependent on chain history. All that really
+        // matters is that `seemsLegit` becomes false at a percentage *less* than (1 / LTV - 1).
         // In this case LTV is 10%, and 45% < 900%.
 
         // Manipulation shouldn't affect distance between probe prices
         _assertPercentDiffApproxEq(prices.a, prices.c, 0.8945e9, 1000); // 1 - (PROBE_SQRT_SCALER_MAX/1e12)^-2
         _assertPercentDiffApproxEq(prices.b, prices.c, 8.478672985e9, 1000); // (PROBE_SQRT_SCALER_MAX/1e12)^2 - 1
 
-        // TODO: test pausing
+        factory.pause(pool, 1 << 32);
+        (, , , uint32 pausedUntilTime) = factory.getParameters(pool);
+        assertGt(pausedUntilTime, block.timestamp);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -388,131 +499,6 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         assertApproxEqAbs(uint256(percentDiff), expected, err);
     }
 
-    // TODO: Test missing ante
-
-    // function test_liquidateLogicBothAreZero(uint184 liabilities0, uint184 liabilities1) public {
-    //     unchecked {
-    //         bool a = liabilities0 == 0 && liabilities1 == 0;
-    //         bool b = uint256(liabilities0) + uint256(liabilities1) == 0;
-    //         assertEq(a, b);
-    //     }
-    // }
-
-    // function test_empty() public {
-    //     bytes memory data = abi.encode(0, 0, 0, 0, 0, 0);
-    //     account.modify(this, data, (1 << 32));
-    // }
-
-    // function test_addMargin() public {
-    //     // give this contract some tokens
-    //     deal(address(asset0), address(this), 10e6);
-    //     deal(address(asset1), address(this), 1e17);
-
-    //     // add margin
-    //     asset0.transfer(address(account), 10e6);
-    //     asset1.transfer(address(account), 1e17);
-
-    //     bytes memory data = abi.encode(0, 0, 0, 0, 0, 0);
-    //     account.modify(this, data, (1 << 32));
-    // }
-
-    // function test_borrow() public {
-    //     _prepareKitties();
-
-    //     // give this contract some tokens
-    //     deal(address(asset0), address(this), 10e6);
-    //     deal(address(asset1), address(this), 1e17);
-
-    //     // add margin
-    //     asset0.transfer(address(account), 10e6);
-    //     asset1.transfer(address(account), 1e17);
-
-    //     bytes memory data = abi.encode(100e6, 1e18, 0, 0, 0, 0);
-    //     account.modify(this, data, (1 << 32));
-
-    //     assertEq(lender0.borrowBalance(address(account)), 100e6);
-    //     assertEq(lender1.borrowBalance(address(account)), 1e18);
-    //     assertEq(asset0.balanceOf(address(account)), 10e6 + 100e6);
-    //     assertEq(asset1.balanceOf(address(account)), 1e17 + 1e18);
-    // }
-
-    // function test_repay() public {
-    //     test_borrow();
-
-    //     bytes memory data = abi.encode(0, 0, 40e6, 0.4e18, 0, 0);
-    //     account.modify(this, data, (1 << 32));
-
-    //     assertEq(lender0.borrowBalance(address(account)), 60e6);
-    //     assertEq(lender1.borrowBalance(address(account)), 0.6e18);
-    //     assertEq(asset0.balanceOf(address(account)), 10e6 + 60e6);
-    //     assertEq(asset1.balanceOf(address(account)), 1e17 + 0.6e18);
-    // }
-
-    // function testFail_completelyInsolvent() public {
-    //     test_borrow();
-
-    //     skip(1 days);
-
-    //     bytes memory data = abi.encode(0, 0, 0, 0, 10e6, 1e17);
-    //     account.modify(this, data, (1 << 32));
-    // }
-
-    // function testFail_missingLiquidationIncentive() public {
-    //     test_borrow();
-
-    //     skip(1 days);
-
-    //     lender0.accrueInterest();
-    //     lender1.accrueInterest();
-
-    //     uint256 liabilities0 = lender0.borrowBalance(address(account));
-    //     uint256 liabilities1 = lender1.borrowBalance(address(account));
-    //     uint256 assets0 = asset0.balanceOf(address(account));
-    //     uint256 assets1 = asset1.balanceOf(address(account));
-
-    //     bytes memory data = abi.encode(0, 0, 0, 0, assets0 - liabilities0, assets1 - liabilities1);
-    //     account.modify(this, data, (1 << 32));
-    // }
-
-    // function test_barelySolvent() public {
-    //     test_borrow();
-
-    //     skip(1 days);
-
-    //     lender0.accrueInterest();
-    //     lender1.accrueInterest();
-
-    //     uint256 liabilities0 = lender0.borrowBalance(address(account));
-    //     uint256 liabilities1 = lender1.borrowBalance(address(account));
-    //     uint256 assets0 = asset0.balanceOf(address(account));
-    //     uint256 assets1 = asset1.balanceOf(address(account));
-
-    //     bytes memory data = abi.encode(
-    //         0,
-    //         0,
-    //         0,
-    //         0,
-    //         assets0 - ((liabilities0 * 1.005e8) / 1e8),
-    //         assets1 - ((liabilities1 * 1.005e8) / 1e8)
-    //     );
-    //     account.modify(this, data, (1 << 32));
-    // }
-
-    // function _prepareKitties() private {
-    //     address alice = makeAddr("alice");
-
-    //     deal(address(asset0), address(lender0), 10000e6);
-    //     lender0.deposit(10000e6, alice);
-
-    //     deal(address(asset1), address(lender1), 3e18);
-    //     lender1.deposit(3e18, alice);
-    // }
-
-    // function getParameters(IUniswapV3Pool) external pure returns (uint248 ante, uint8 nSigma) {
-    //     ante = DEFAULT_ANTE;
-    //     nSigma = DEFAULT_N_SIGMA;
-    // }
-
     /*//////////////////////////////////////////////////////////////
                                CALLBACKS
     //////////////////////////////////////////////////////////////*/
@@ -525,9 +511,9 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
     function callback(bytes calldata data, address) external returns (uint144) {
         Borrower account_ = Borrower(payable(msg.sender));
 
-        (uint256 amount0, uint256 amount1) = abi.decode(data, (uint256, uint256));
+        (uint256 amount0, uint256 amount1, bool withdraw) = abi.decode(data, (uint256, uint256, bool));
 
-        account_.borrow(amount0, amount1, address(this));
+        account_.borrow(amount0, amount1, withdraw ? address(this) : msg.sender);
 
         return 0;
     }
