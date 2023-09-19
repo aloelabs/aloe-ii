@@ -94,10 +94,10 @@ uint256 constant LIQUIDATION_INCENTIVE = 20;
 /// involves the swap callbacks (`swap1For0` and `swap0For1`). There is no grace period for in-kind liquidations.
 uint256 constant LIQUIDATION_GRACE_PERIOD = 2 minutes;
 
-/// @dev TODO:
+/// @dev The minimum scaling factor by which `sqrtMeanPriceX96` is multiplied or divided to get probe prices
 uint256 constant PROBE_SQRT_SCALER_MIN = 1.026248453011e12;
 
-/// @dev TODO:
+/// @dev The maximum scaling factor by which `sqrtMeanPriceX96` is multiplied or divided to get probe prices
 uint256 constant PROBE_SQRT_SCALER_MAX = 3.078745359035e12;
 
 /// @dev Equivalent to \\( \frac{10^{36}}{1 + \frac{1}{liquidationIncentive} + \frac{1}{maxLeverage}} \\)

@@ -76,15 +76,15 @@ library BalanceSheet {
         uint8 manipulationThresholdDivisor
     ) internal pure returns (uint160 a, uint160 b, bool seemsLegit) {
         unchecked {
-            uint256 sqrtScaler = uint256(exp1e12(int256(nSigma * iv) / 20)).clamp(
+            uint256 sqrtScaler = uint256(exp1e12(int256((nSigma * iv) / 20))).clamp(
                 PROBE_SQRT_SCALER_MIN,
                 PROBE_SQRT_SCALER_MAX
             );
 
             seemsLegit = metric < _manipulationThreshold(_ltv(sqrtScaler), manipulationThresholdDivisor);
 
-            a = uint160((sqrtMeanPriceX96 * 1e12).rawDiv(sqrtScaler));
-            b = uint160((sqrtMeanPriceX96 * sqrtScaler).rawDiv(1e12).min(type(uint160).max));
+            a = uint160((sqrtMeanPriceX96 * 1e12).rawDiv(sqrtScaler).max(TickMath.MIN_SQRT_RATIO));
+            b = uint160((sqrtMeanPriceX96 * sqrtScaler).rawDiv(1e12).min(TickMath.MAX_SQRT_RATIO));
         }
     }
 
