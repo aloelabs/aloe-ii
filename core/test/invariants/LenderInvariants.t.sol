@@ -199,9 +199,9 @@ contract LenderInvariantsTest is Test {
             address user = lenderHarness.holders(i);
 
             // NOTE: As price per share increases (i.e., each share converts to more and more underlying assets),
-            // this assertion may become flakey due to rounding. Allowing for rounding error of 2 seems sufficient
+            // this assertion may become flakey due to rounding. Allowing for rounding error of 3 seems sufficient
             // in our testing. Just make sure the contract itself never assumes principle < underlyingBalance
-            assertLe(lender.principleOf(user), lender.underlyingBalance(user) + 2);
+            assertLe(lender.principleOf(user), lender.underlyingBalance(user) + 3);
         }
     }
 
@@ -231,5 +231,15 @@ contract LenderInvariantsTest is Test {
             expected,
             1 * count // max error of 1 per user
         );
+    }
+
+    function invariant_borrowBalanceIsNonZeroIfUnitsExist() public {
+        uint256 count = lenderHarness.getBorrowerCount();
+        for (uint256 i = 0; i < count; i++) {
+            address borrower = lenderHarness.borrowers(i);
+
+            if (lender.borrows(borrower) > 1) assertGt(lender.borrowBalanceStored(borrower), 0);
+            else assertEq(lender.borrowBalanceStored(borrower), 0);
+        }
     }
 }

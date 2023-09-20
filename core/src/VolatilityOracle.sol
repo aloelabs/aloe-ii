@@ -6,7 +6,7 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {
     IV_SCALE,
     IV_COLD_START,
-    IV_CHANGE_PER_SECOND,
+    IV_CHANGE_PER_UPDATE,
     UNISWAP_AVG_WINDOW,
     FEE_GROWTH_AVG_WINDOW,
     FEE_GROWTH_ARRAY_LENGTH,
@@ -53,8 +53,7 @@ contract VolatilityOracle {
 
             // If fewer than `FEE_GROWTH_SAMPLE_PERIOD` seconds have elapsed, return early.
             // We still fetch the latest TWAP, but we do not sample feeGrowthGlobals or update IV.
-            uint256 timeSinceLastWrite = block.timestamp - lastWrite.time;
-            if (timeSinceLastWrite < FEE_GROWTH_SAMPLE_PERIOD) {
+            if (block.timestamp - lastWrite.time < FEE_GROWTH_SAMPLE_PERIOD) {
                 return (metric, data.sqrtMeanPriceX96, lastWrite.iv);
             }
 
@@ -80,9 +79,8 @@ contract VolatilityOracle {
                 // Estimate, then clamp so it lies within [previous - maxChange, previous + maxChange]
                 iv = Volatility.estimate(cachedMetadata[pool], data, a, b, IV_SCALE);
 
-                uint256 maxChange = timeSinceLastWrite * IV_CHANGE_PER_SECOND;
-                if (iv > lastWrite.iv + maxChange) iv = lastWrite.iv + maxChange;
-                else if (iv + maxChange < lastWrite.iv) iv = lastWrite.iv - maxChange;
+                if (iv > lastWrite.iv + IV_CHANGE_PER_UPDATE) iv = lastWrite.iv + IV_CHANGE_PER_UPDATE;
+                else if (iv + IV_CHANGE_PER_UPDATE < lastWrite.iv) iv = lastWrite.iv - IV_CHANGE_PER_UPDATE;
             }
 
             // Store the new feeGrowthGlobals sample and update `lastWrites`
