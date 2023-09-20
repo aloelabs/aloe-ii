@@ -53,6 +53,11 @@ contract Factory {
         uint32 pausedUntilTime;
     }
 
+    struct Courier {
+        address wallet;
+        uint16 cut;
+    }
+
     struct MarketConfig {
         Parameters parameters;
         IRateModel rateModel0;
@@ -86,11 +91,6 @@ contract Factory {
     /*//////////////////////////////////////////////////////////////
                            INCENTIVE STORAGE
     //////////////////////////////////////////////////////////////*/
-
-    struct Courier {
-        address wallet;
-        uint16 cut;
-    }
 
     mapping(uint32 => Courier) public couriers;
 
