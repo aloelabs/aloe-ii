@@ -187,14 +187,14 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 slot0_ = _loadSlot0();
         _saveSlot0(slot0_, _formatted(State.Locked));
 
-        // Fetch prices from oracle
-        (Prices memory prices, ) = getPrices(oracleSeed);
-        uint256 priceX128 = square(prices.c);
-
+        uint256 priceX128;
         uint256 liabilities0;
         uint256 liabilities1;
         uint256 incentive1;
         {
+            // Fetch prices from oracle
+            (Prices memory prices, ) = getPrices(oracleSeed);
+            priceX128 = square(prices.c);
             // Withdraw Uniswap positions while tallying assets
             Assets memory assets = _getAssets(positions.read(), prices, true);
             // Fetch liabilities from lenders

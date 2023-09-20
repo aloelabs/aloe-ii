@@ -78,26 +78,34 @@ fi
 
 # Run forge tests
 if [ "$CHECK_FORGE_TESTS" = true ]; then
-    forge test -vv --no-match-contract ".*Gas" --no-match-test "historical|Ffi"
+    if [ "$CI" = true ]; then
+        forge test -vv --no-match-contract ".*Gas|BorrowerTest" --no-match-test "historical|Ffi"
+    else
+        forge test -vv --no-match-contract ".*Gas" --no-match-test "historical|Ffi" --ffi
+    fi
 
     echo "✅ forge tests pass" >> $GITHUB_STEP_SUMMARY
 fi
 
 # Get coverage. Some files are excluded because they cause stack-too-deep when coverage instrumentation is added
 if [ "$CHECK_COVERAGE" = true ]; then
+    mv "test/libraries/Oracle.t.sol" "test/libraries/Oracle.ignore"
     mv "test/libraries/Volatility.t.sol" "test/libraries/Volatility.ignore"
     mv "test/invariants/LenderHarness.sol" "test/invariants/LenderHarness.ignore"
     mv "test/invariants/LenderInvariants.t.sol" "test/invariants/LenderInvariants.ignore"
+    mv "test/VolatilityOracle.t.sol" "test/VolatilityOracle.ignore"
 
     if [ "$CI" = true ]; then
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Coverage" >> $GITHUB_STEP_SUMMARY
-        forge coverage --report summary --no-match-contract ".*Gas" --no-match-test "historical" >> $GITHUB_STEP_SUMMARY
+        forge coverage --report summary --no-match-contract ".*Gas|BorrowerTest" --no-match-test "historical|Ffi" >> $GITHUB_STEP_SUMMARY
     else
-        forge coverage --report lcov --report summary --no-match-contract ".*Gas" --no-match-test "historical"
+        forge coverage --report lcov --report summary --no-match-contract ".*Gas" --no-match-test "historical|Ffi" --ffi
     fi
 
+    mv "test/libraries/Oracle.ignore" "test/libraries/Oracle.t.sol"
     mv "test/libraries/Volatility.ignore" "test/libraries/Volatility.t.sol"
     mv "test/invariants/LenderHarness.ignore" "test/invariants/LenderHarness.sol"
     mv "test/invariants/LenderInvariants.ignore" "test/invariants/LenderInvariants.t.sol"
+    mv "test/VolatilityOracle.ignore" "test/VolatilityOracle.t.sol"
 fi
