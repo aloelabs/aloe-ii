@@ -7,6 +7,8 @@ import {
     DEFAULT_N_SIGMA,
     CONSTRAINT_N_SIGMA_MIN,
     CONSTRAINT_N_SIGMA_MAX,
+    CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN,
+    CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX,
     LTV_MIN,
     PROBE_PERCENT_MIN,
     PROBE_PERCENT_MAX,
@@ -50,120 +52,120 @@ contract BalanceSheetTest is Test {
         } catch {
             vm.expectRevert(stdError.arithmeticError);
             wrapper.isHealthy(prices, assets, 0, 0);
-        }        
+        }
     }
 
     /// @dev See https://www.desmos.com/calculator/hrrpjqy4t1
     function test_spec_computeProbePrices() public {
         bool seemsLegit;
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.00e12, 50, 86);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(86, 0, 0.00e12, 50, 12);
         assertTrue(seemsLegit, "0.00 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.00e12, 50, 87);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(87, 0, 0.00e12, 50, 12);
         assertFalse(seemsLegit, "0.00 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.01e12, 50, 86);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(86, 0, 0.01e12, 50, 12);
         assertTrue(seemsLegit, "0.01 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.01e12, 50, 87);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(87, 0, 0.01e12, 50, 12);
         assertFalse(seemsLegit, "0.01 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.02e12, 50, 131);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(131, 0, 0.02e12, 50, 12);
         assertTrue(seemsLegit, "0.02 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.02e12, 50, 132);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(132, 0, 0.02e12, 50, 12);
         assertFalse(seemsLegit, "0.02 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.03e12, 50, 179);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(179, 0, 0.03e12, 50, 12);
         assertTrue(seemsLegit, "0.03 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.03e12, 50, 180);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(180, 0, 0.03e12, 50, 12);
         assertFalse(seemsLegit, "0.03 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.04e12, 50, 229);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(229, 0, 0.04e12, 50, 12);
         assertTrue(seemsLegit, "0.04 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.04e12, 50, 230);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(230, 0, 0.04e12, 50, 12);
         assertFalse(seemsLegit, "0.04 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.05e12, 50, 283);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(283, 0, 0.05e12, 50, 12);
         assertTrue(seemsLegit, "0.05 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.05e12, 50, 284);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(284, 0, 0.05e12, 50, 12);
         assertFalse(seemsLegit, "0.05 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.06e12, 50, 340);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(340, 0, 0.06e12, 50, 12);
         assertTrue(seemsLegit, "0.06 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.06e12, 50, 341);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(341, 0, 0.06e12, 50, 12);
         assertFalse(seemsLegit, "0.06 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.07e12, 50, 402);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(402, 0, 0.07e12, 50, 12);
         assertTrue(seemsLegit, "0.07 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.07e12, 50, 403);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(403, 0, 0.07e12, 50, 12);
         assertFalse(seemsLegit, "0.07 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.08e12, 50, 469);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(469, 0, 0.08e12, 50, 12);
         assertTrue(seemsLegit, "0.08 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.08e12, 50, 470);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(470, 0, 0.08e12, 50, 12);
         assertFalse(seemsLegit, "0.08 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.09e12, 50, 541);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(541, 0, 0.09e12, 50, 12);
         assertTrue(seemsLegit, "0.09 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.09e12, 50, 542);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(542, 0, 0.09e12, 50, 12);
         assertFalse(seemsLegit, "0.09 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.10e12, 50, 621);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(621, 0, 0.10e12, 50, 12);
         assertTrue(seemsLegit, "0.10 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.10e12, 50, 622);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(622, 0, 0.10e12, 50, 12);
         assertFalse(seemsLegit, "0.10 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.11e12, 50, 709);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(709, 0, 0.11e12, 50, 12);
         assertTrue(seemsLegit, "0.11 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.11e12, 50, 710);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(710, 0, 0.11e12, 50, 12);
         assertFalse(seemsLegit, "0.11 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.12e12, 50, 807);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(807, 0, 0.12e12, 50, 12);
         assertTrue(seemsLegit, "0.12 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.12e12, 50, 808);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(808, 0, 0.12e12, 50, 12);
         assertFalse(seemsLegit, "0.12 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.13e12, 50, 918);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(918, 0, 0.13e12, 50, 12);
         assertTrue(seemsLegit, "0.13 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.13e12, 50, 919);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(919, 0, 0.13e12, 50, 12);
         assertFalse(seemsLegit, "0.13 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.14e12, 50, 1047);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1047, 0, 0.14e12, 50, 12);
         assertTrue(seemsLegit, "0.14 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.14e12, 50, 1048);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1048, 0, 0.14e12, 50, 12);
         assertFalse(seemsLegit, "0.14 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.15e12, 50, 1198);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1198, 0, 0.15e12, 50, 12);
         assertTrue(seemsLegit, "0.15 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.15e12, 50, 1199);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1199, 0, 0.15e12, 50, 12);
         assertFalse(seemsLegit, "0.15 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.16e12, 50, 1384);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1384, 0, 0.16e12, 50, 12);
         assertTrue(seemsLegit, "0.16 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.16e12, 50, 1385);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1385, 0, 0.16e12, 50, 12);
         assertFalse(seemsLegit, "0.16 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.17e12, 50, 1624);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1624, 0, 0.17e12, 50, 12);
         assertTrue(seemsLegit, "0.17 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.17e12, 50, 1625);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1625, 0, 0.17e12, 50, 12);
         assertFalse(seemsLegit, "0.17 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.18e12, 50, 1917);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1917, 0, 0.18e12, 50, 12);
         assertTrue(seemsLegit, "0.18 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.18e12, 50, 1918);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1918, 0, 0.18e12, 50, 12);
         assertFalse(seemsLegit, "0.18 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.19e12, 50, 1917);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1917, 0, 0.19e12, 50, 12);
         assertTrue(seemsLegit, "0.19 true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, 0.19e12, 50, 1918);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1918, 0, 0.19e12, 50, 12);
         assertFalse(seemsLegit, "0.19 false");
 
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, IV_COLD_START, 50, 1917);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1917, 0, IV_COLD_START, 50, 12);
         assertTrue(seemsLegit, "cold true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(0, IV_COLD_START, 50, 1918);
+        (, , seemsLegit) = BalanceSheet.computeProbePrices(1918, 0, IV_COLD_START, 50, 12);
         assertFalse(seemsLegit, "cold false");
     }
 
-    function test_computeProbePrices(uint160 sqrtMeanPriceX96, uint256 iv, uint256 nSigma) public {
+    function test_computeProbePrices(uint160 sqrtMeanPriceX96, uint256 iv, uint8 nSigma, uint8 mtd) public {
         // The lower bound is related to how precise our assertion is. For prices to be correct within 0.01%,
         // the sqrtPrice must be >= 2^40 (approximately). Calculations for that are here:
         // https://www.desmos.com/calculator/gfbkcnt0vs
@@ -175,9 +177,12 @@ contract BalanceSheetTest is Test {
         );
         // This is valid because of the sqrt in `Volatility` library
         iv = bound(iv, 0, type(uint128).max);
-        nSigma = uint160(bound(nSigma, CONSTRAINT_N_SIGMA_MIN, CONSTRAINT_N_SIGMA_MAX));
+        nSigma = uint8(bound(nSigma, CONSTRAINT_N_SIGMA_MIN, CONSTRAINT_N_SIGMA_MAX));
+        mtd = uint8(
+            bound(mtd, CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN, CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX)
+        );
 
-        (uint256 a, uint256 b, ) = BalanceSheet.computeProbePrices(sqrtMeanPriceX96, iv, nSigma, 0);
+        (uint256 a, uint256 b, ) = BalanceSheet.computeProbePrices(0, sqrtMeanPriceX96, iv, nSigma, mtd);
 
         uint256 price = square(sqrtMeanPriceX96);
         a = square(uint160(a));

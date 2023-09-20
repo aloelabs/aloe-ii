@@ -29,11 +29,21 @@ uint256 constant MAX_RATE = 706354;
 
 /// @dev The default amount of Ether required to take on debt in a `Borrower`. The `Factory` can override this value
 /// on a per-market basis.
-uint216 constant DEFAULT_ANTE = 0.01 ether;
+uint208 constant DEFAULT_ANTE = 0.01 ether;
 
 /// @dev The default number of standard deviations of price movement used to determine probe prices for `Borrower`
 /// solvency. The `Factory` can override this value on a per-market basis. Expressed x10, e.g. 50 → 5σ
 uint8 constant DEFAULT_N_SIGMA = 50;
+
+/// @dev Assume someone is manipulating the Uniswap TWAP oracle. To steal money from the protocol and create bad debt,
+/// they would need to change the TWAP by a factor of (1 / collateralFactor), where the collateralFactor is a function
+/// of volatility. We have a manipulation metric that increases as an attacker tries to change the TWAP. If this metric
+/// rises above a certain threshold, certain functionality will be paused, e.g. no new debt can be created. The
+/// threshold is calculated as follows:
+///
+/// \\( \text{manipulationThreshold} =
+/// \frac{log_{1.0001}\left( \frac{1}{\text{collateralFactor}} \right)}{\text{MANIPULATION_THRESHOLD_DIVISOR}} \\)
+uint8 constant DEFAULT_MANIPULATION_THRESHOLD_DIVISOR = 12;
 
 /// @dev The default portion of interest that will accrue to a `Lender`'s `RESERVE` address.
 /// Expressed as a reciprocal, e.g. 16 → 6.25%
@@ -50,6 +60,12 @@ uint8 constant CONSTRAINT_N_SIGMA_MIN = 40;
 /// @dev The highest number of standard deviations of price movement allowed for determining `Borrower` probe prices.
 /// Expressed x10, e.g. 80 → 8σ
 uint8 constant CONSTRAINT_N_SIGMA_MAX = 80;
+
+/// @dev The minimum value of the `manipulationThresholdDivisor`, described above
+uint8 constant CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN = 12;
+
+/// @dev The maximum value of the `manipulationThresholdDivisor`, described above
+uint8 constant CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX = 20;
 
 /// @dev The lower bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 4 → 25%
 uint8 constant CONSTRAINT_RESERVE_FACTOR_MIN = 4;
@@ -141,13 +157,3 @@ uint256 constant FEE_GROWTH_SAMPLE_PERIOD = 1 hours;
 /// from `UNISWAP_AVG_WINDOW` seconds ago. Larger values make the resulting price/liquidity values harder to
 /// manipulate, but also make the oracle slower to respond to changes.
 uint32 constant UNISWAP_AVG_WINDOW = 30 minutes;
-
-/// @dev Assume someone is manipulating the Uniswap TWAP oracle. To steal money from the protocol and create bad debt,
-/// they would need to change the TWAP by a factor of (1 / collateralFactor), where the collateralFactor is a function
-/// of volatility. We have a manipulation metric that increases as an attacker tries to change the TWAP. If this metric
-/// rises above a certain threshold, certain functionality will be paused, e.g. no new debt can be created. The
-/// threshold is calculated as follows:
-///
-/// \\( \text{manipulationThreshold} =
-/// \frac{log_{1.0001}\left( \frac{1}{\text{collateralFactor}} \right)}{\text{MANIPULATION_THRESHOLD_DIVISOR}} \\)
-uint24 constant MANIPULATION_THRESHOLD_DIVISOR = 12;
