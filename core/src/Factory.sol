@@ -39,62 +39,93 @@ contract Factory {
 
     event EnrollCourier(uint32 indexed id, address indexed wallet, uint16 cut);
 
+    // This `Factory` can create a `Market` for any Uniswap V3 pool
     struct Market {
+        // The `Lender` of `token0` in the Uniswap pool
         Lender lender0;
+        // The `Lender` of `token1` in the Uniswap pool
         Lender lender1;
+        // The implementation to which all `Borrower` clones will point
         Borrower borrowerImplementation;
     }
 
+    // Each `Market` has a set of borrowing `Parameters` to help manage risk
     struct Parameters {
+        // The amount of Ether a `Borrower` must hold in order to borrow assets
         uint208 ante;
+        // To avoid liquidation, a `Borrower` must be solvent at TWAP * e^{± nSigma * IV}
         uint8 nSigma;
+        // Borrowing is paused when the manipulation metric > threshold; this scales the threshold up/down
         uint8 manipulationThresholdDivisor;
+        // The time at which borrowing can resume
         uint32 pausedUntilTime;
     }
 
+    // The set of all governable `Market` properties
     struct MarketConfig {
+        // Described above
         uint208 ante;
+        // Described above
         uint8 nSigma;
+        // Described above
         uint8 manipulationThresholdDivisor;
+        // The reserve factor for `market.lender0`, expressed as a reciprocal
         uint8 reserveFactor0;
+        // The reserve factor for `market.lender1`, expressed as a reciprocal
         uint8 reserveFactor1;
+        // The rate model for `market.lender0`
         IRateModel rateModel0;
+        // The rate model for `market.lender1`
         IRateModel rateModel1;
     }
 
+    // By enrolling as a `Courier`, frontends can earn a portion of their users' interest
+    struct Courier {
+        // The address that receives earnings whenever users withdraw
+        address wallet;
+        // The portion of users' interest to take, expressed in basis points
+        uint16 cut;
+    }
+
+    /// @notice The only address that can propose new `MarketConfig`s and rewards programs
     address public immutable GOVERNOR;
 
+    /// @notice The oracle to use for prices and implied volatility
     VolatilityOracle public immutable ORACLE;
 
+    /// @notice The implementation to which all `Lender` clones will point
     address public immutable LENDER_IMPLEMENTATION;
 
+    /// @notice The rate model that `Lender`s will use when first created
     IRateModel public immutable DEFAULT_RATE_MODEL;
 
     /*//////////////////////////////////////////////////////////////
                              WORLD STORAGE
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Returns the `Market` addresses associated with a Uniswap V3 pool
     mapping(IUniswapV3Pool => Market) public getMarket;
 
+    /// @notice Returns the borrowing `Parameters` associated with a Uniswap V3 pool
     mapping(IUniswapV3Pool => Parameters) public getParameters;
 
+    /// @notice Returns whether the given address is a `Lender` deployed by this `Factory`
     mapping(address => bool) public isLender;
 
+    /// @notice Returns whether the given address is a `Borrower` deployed by this `Factory`
     mapping(address => bool) public isBorrower;
 
     /*//////////////////////////////////////////////////////////////
                            INCENTIVE STORAGE
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice The token in which rewards are paid out
     ERC20 public rewardsToken;
 
-    struct Courier {
-        address wallet;
-        uint16 cut;
-    }
-
+    /// @notice Returns the `Courier` for any given ID
     mapping(uint32 => Courier) public couriers;
 
+    /// @notice Returns whether the given address has enrolled as a courier
     mapping(address => bool) public isCourier;
 
     /*//////////////////////////////////////////////////////////////
