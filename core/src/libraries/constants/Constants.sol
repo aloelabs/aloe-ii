@@ -76,9 +76,6 @@ uint8 constant CONSTRAINT_RESERVE_FACTOR_MAX = 20;
 /// @dev The maximum amount of Ether that `Borrower`s can be required to post before taking on debt
 uint216 constant CONSTRAINT_ANTE_MAX = 0.1 ether;
 
-/// @dev The maximum uninterrupted amount of time for which borrowing can be paused by governance
-uint32 constant CONSTRAINT_PAUSE_INTERVAL_MAX = 2 days;
-
 /*//////////////////////////////////////////////////////////////
                             LIQUIDATION
 //////////////////////////////////////////////////////////////*/

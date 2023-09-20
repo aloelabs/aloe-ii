@@ -18,7 +18,6 @@ import {
     CONSTRAINT_RESERVE_FACTOR_MIN,
     CONSTRAINT_RESERVE_FACTOR_MAX,
     CONSTRAINT_ANTE_MAX,
-    CONSTRAINT_PAUSE_INTERVAL_MAX,
     UNISWAP_AVG_WINDOW
 } from "./libraries/constants/Constants.sol";
 
@@ -54,11 +53,13 @@ contract Factory {
     }
 
     struct MarketConfig {
-        Parameters parameters;
-        IRateModel rateModel0;
-        IRateModel rateModel1;
+        uint208 ante;
+        uint8 nSigma;
+        uint8 manipulationThresholdDivisor;
         uint8 reserveFactor0;
         uint8 reserveFactor1;
+        IRateModel rateModel0;
+        IRateModel rateModel1;
     }
 
     address public immutable GOVERNOR;
@@ -68,8 +69,6 @@ contract Factory {
     address public immutable LENDER_IMPLEMENTATION;
 
     IRateModel public immutable DEFAULT_RATE_MODEL;
-
-    ERC20 public rewardsToken;
 
     /*//////////////////////////////////////////////////////////////
                              WORLD STORAGE
@@ -86,6 +85,8 @@ contract Factory {
     /*//////////////////////////////////////////////////////////////
                            INCENTIVE STORAGE
     //////////////////////////////////////////////////////////////*/
+
+    ERC20 public rewardsToken;
 
     struct Courier {
         address wallet;
@@ -106,6 +107,10 @@ contract Factory {
         LENDER_IMPLEMENTATION = address(new Lender(reserve));
         DEFAULT_RATE_MODEL = defaultRateModel;
     }
+
+    /*//////////////////////////////////////////////////////////////
+                               EMERGENCY
+    //////////////////////////////////////////////////////////////*/
 
     function pause(IUniswapV3Pool pool, uint40 oracleSeed) external {
         (, bool seemsLegit) = getMarket[pool].borrowerImplementation.getPrices(oracleSeed);
@@ -143,11 +148,13 @@ contract Factory {
         _setMarketConfig(
             pool,
             MarketConfig(
-                Parameters(DEFAULT_ANTE, DEFAULT_N_SIGMA, DEFAULT_MANIPULATION_THRESHOLD_DIVISOR, 0),
-                DEFAULT_RATE_MODEL,
-                DEFAULT_RATE_MODEL,
+                DEFAULT_ANTE,
+                DEFAULT_N_SIGMA,
+                DEFAULT_MANIPULATION_THRESHOLD_DIVISOR,
                 DEFAULT_RESERVE_FACTOR,
-                DEFAULT_RESERVE_FACTOR
+                DEFAULT_RESERVE_FACTOR,
+                DEFAULT_RATE_MODEL,
+                DEFAULT_RATE_MODEL
             )
         );
 
@@ -168,8 +175,24 @@ contract Factory {
     }
 
     /*//////////////////////////////////////////////////////////////
-                               REFERRALS
+                               INCENTIVES
     //////////////////////////////////////////////////////////////*/
+
+    function claimRewards(Lender[] calldata lenders, address beneficiary) external returns (uint256 earned) {
+        // Couriers cannot claim rewards because the accounting isn't quite correct for them. Specifically, we
+        // save gas by omitting a `Rewards.updateUserState` call for the courier in `Lender._burn`
+        require(!isCourier[msg.sender]);
+
+        unchecked {
+            uint256 count = lenders.length;
+            for (uint256 i = 0; i < count; i++) {
+                assert(isLender[address(lenders[i])]);
+                earned += lenders[i].claimRewards(msg.sender);
+            }
+        }
+
+        rewardsToken.safeTransfer(beneficiary, earned);
+    }
 
     /**
      * @notice Enrolls `msg.sender` in the referral program. This allows frontends/wallets/apps to
@@ -195,26 +218,6 @@ contract Factory {
     }
 
     /*//////////////////////////////////////////////////////////////
-                                REWARDS
-    //////////////////////////////////////////////////////////////*/
-
-    function claimRewards(Lender[] calldata lenders, address beneficiary) external returns (uint256 earned) {
-        // Couriers cannot claim rewards because the accounting isn't quite correct for them. Specifically, we
-        // save gas by omitting a `Rewards.updateUserState` call for the courier in `Lender._burn`
-        require(!isCourier[msg.sender]);
-
-        unchecked {
-            uint256 count = lenders.length;
-            for (uint256 i = 0; i < count; i++) {
-                assert(isLender[address(lenders[i])]);
-                earned += lenders[i].claimRewards(msg.sender);
-            }
-        }
-
-        rewardsToken.safeTransfer(beneficiary, earned);
-    }
-
-    /*//////////////////////////////////////////////////////////////
                                GOVERNANCE
     //////////////////////////////////////////////////////////////*/
 
@@ -233,17 +236,12 @@ contract Factory {
 
         require(
             // ante: max
-            (marketConfig.parameters.ante <= CONSTRAINT_ANTE_MAX) &&
+            (marketConfig.ante <= CONSTRAINT_ANTE_MAX) &&
                 // nSigma: min, max
-                (CONSTRAINT_N_SIGMA_MIN <= marketConfig.parameters.nSigma &&
-                    marketConfig.parameters.nSigma <= CONSTRAINT_N_SIGMA_MAX) &&
+                (CONSTRAINT_N_SIGMA_MIN <= marketConfig.nSigma && marketConfig.nSigma <= CONSTRAINT_N_SIGMA_MAX) &&
                 // manipulationThresholdDivisor: min, max
-                (CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN <=
-                    marketConfig.parameters.manipulationThresholdDivisor &&
-                    marketConfig.parameters.manipulationThresholdDivisor <=
-                    CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX) &&
-                // pauseUntilTime: max
-                (marketConfig.parameters.pausedUntilTime <= block.timestamp + CONSTRAINT_PAUSE_INTERVAL_MAX) &&
+                (CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN <= marketConfig.manipulationThresholdDivisor &&
+                    marketConfig.manipulationThresholdDivisor <= CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX) &&
                 // reserveFactor0: min, max
                 (CONSTRAINT_RESERVE_FACTOR_MIN <= marketConfig.reserveFactor0 &&
                     marketConfig.reserveFactor0 <= CONSTRAINT_RESERVE_FACTOR_MAX) &&
@@ -257,7 +255,12 @@ contract Factory {
     }
 
     function _setMarketConfig(IUniswapV3Pool pool, MarketConfig memory marketConfig) private {
-        getParameters[pool] = marketConfig.parameters;
+        getParameters[pool] = Parameters({
+            ante: marketConfig.ante,
+            nSigma: marketConfig.nSigma,
+            manipulationThresholdDivisor: marketConfig.manipulationThresholdDivisor,
+            pausedUntilTime: 0
+        });
 
         Market memory market = getMarket[pool];
         market.lender0.setRateModelAndReserveFactor(marketConfig.rateModel0, marketConfig.reserveFactor0);
