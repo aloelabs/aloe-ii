@@ -39,6 +39,8 @@ contract Factory {
 
     event EnrollCourier(uint32 indexed id, address indexed wallet, uint16 cut);
 
+    event SetMarketConfig(IUniswapV3Pool indexed pool, MarketConfig config);
+
     // This `Factory` can create a `Market` for any Uniswap V3 pool
     struct Market {
         // The `Lender` of `token0` in the Uniswap pool
@@ -186,7 +188,8 @@ contract Factory {
                 DEFAULT_RESERVE_FACTOR,
                 DEFAULT_RATE_MODEL,
                 DEFAULT_RATE_MODEL
-            )
+            ),
+            0
         );
 
         emit CreateMarket(pool, lender0, lender1);
@@ -262,39 +265,41 @@ contract Factory {
         lender.setRewardsRate(rate);
     }
 
-    function governMarketConfig(IUniswapV3Pool pool, MarketConfig memory marketConfig) external {
+    function governMarketConfig(IUniswapV3Pool pool, MarketConfig memory config) external {
         require(msg.sender == GOVERNOR);
 
         require(
             // ante: max
-            (marketConfig.ante <= CONSTRAINT_ANTE_MAX) &&
+            (config.ante <= CONSTRAINT_ANTE_MAX) &&
                 // nSigma: min, max
-                (CONSTRAINT_N_SIGMA_MIN <= marketConfig.nSigma && marketConfig.nSigma <= CONSTRAINT_N_SIGMA_MAX) &&
+                (CONSTRAINT_N_SIGMA_MIN <= config.nSigma && config.nSigma <= CONSTRAINT_N_SIGMA_MAX) &&
                 // manipulationThresholdDivisor: min, max
-                (CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN <= marketConfig.manipulationThresholdDivisor &&
-                    marketConfig.manipulationThresholdDivisor <= CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX) &&
+                (CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN <= config.manipulationThresholdDivisor &&
+                    config.manipulationThresholdDivisor <= CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX) &&
                 // reserveFactor0: min, max
-                (CONSTRAINT_RESERVE_FACTOR_MIN <= marketConfig.reserveFactor0 &&
-                    marketConfig.reserveFactor0 <= CONSTRAINT_RESERVE_FACTOR_MAX) &&
+                (CONSTRAINT_RESERVE_FACTOR_MIN <= config.reserveFactor0 &&
+                    config.reserveFactor0 <= CONSTRAINT_RESERVE_FACTOR_MAX) &&
                 // reserveFactor1: min, max
-                (CONSTRAINT_RESERVE_FACTOR_MIN <= marketConfig.reserveFactor1 &&
-                    marketConfig.reserveFactor1 <= CONSTRAINT_RESERVE_FACTOR_MAX),
+                (CONSTRAINT_RESERVE_FACTOR_MIN <= config.reserveFactor1 &&
+                    config.reserveFactor1 <= CONSTRAINT_RESERVE_FACTOR_MAX),
             "Aloe: constraints"
         );
 
-        _setMarketConfig(pool, marketConfig);
+        _setMarketConfig(pool, config, getParameters[pool].pausedUntilTime);
     }
 
-    function _setMarketConfig(IUniswapV3Pool pool, MarketConfig memory marketConfig) private {
+    function _setMarketConfig(IUniswapV3Pool pool, MarketConfig memory config, uint32 pausedUntilTime) private {
         getParameters[pool] = Parameters({
-            ante: marketConfig.ante,
-            nSigma: marketConfig.nSigma,
-            manipulationThresholdDivisor: marketConfig.manipulationThresholdDivisor,
-            pausedUntilTime: 0
+            ante: config.ante,
+            nSigma: config.nSigma,
+            manipulationThresholdDivisor: config.manipulationThresholdDivisor,
+            pausedUntilTime: pausedUntilTime
         });
 
         Market memory market = getMarket[pool];
-        market.lender0.setRateModelAndReserveFactor(marketConfig.rateModel0, marketConfig.reserveFactor0);
-        market.lender1.setRateModelAndReserveFactor(marketConfig.rateModel1, marketConfig.reserveFactor1);
+        market.lender0.setRateModelAndReserveFactor(config.rateModel0, config.reserveFactor0);
+        market.lender1.setRateModelAndReserveFactor(config.rateModel1, config.reserveFactor1);
+
+        emit SetMarketConfig(pool, config);
     }
 }
