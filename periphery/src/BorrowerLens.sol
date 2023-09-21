@@ -1,17 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
+import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {MAX_LEVERAGE} from "aloe-ii-core/libraries/constants/Constants.sol";
-import {BalanceSheet, Assets, Prices} from "aloe-ii-core/libraries/BalanceSheet.sol";
-import {LiquidityAmounts, mulDiv96} from "aloe-ii-core/libraries/LiquidityAmounts.sol";
+import {MAX_LEVERAGE, LIQUIDATION_INCENTIVE} from "aloe-ii-core/libraries/constants/Constants.sol";
+import {Assets, Prices} from "aloe-ii-core/libraries/BalanceSheet.sol";
+import {LiquidityAmounts} from "aloe-ii-core/libraries/LiquidityAmounts.sol";
+import {square, mulDiv128} from "aloe-ii-core/libraries/MulDiv.sol";
 import {TickMath} from "aloe-ii-core/libraries/TickMath.sol";
 import {Borrower} from "aloe-ii-core/Borrower.sol";
 
 import {Uniswap} from "./libraries/Uniswap.sol";
 
 contract BorrowerLens {
+    using SoladyMath for uint256;
     using Uniswap for Uniswap.Position;
 
     /// @dev Mirrors the logic in `BalanceSheet.isHealthy`, but returns numbers instead of a boolean
@@ -19,43 +22,38 @@ contract BorrowerLens {
         Borrower account,
         bool previewInterest
     ) external view returns (uint256 healthA, uint256 healthB) {
-        Prices memory prices = account.getPrices(1 << 32);
-        Assets memory assets = _getAssets(account, account.getUniswapPositions(), prices);
+        (Prices memory prices, ) = account.getPrices(1 << 32);
+        Assets memory mem = _getAssets(account, account.getUniswapPositions(), prices);
         (uint256 liabilities0, uint256 liabilities1) = getLiabilities(account, previewInterest);
 
-        // liquidation incentive. counted as liability because account will owe it to someone.
-        // compensates liquidators for inventory risk.
-        (uint256 incentive1, ) = BalanceSheet.computeLiquidationIncentive(
-            assets.fixed0 + assets.fluid0C,
-            assets.fixed1 + assets.fluid1C,
-            liabilities0,
-            liabilities1,
-            prices.c
-        );
-
         unchecked {
-            liabilities0 += liabilities0 / MAX_LEVERAGE;
-            liabilities1 += liabilities1 / MAX_LEVERAGE + incentive1;
+            liabilities0 +=
+                (liabilities0 / MAX_LEVERAGE) +
+                (liabilities0.zeroFloorSub(mem.fixed0 + mem.fluid0C) / LIQUIDATION_INCENTIVE);
+            liabilities1 +=
+                (liabilities1 / MAX_LEVERAGE) +
+                (liabilities1.zeroFloorSub(mem.fixed1 + mem.fluid1C) / LIQUIDATION_INCENTIVE);
         }
 
         // combine
-        uint224 priceX96;
-        uint256 liabilitiesSum;
-        uint256 assetsSum;
+        uint256 priceX128;
+        uint256 liabilities;
+        uint256 assets;
 
-        priceX96 = uint224(mulDiv96(prices.a, prices.a));
-        liabilitiesSum = liabilities1 + mulDiv96(liabilities0, priceX96);
-        assetsSum = assets.fluid1A + assets.fixed1 + mulDiv96(assets.fixed0, priceX96);
-        healthA = liabilitiesSum > 0 ? (assetsSum * 1e18) / liabilitiesSum : 1000e18;
+        priceX128 = square(prices.a);
+        liabilities = liabilities1 + mulDiv128(liabilities0, priceX128);
+        assets = mem.fluid1A + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
+        healthA = liabilities > 0 ? (assets * 1e18) / liabilities : 1000e18;
 
-        priceX96 = uint224(mulDiv96(prices.b, prices.b));
-        liabilitiesSum = liabilities1 + mulDiv96(liabilities0, priceX96);
-        assetsSum = assets.fluid1B + assets.fixed1 + mulDiv96(assets.fixed0, priceX96);
-        healthB = liabilitiesSum > 0 ? (assetsSum * 1e18) / liabilitiesSum : 1000e18;
+        priceX128 = square(prices.b);
+        liabilities = liabilities1 + mulDiv128(liabilities0, priceX128);
+        assets = mem.fluid1B + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
+        healthB = liabilities > 0 ? (assets * 1e18) / liabilities : 1000e18;
     }
 
     function getAssets(Borrower account) external view returns (Assets memory) {
-        return _getAssets(account, account.getUniswapPositions(), account.getPrices(1 << 32));
+        (Prices memory prices, ) = account.getPrices(1 << 32);
+        return _getAssets(account, account.getUniswapPositions(), prices);
     }
 
     function getUniswapFees(Borrower account) external view returns (bytes32[] memory keys, uint256[] memory fees) {
