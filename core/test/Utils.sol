@@ -33,7 +33,7 @@ contract FactoryForLenderTests is FatFactory {
 
     function deploySingleLender(ERC20 asset) external returns (Lender) {
         address proxy = ClonesWithImmutableArgs.clone(LENDER_IMPLEMENTATION, abi.encodePacked(address(asset)));
-        isLender[proxy] = true;
+        peer[proxy] = address(1);
 
         Lender(proxy).initialize();
         Lender(proxy).setRateModelAndReserveFactor(DEFAULT_RATE_MODEL, 8);

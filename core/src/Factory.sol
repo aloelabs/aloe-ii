@@ -114,8 +114,8 @@ contract Factory {
     /// @notice Returns the borrowing `Parameters` associated with a Uniswap V3 pool
     mapping(IUniswapV3Pool => Parameters) public getParameters;
 
-    /// @notice Returns whether the given address is a `Lender` deployed by this `Factory`
-    mapping(address => bool) public isLender;
+    /// @notice Returns the other `Lender` in the `Market` iff input is itself a `Lender`, otherwise 0
+    mapping(address => address) public peer;
 
     /// @notice Returns whether the given address is a `Borrower` deployed by this `Factory`
     mapping(address => bool) public isBorrower;
@@ -182,8 +182,8 @@ contract Factory {
 
         // Store deployment addresses
         getMarket[pool] = Market(lender0, lender1, borrowerImplementation);
-        isLender[address(lender0)] = true;
-        isLender[address(lender1)] = true;
+        peer[address(lender0)] = address(lender1);
+        peer[address(lender1)] = address(lender0);
 
         // Initialize lenders and set default market config
         lender0.initialize();
@@ -230,7 +230,8 @@ contract Factory {
         unchecked {
             uint256 count = lenders.length;
             for (uint256 i = 0; i < count; i++) {
-                assert(isLender[address(lenders[i])]);
+                // Make sure it is, in fact, a `Lender`
+                require(peer[address(lenders[i])] != address(0));
                 earned += lenders[i].claimRewards(msg.sender);
             }
         }
