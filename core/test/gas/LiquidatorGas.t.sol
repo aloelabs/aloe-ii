@@ -153,7 +153,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        uint256 debt = 1615.62695e18;
+        uint256 debt = 1595e18;
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
         account.modify(this, data, oracleSeed);
@@ -187,7 +187,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
 
-        uint256 debt = 1615.62695e18;
+        uint256 debt = 1595e18;
         // borrow `debt` DAI
         bytes memory data = abi.encode(Action.BORROW, debt, 0);
         account.modify(this, data, oracleSeed);
