@@ -99,7 +99,7 @@ contract Factory {
     address public immutable LENDER_IMPLEMENTATION;
 
     /// @notice A simple contract that deploys `Borrower`s to keep `Factory` bytecode size down
-    BorrowerDeployer private immutable BORROWER_DEPLOYER;
+    BorrowerDeployer private immutable _BORROWER_DEPLOYER;
 
     /// @notice The rate model that `Lender`s will use when first created
     IRateModel public immutable DEFAULT_RATE_MODEL;
@@ -147,7 +147,7 @@ contract Factory {
         GOVERNOR = governor;
         ORACLE = oracle;
         LENDER_IMPLEMENTATION = address(new Lender(reserve));
-        BORROWER_DEPLOYER = borrowerDeployer;
+        _BORROWER_DEPLOYER = borrowerDeployer;
         DEFAULT_RATE_MODEL = defaultRateModel;
     }
 
@@ -315,7 +315,7 @@ contract Factory {
     }
 
     function _newBorrower(IUniswapV3Pool pool, Lender lender0, Lender lender1) private returns (Borrower) {
-        (bool success, bytes memory data) = address(BORROWER_DEPLOYER).delegatecall(
+        (bool success, bytes memory data) = address(_BORROWER_DEPLOYER).delegatecall(
             abi.encodeCall(BorrowerDeployer.deploy, (ORACLE, pool, lender0, lender1))
         );
         require(success);

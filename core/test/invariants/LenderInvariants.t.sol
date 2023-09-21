@@ -23,7 +23,6 @@ contract LenderInvariantsTest is Test {
     struct ThingsThatShouldntChange {
         IRateModel rateModel;
         uint8 reserveFactor;
-        string name;
         string symbol;
         uint8 decimals;
         ERC20 asset;
@@ -65,7 +64,6 @@ contract LenderInvariantsTest is Test {
         thingsThatShouldntChange = ThingsThatShouldntChange(
             lender.rateModel(),
             lender.reserveFactor(),
-            lender.name(),
             lender.symbol(),
             lender.decimals(),
             lender.asset(),
@@ -90,7 +88,6 @@ contract LenderInvariantsTest is Test {
         ThingsThatShouldntChange memory update = ThingsThatShouldntChange(
             lender.rateModel(),
             lender.reserveFactor(),
-            lender.name(),
             lender.symbol(),
             lender.decimals(),
             lender.asset(),
@@ -99,7 +96,6 @@ contract LenderInvariantsTest is Test {
 
         assertEq(uint160(address(update.rateModel)), uint160(address(thingsThatShouldntChange.rateModel)));
         assertEq(update.reserveFactor, thingsThatShouldntChange.reserveFactor);
-        assertEq(bytes(update.name), bytes(thingsThatShouldntChange.name));
         assertEq(bytes(update.symbol), bytes(thingsThatShouldntChange.symbol));
         assertEq(update.decimals, thingsThatShouldntChange.decimals);
         assertEq(address(update.asset), address(thingsThatShouldntChange.asset));
