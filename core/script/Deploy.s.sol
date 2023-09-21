@@ -11,6 +11,7 @@ import {VolatilityOracle} from "src/VolatilityOracle.sol";
 address constant GOVERNOR = 0x2bf8eA41aF0695D482C4aa23d4f8aD7E9023b890;
 address constant RESERVE = 0xAd236E154cbC33cFDB6CD7A4BA04679d9fb74A8C;
 
+// Derived using https://github.com/0age/create2crunch/
 bytes32 constant saltA = 0x0000000000000000000000000000000000000000aeeec55d74c86000021e5622;
 bytes32 constant saltB = 0x00000000000000000000000000000000000000008a0ad7466accc00001d49926;
 bytes32 constant saltC = 0x0000000000000000000000000000000000000000d36d6b3f5afc00000074870e;
