@@ -111,8 +111,7 @@ contract Borrower is IUniswapV3MintCallback {
         TOKEN0 = lender0.asset();
         TOKEN1 = lender1.asset();
 
-        require(pool.token0() == address(TOKEN0));
-        require(pool.token1() == address(TOKEN1));
+        assert(pool.token0() == address(TOKEN0) && pool.token1() == address(TOKEN1));
     }
 
     receive() external payable {}

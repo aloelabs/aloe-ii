@@ -18,7 +18,6 @@ import {
     CONSTRAINT_RESERVE_FACTOR_MIN,
     CONSTRAINT_RESERVE_FACTOR_MAX,
     CONSTRAINT_ANTE_MAX,
-    CONSTRAINT_PAUSE_INTERVAL_MAX,
     UNISWAP_AVG_WINDOW
 } from "./libraries/constants/Constants.sol";
 
@@ -40,60 +39,95 @@ contract Factory {
 
     event EnrollCourier(uint32 indexed id, address indexed wallet, uint16 cut);
 
+    event SetMarketConfig(IUniswapV3Pool indexed pool, MarketConfig config);
+
+    // This `Factory` can create a `Market` for any Uniswap V3 pool
     struct Market {
+        // The `Lender` of `token0` in the Uniswap pool
         Lender lender0;
+        // The `Lender` of `token1` in the Uniswap pool
         Lender lender1;
+        // The implementation to which all `Borrower` clones will point
         Borrower borrowerImplementation;
     }
 
+    // Each `Market` has a set of borrowing `Parameters` to help manage risk
     struct Parameters {
+        // The amount of Ether a `Borrower` must hold in order to borrow assets
         uint208 ante;
+        // To avoid liquidation, a `Borrower` must be solvent at TWAP * e^{± nSigma * IV}
         uint8 nSigma;
+        // Borrowing is paused when the manipulation metric > threshold; this scales the threshold up/down
         uint8 manipulationThresholdDivisor;
+        // The time at which borrowing can resume
         uint32 pausedUntilTime;
     }
 
+    // The set of all governable `Market` properties
+    struct MarketConfig {
+        // Described above
+        uint208 ante;
+        // Described above
+        uint8 nSigma;
+        // Described above
+        uint8 manipulationThresholdDivisor;
+        // The reserve factor for `market.lender0`, expressed as a reciprocal
+        uint8 reserveFactor0;
+        // The reserve factor for `market.lender1`, expressed as a reciprocal
+        uint8 reserveFactor1;
+        // The rate model for `market.lender0`
+        IRateModel rateModel0;
+        // The rate model for `market.lender1`
+        IRateModel rateModel1;
+    }
+
+    // By enrolling as a `Courier`, frontends can earn a portion of their users' interest
     struct Courier {
+        // The address that receives earnings whenever users withdraw
         address wallet;
+        // The portion of users' interest to take, expressed in basis points
         uint16 cut;
     }
 
-    struct MarketConfig {
-        Parameters parameters;
-        IRateModel rateModel0;
-        IRateModel rateModel1;
-        uint8 reserveFactor0;
-        uint8 reserveFactor1;
-    }
-
+    /// @notice The only address that can propose new `MarketConfig`s and rewards programs
     address public immutable GOVERNOR;
 
+    /// @notice The oracle to use for prices and implied volatility
     VolatilityOracle public immutable ORACLE;
 
+    /// @notice The implementation to which all `Lender` clones will point
     address public immutable LENDER_IMPLEMENTATION;
 
+    /// @notice The rate model that `Lender`s will use when first created
     IRateModel public immutable DEFAULT_RATE_MODEL;
-
-    ERC20 public rewardsToken;
 
     /*//////////////////////////////////////////////////////////////
                              WORLD STORAGE
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Returns the `Market` addresses associated with a Uniswap V3 pool
     mapping(IUniswapV3Pool => Market) public getMarket;
 
+    /// @notice Returns the borrowing `Parameters` associated with a Uniswap V3 pool
     mapping(IUniswapV3Pool => Parameters) public getParameters;
 
+    /// @notice Returns whether the given address is a `Lender` deployed by this `Factory`
     mapping(address => bool) public isLender;
 
+    /// @notice Returns whether the given address is a `Borrower` deployed by this `Factory`
     mapping(address => bool) public isBorrower;
 
     /*//////////////////////////////////////////////////////////////
                            INCENTIVE STORAGE
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice The token in which rewards are paid out
+    ERC20 public rewardsToken;
+
+    /// @notice Returns the `Courier` for any given ID
     mapping(uint32 => Courier) public couriers;
 
+    /// @notice Returns whether the given address has enrolled as a courier
     mapping(address => bool) public isCourier;
 
     /*//////////////////////////////////////////////////////////////
@@ -106,6 +140,10 @@ contract Factory {
         LENDER_IMPLEMENTATION = address(new Lender(reserve));
         DEFAULT_RATE_MODEL = defaultRateModel;
     }
+
+    /*//////////////////////////////////////////////////////////////
+                               EMERGENCY
+    //////////////////////////////////////////////////////////////*/
 
     function pause(IUniswapV3Pool pool, uint40 oracleSeed) external {
         (, bool seemsLegit) = getMarket[pool].borrowerImplementation.getPrices(oracleSeed);
@@ -143,12 +181,15 @@ contract Factory {
         _setMarketConfig(
             pool,
             MarketConfig(
-                Parameters(DEFAULT_ANTE, DEFAULT_N_SIGMA, DEFAULT_MANIPULATION_THRESHOLD_DIVISOR, 0),
-                DEFAULT_RATE_MODEL,
-                DEFAULT_RATE_MODEL,
+                DEFAULT_ANTE,
+                DEFAULT_N_SIGMA,
+                DEFAULT_MANIPULATION_THRESHOLD_DIVISOR,
                 DEFAULT_RESERVE_FACTOR,
-                DEFAULT_RESERVE_FACTOR
-            )
+                DEFAULT_RESERVE_FACTOR,
+                DEFAULT_RATE_MODEL,
+                DEFAULT_RATE_MODEL
+            ),
+            0
         );
 
         emit CreateMarket(pool, lender0, lender1);
@@ -168,8 +209,24 @@ contract Factory {
     }
 
     /*//////////////////////////////////////////////////////////////
-                               REFERRALS
+                               INCENTIVES
     //////////////////////////////////////////////////////////////*/
+
+    function claimRewards(Lender[] calldata lenders, address beneficiary) external returns (uint256 earned) {
+        // Couriers cannot claim rewards because the accounting isn't quite correct for them. Specifically, we
+        // save gas by omitting a `Rewards.updateUserState` call for the courier in `Lender._burn`
+        require(!isCourier[msg.sender]);
+
+        unchecked {
+            uint256 count = lenders.length;
+            for (uint256 i = 0; i < count; i++) {
+                assert(isLender[address(lenders[i])]);
+                earned += lenders[i].claimRewards(msg.sender);
+            }
+        }
+
+        rewardsToken.safeTransfer(beneficiary, earned);
+    }
 
     /**
      * @notice Enrolls `msg.sender` in the referral program. This allows frontends/wallets/apps to
@@ -195,26 +252,6 @@ contract Factory {
     }
 
     /*//////////////////////////////////////////////////////////////
-                                REWARDS
-    //////////////////////////////////////////////////////////////*/
-
-    function claimRewards(Lender[] calldata lenders, address beneficiary) external returns (uint256 earned) {
-        // Couriers cannot claim rewards because the accounting isn't quite correct for them. Specifically, we
-        // save gas by omitting a `Rewards.updateUserState` call for the courier in `Lender._burn`
-        require(!isCourier[msg.sender]);
-
-        unchecked {
-            uint256 count = lenders.length;
-            for (uint256 i = 0; i < count; i++) {
-                assert(isLender[address(lenders[i])]);
-                earned += lenders[i].claimRewards(msg.sender);
-            }
-        }
-
-        rewardsToken.safeTransfer(beneficiary, earned);
-    }
-
-    /*//////////////////////////////////////////////////////////////
                                GOVERNANCE
     //////////////////////////////////////////////////////////////*/
 
@@ -228,39 +265,41 @@ contract Factory {
         lender.setRewardsRate(rate);
     }
 
-    function governMarketConfig(IUniswapV3Pool pool, MarketConfig memory marketConfig) external {
+    function governMarketConfig(IUniswapV3Pool pool, MarketConfig memory config) external {
         require(msg.sender == GOVERNOR);
 
         require(
             // ante: max
-            (marketConfig.parameters.ante <= CONSTRAINT_ANTE_MAX) &&
+            (config.ante <= CONSTRAINT_ANTE_MAX) &&
                 // nSigma: min, max
-                (CONSTRAINT_N_SIGMA_MIN <= marketConfig.parameters.nSigma &&
-                    marketConfig.parameters.nSigma <= CONSTRAINT_N_SIGMA_MAX) &&
+                (CONSTRAINT_N_SIGMA_MIN <= config.nSigma && config.nSigma <= CONSTRAINT_N_SIGMA_MAX) &&
                 // manipulationThresholdDivisor: min, max
-                (CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN <=
-                    marketConfig.parameters.manipulationThresholdDivisor &&
-                    marketConfig.parameters.manipulationThresholdDivisor <=
-                    CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX) &&
-                // pauseUntilTime: max
-                (marketConfig.parameters.pausedUntilTime <= block.timestamp + CONSTRAINT_PAUSE_INTERVAL_MAX) &&
+                (CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN <= config.manipulationThresholdDivisor &&
+                    config.manipulationThresholdDivisor <= CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX) &&
                 // reserveFactor0: min, max
-                (CONSTRAINT_RESERVE_FACTOR_MIN <= marketConfig.reserveFactor0 &&
-                    marketConfig.reserveFactor0 <= CONSTRAINT_RESERVE_FACTOR_MAX) &&
+                (CONSTRAINT_RESERVE_FACTOR_MIN <= config.reserveFactor0 &&
+                    config.reserveFactor0 <= CONSTRAINT_RESERVE_FACTOR_MAX) &&
                 // reserveFactor1: min, max
-                (CONSTRAINT_RESERVE_FACTOR_MIN <= marketConfig.reserveFactor1 &&
-                    marketConfig.reserveFactor1 <= CONSTRAINT_RESERVE_FACTOR_MAX),
+                (CONSTRAINT_RESERVE_FACTOR_MIN <= config.reserveFactor1 &&
+                    config.reserveFactor1 <= CONSTRAINT_RESERVE_FACTOR_MAX),
             "Aloe: constraints"
         );
 
-        _setMarketConfig(pool, marketConfig);
+        _setMarketConfig(pool, config, getParameters[pool].pausedUntilTime);
     }
 
-    function _setMarketConfig(IUniswapV3Pool pool, MarketConfig memory marketConfig) private {
-        getParameters[pool] = marketConfig.parameters;
+    function _setMarketConfig(IUniswapV3Pool pool, MarketConfig memory config, uint32 pausedUntilTime) private {
+        getParameters[pool] = Parameters({
+            ante: config.ante,
+            nSigma: config.nSigma,
+            manipulationThresholdDivisor: config.manipulationThresholdDivisor,
+            pausedUntilTime: pausedUntilTime
+        });
 
         Market memory market = getMarket[pool];
-        market.lender0.setRateModelAndReserveFactor(marketConfig.rateModel0, marketConfig.reserveFactor0);
-        market.lender1.setRateModelAndReserveFactor(marketConfig.rateModel1, marketConfig.reserveFactor1);
+        market.lender0.setRateModelAndReserveFactor(config.rateModel0, config.reserveFactor0);
+        market.lender1.setRateModelAndReserveFactor(config.rateModel1, config.reserveFactor1);
+
+        emit SetMarketConfig(pool, config);
     }
 }

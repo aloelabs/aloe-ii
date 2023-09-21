@@ -16,7 +16,6 @@ import {
     CONSTRAINT_RESERVE_FACTOR_MIN,
     CONSTRAINT_RESERVE_FACTOR_MAX,
     CONSTRAINT_ANTE_MAX,
-    CONSTRAINT_PAUSE_INTERVAL_MAX,
     UNISWAP_AVG_WINDOW
 } from "src/libraries/constants/Constants.sol";
 
