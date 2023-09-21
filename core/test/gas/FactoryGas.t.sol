@@ -6,6 +6,8 @@ import "forge-std/Test.sol";
 import "src/Factory.sol";
 import "src/RateModel.sol";
 
+import {FatFactory} from "../Utils.sol";
+
 contract FactoryGasTest is Test {
     IUniswapV3Pool constant poolA = IUniswapV3Pool(0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8);
 
@@ -17,7 +19,7 @@ contract FactoryGasTest is Test {
         vm.createSelectFork(vm.rpcUrl("mainnet"));
         vm.rollFork(15_348_451);
 
-        factory = new Factory(
+        factory = new FatFactory(
             address(0),
             address(0),
             new VolatilityOracle(),

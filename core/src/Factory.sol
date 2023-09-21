@@ -98,6 +98,9 @@ contract Factory {
     /// @notice The implementation to which all `Lender` clones will point
     address public immutable LENDER_IMPLEMENTATION;
 
+    /// @notice A simple contract that deploys `Borrower`s to keep `Factory` bytecode size down
+    BorrowerDeployer private immutable BORROWER_DEPLOYER;
+
     /// @notice The rate model that `Lender`s will use when first created
     IRateModel public immutable DEFAULT_RATE_MODEL;
 
@@ -134,10 +137,17 @@ contract Factory {
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
 
-    constructor(address governor, address reserve, VolatilityOracle oracle, IRateModel defaultRateModel) {
+    constructor(
+        address governor,
+        address reserve,
+        VolatilityOracle oracle,
+        BorrowerDeployer borrowerDeployer,
+        IRateModel defaultRateModel
+    ) {
         GOVERNOR = governor;
         ORACLE = oracle;
         LENDER_IMPLEMENTATION = address(new Lender(reserve));
+        BORROWER_DEPLOYER = borrowerDeployer;
         DEFAULT_RATE_MODEL = defaultRateModel;
     }
 
@@ -168,7 +178,7 @@ contract Factory {
         bytes32 salt = keccak256(abi.encodePacked(pool));
         Lender lender0 = Lender(LENDER_IMPLEMENTATION.cloneDeterministic({salt: salt, data: abi.encodePacked(asset0)}));
         Lender lender1 = Lender(LENDER_IMPLEMENTATION.cloneDeterministic({salt: salt, data: abi.encodePacked(asset1)}));
-        Borrower borrowerImplementation = new Borrower(ORACLE, pool, lender0, lender1);
+        Borrower borrowerImplementation = _newBorrower(pool, lender0, lender1);
 
         // Store deployment addresses
         getMarket[pool] = Market(lender0, lender1, borrowerImplementation);
@@ -301,5 +311,24 @@ contract Factory {
         market.lender1.setRateModelAndReserveFactor(config.rateModel1, config.reserveFactor1);
 
         emit SetMarketConfig(pool, config);
+    }
+
+    function _newBorrower(IUniswapV3Pool pool, Lender lender0, Lender lender1) private returns (Borrower) {
+        (bool success, bytes memory data) = address(BORROWER_DEPLOYER).delegatecall(
+            abi.encodeCall(BorrowerDeployer.deploy, (ORACLE, pool, lender0, lender1))
+        );
+        require(success);
+        return abi.decode(data, (Borrower));
+    }
+}
+
+contract BorrowerDeployer {
+    function deploy(
+        VolatilityOracle oracle,
+        IUniswapV3Pool pool,
+        Lender lender0,
+        Lender lender1
+    ) external returns (Borrower) {
+        return new Borrower(oracle, pool, lender0, lender1);
     }
 }

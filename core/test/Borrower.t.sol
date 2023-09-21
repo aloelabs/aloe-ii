@@ -24,6 +24,8 @@ import "src/Lender.sol";
 import "src/RateModel.sol";
 import {VolatilityOracle} from "src/VolatilityOracle.sol";
 
+import {FatFactory} from "./Utils.sol";
+
 contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
     uint256 constant BLOCK_TIME = 12 seconds;
 
@@ -42,7 +44,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
 
         VolatilityOracle oracle = new VolatilityOracle();
         RateModel rateModel = new RateModel();
-        factory = new Factory(address(0), address(0), oracle, rateModel);
+        factory = new FatFactory(address(0), address(0), oracle, rateModel);
 
         factory.createMarket(pool);
         (lender0, lender1, impl) = factory.getMarket(pool);

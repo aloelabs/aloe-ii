@@ -25,6 +25,8 @@ import {Lender} from "src/Lender.sol";
 import {RateModel} from "src/RateModel.sol";
 import {VolatilityOracle} from "src/VolatilityOracle.sol";
 
+import {FatFactory} from "./Utils.sol";
+
 contract FactoryTest is Test {
     event CreateMarket(IUniswapV3Pool indexed pool, address lender0, address lender1);
     event CreateBorrower(IUniswapV3Pool indexed pool, address indexed owner, address account);
@@ -39,7 +41,7 @@ contract FactoryTest is Test {
     function setUp() public {
         vm.createSelectFork(vm.rpcUrl("mainnet"), 15_348_451);
 
-        factory = new Factory(address(12345), address(0), new VolatilityOracle(), new RateModel());
+        factory = new FatFactory(address(12345), address(0), new VolatilityOracle(), new RateModel());
         rewardsToken = new MockERC20("Mock Token", "MOCK", 18);
     }
 
