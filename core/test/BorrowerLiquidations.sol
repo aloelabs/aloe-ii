@@ -14,7 +14,7 @@ import "src/RateModel.sol";
 
 import {FatFactory, VolatilityOracleMock} from "./Utils.sol";
 
-contract LiquidatorTest is Test, IManager, ILiquidator {
+contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
     IUniswapV3Pool constant pool = IUniswapV3Pool(0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8);
     ERC20 constant asset0 = ERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     ERC20 constant asset1 = ERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
@@ -54,6 +54,9 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         uint256 margin1 = 0.1e18 * (seed1 % 8 + 1);
         uint256 borrows0 = margin0 * 200;
         uint256 borrows1 = margin1 * 200;
+
+        // Extra due to rounding up in liabilities
+        margin1 += 1;
 
         deal(address(asset0), address(account), margin0);
         deal(address(asset1), address(account), margin1);
@@ -96,15 +99,15 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
     function test_spec_repayDAI() public {
         uint256 strain = 1;
-        // give the account 1 DAI
-        deal(address(asset0), address(account), 1e18);
+        // give the account 1 DAI (plus a little due to liabilities rounding up)
+        deal(address(asset0), address(account), 1e18 + 1750);
 
         // borrow 200 DAI
         bytes memory data = abi.encode(Action.BORROW, 200e18, 0);
         account.modify(this, data, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 200e18);
-        assertEq(asset0.balanceOf(address(account)), 201e18);
+        assertEq(asset0.balanceOf(address(account)), 201e18 + 1750);
 
         vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(this, bytes(""), strain, (1 << 32));
@@ -119,7 +122,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.liquidate(this, bytes(""), strain, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 0);
-        assertEq(asset0.balanceOf(address(account)), 0.8e18);
+        assertEq(asset0.balanceOf(address(account)), 0.8e18 + 1750);
     }
 
     function test_spec_repayETH() public {
@@ -154,7 +157,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         uint256 strain = 1;
         // give the account 1 DAI and 0.1 ETH
         deal(address(asset0), address(account), 1e18);
-        deal(address(asset1), address(account), 0.1e18);
+        deal(address(asset1), address(account), 0.1e18 + 1);
 
         // borrow 200 DAI and 20 ETH
         bytes memory data = abi.encode(Action.BORROW, 200e18, 20e18);
@@ -163,7 +166,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(lender0.borrowBalance(address(account)), 200e18);
         assertEq(lender1.borrowBalance(address(account)), 20e18);
         assertEq(asset0.balanceOf(address(account)), 201e18);
-        assertEq(asset1.balanceOf(address(account)), 20.1e18);
+        assertEq(asset1.balanceOf(address(account)), 20.1e18 + 1);
 
         vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(this, bytes(""), strain, (1 << 32));
@@ -182,7 +185,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(lender0.borrowBalance(address(account)), 0);
         assertEq(lender1.borrowBalance(address(account)), 0);
         assertEq(asset0.balanceOf(address(account)), 0.8e18);
-        assertEq(asset1.balanceOf(address(account)), 0.08e18);
+        assertEq(asset1.balanceOf(address(account)), 0.08e18 + 1);
     }
 
     function test_spec_repayDAIAndETHWithUniswapPosition() public {

@@ -7,7 +7,7 @@ import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 
 import {msb} from "src/libraries/Log2.sol";
-import {square, mulDiv96, mulDiv128, mulDiv224} from "src/libraries/MulDiv.sol";
+import {square, mulDiv96, mulDiv128, mulDiv128Up, mulDiv224} from "src/libraries/MulDiv.sol";
 
 contract MulDivTest is Test {
     function setUp() public {}
@@ -28,6 +28,13 @@ contract MulDivTest is Test {
             a = a >> 1;
         }
         assertEq(mulDiv128(a, b), Math.mulDiv(a, b, 1 << 128));
+    }
+
+    function test_comparitive_mulDiv128Up(uint256 a, uint256 b) public {
+        while (msb(a) + msb(b) >= 383) {
+            a = a >> 1;
+        }
+        assertEq(mulDiv128Up(a, b), Math.mulDiv(a, b, 1 << 128, Math.Rounding.Up));
     }
 
     function test_comparitive_mulDiv224(uint256 a, uint256 b) public {

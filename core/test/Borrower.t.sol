@@ -196,6 +196,46 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         account.modify(this, abi.encode(0, borrow1, true), 1 << 32);
     }
 
+    function test_cannotWarnOrLiquidateEmptyAccount() external {
+        vm.selectFork(0);
+
+        vm.expectRevert(bytes("Aloe: healthy"));
+        account.warn(1 << 32);
+
+        vm.expectRevert(bytes("Aloe: healthy"));
+        account.liquidate(ILiquidator(payable(address(0))), "", 1, 1 << 32);
+    }
+
+    function test_cannotBorrow0WithoutCollateral() external {
+        vm.selectFork(0);
+
+        uint256 borrow0 = 1;
+
+        deal(address(asset0), address(lender0), 10 * borrow0);
+        lender0.deposit(10 * borrow0, address(this));
+
+        (uint216 ante, , , ) = factory.getParameters(pool);
+        deal(address(account), ante);
+
+        vm.expectRevert(bytes("Aloe: unhealthy"));
+        account.modify(this, abi.encode(borrow0, 0, true), 1 << 32);
+    }
+
+    function test_cannotBorrow1WithoutCollateral() external {
+        vm.selectFork(0);
+
+        uint256 borrow1 = 1;
+
+        deal(address(asset1), address(lender1), 10 * borrow1);
+        lender1.deposit(10 * borrow1, address(this));
+
+        (uint216 ante, , , ) = factory.getParameters(pool);
+        deal(address(account), ante);
+
+        vm.expectRevert(bytes("Aloe: unhealthy"));
+        account.modify(this, abi.encode(0, borrow1, true), 1 << 32);
+    }
+
     /// forge-config: default.fuzz.runs = 16
     function test_leverageInKind0(uint128 iv) external {
         vm.selectFork(0);
@@ -205,6 +245,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         uint256 borrow0 = collateral0 * MAX_LEVERAGE;
 
         deal(address(asset0), address(account), collateral0);
+        deal(address(asset1), address(account), 1); // easy way to eliminate impact of liabilities rounding up
         deal(address(asset0), address(lender0), 10 * borrow0);
         lender0.deposit(10 * borrow0, address(this));
 
@@ -348,8 +389,9 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
 
         uint256 collateral1 = 1 ether;
         uint256 borrow0 = Math.mulDiv((collateral1 * (ltvMin ? LTV_MIN : LTV_MAX)) / 1e12, 1 << 128, square(prices.c));
+        borrow0 -= 2;
 
-        deal(address(asset1), address(account), collateral1);
+        deal(address(asset1), address(account), collateral1 + 1);
         deal(address(asset0), address(lender0), 10 * borrow0);
         lender0.deposit(10 * borrow0, address(this));
 
