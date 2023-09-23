@@ -9,16 +9,25 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {Oracle, UNISWAP_AVG_WINDOW} from "src/libraries/Oracle.sol";
 
 import {Borrower} from "src/Borrower.sol";
-import {Factory} from "src/Factory.sol";
+import {Factory, BorrowerDeployer} from "src/Factory.sol";
 import {Lender} from "src/Lender.sol";
-import {RateModel} from "src/RateModel.sol";
+import {RateModel, IRateModel} from "src/RateModel.sol";
 import {VolatilityOracle} from "src/VolatilityOracle.sol";
 
-contract FactoryForLenderTests is Factory {
+contract FatFactory is Factory {
+    constructor(
+        address governor,
+        address reserve,
+        VolatilityOracle oracle,
+        IRateModel defaultRateModel
+    ) Factory(governor, reserve, oracle, new BorrowerDeployer(), defaultRateModel) {}
+}
+
+contract FactoryForLenderTests is FatFactory {
     constructor(
         RateModel rateModel,
         ERC20 rewardsToken_
-    ) Factory(address(0), address(this), VolatilityOracle(address(0)), rateModel) {
+    ) FatFactory(address(0), address(this), VolatilityOracle(address(0)), rateModel) {
         rewardsToken = rewardsToken_;
     }
 

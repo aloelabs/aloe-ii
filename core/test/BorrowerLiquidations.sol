@@ -12,7 +12,7 @@ import "src/Factory.sol";
 import "src/Lender.sol";
 import "src/RateModel.sol";
 
-import {VolatilityOracleMock} from "./Utils.sol";
+import {FatFactory, VolatilityOracleMock} from "./Utils.sol";
 
 contract LiquidatorTest is Test, IManager, ILiquidator {
     IUniswapV3Pool constant pool = IUniswapV3Pool(0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8);
@@ -27,7 +27,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         vm.createSelectFork(vm.rpcUrl("mainnet"));
         vm.rollFork(15_348_451);
 
-        Factory factory = new Factory(
+        Factory factory = new FatFactory(
             address(0),
             address(0),
             VolatilityOracle(address(new VolatilityOracleMock())),
