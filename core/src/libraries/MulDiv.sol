@@ -64,6 +64,22 @@ function mulDiv128(uint256 x, uint256 y) pure returns (uint256 result) {
     }
 }
 
+/// @dev Equivalent to `fullMulDivUp(x, x, 1 << 128)`
+function mulDiv128Up(uint256 x, uint256 y) pure returns (uint256 result) {
+    result = mulDiv128(x, y);
+    assembly ("memory-safe") {
+        if mulmod(x, y, 0x100000000000000000000000000000000) {
+            if iszero(add(result, 1)) {
+                // Store the function selector of `FullMulDivFailed()`.
+                mstore(0x00, 0xae47f702)
+                // Revert with (offset, size).
+                revert(0x1c, 0x04)
+            }
+            result := add(result, 1)
+        }
+    }
+}
+
 /// @dev Equivalent to `fullMulDiv(x, y, 1 << 224)`.
 /// NOTE: Does not check for overflow, so choose `x` and `y` carefully.
 function mulDiv224(uint256 x, uint256 y) pure returns (uint256 result) {

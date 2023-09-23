@@ -54,7 +54,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         vm.pauseGasMetering();
 
         // give the account 1 DAI
-        deal(address(asset0), address(account), 1e18);
+        deal(address(asset0), address(account), 1e18 + 2100);
 
         // borrow 200 DAI
         bytes memory data = abi.encode(Action.BORROW, 200e18, 0);
@@ -85,7 +85,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
 
         // give the account 1 DAI and 0.1 WETH
         deal(address(asset0), address(account), 1e18);
-        deal(address(asset1), address(account), 0.1e18);
+        deal(address(asset1), address(account), 0.1e18 + 1);
 
         // borrow 200 DAI and 20 WETH
         bytes memory data = abi.encode(Action.BORROW, 200e18, 20e18);

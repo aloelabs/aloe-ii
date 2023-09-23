@@ -11,7 +11,7 @@ import {
     LTV_NUMERATOR
 } from "./constants/Constants.sol";
 import {exp1e12} from "./Exp.sol";
-import {square, mulDiv128} from "./MulDiv.sol";
+import {square, mulDiv128, mulDiv128Up} from "./MulDiv.sol";
 import {TickMath} from "./TickMath.sol";
 
 struct Assets {
@@ -42,12 +42,13 @@ library BalanceSheet {
         uint256 liabilities1
     ) internal pure returns (bool) {
         unchecked {
+            // The optimizer eliminates the conditional in `divUp`; don't worry about gas golfing that
             liabilities0 +=
-                (liabilities0 / MAX_LEVERAGE) +
-                (liabilities0.zeroFloorSub(mem.fixed0 + mem.fluid0C) / LIQUIDATION_INCENTIVE);
+                liabilities0.divUp(MAX_LEVERAGE) +
+                liabilities0.zeroFloorSub(mem.fixed0 + mem.fluid0C).divUp(LIQUIDATION_INCENTIVE);
             liabilities1 +=
-                (liabilities1 / MAX_LEVERAGE) +
-                (liabilities1.zeroFloorSub(mem.fixed1 + mem.fluid1C) / LIQUIDATION_INCENTIVE);
+                liabilities1.divUp(MAX_LEVERAGE) +
+                liabilities1.zeroFloorSub(mem.fixed1 + mem.fluid1C).divUp(LIQUIDATION_INCENTIVE);
         }
 
         // combine
@@ -56,12 +57,12 @@ library BalanceSheet {
         uint256 assets;
 
         priceX128 = square(prices.a);
-        liabilities = liabilities1 + mulDiv128(liabilities0, priceX128);
+        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
         assets = mem.fluid1A + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
         if (liabilities > assets) return false;
 
         priceX128 = square(prices.b);
-        liabilities = liabilities1 + mulDiv128(liabilities0, priceX128);
+        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
         assets = mem.fluid1B + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
         if (liabilities > assets) return false;
 
