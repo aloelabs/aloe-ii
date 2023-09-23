@@ -101,7 +101,7 @@ contract Ledger {
 
     /// @notice The name of the banknote.
     function name() external view returns (string memory) {
-        return string.concat("Aloe II ", asset().name());
+        return string.concat("Aloe ", asset().name(), unicode" ⚭ [", Ledger(peer()).asset().symbol(), "]");
     }
 
     /// @notice The symbol of the banknote.
@@ -117,6 +117,11 @@ contract Ledger {
     /// @notice The address of the underlying token.
     function asset() public pure returns (ERC20) {
         return ERC20(ImmutableArgs.addr());
+    }
+
+    /// @notice The address of the other `Lender` in the market
+    function peer() public view returns (address) {
+        return FACTORY.peer(address(this));
     }
 
     /// @notice The domain separator for EIP-2612

@@ -99,7 +99,7 @@ contract Factory {
     address public immutable LENDER_IMPLEMENTATION;
 
     /// @notice A simple contract that deploys `Borrower`s to keep `Factory` bytecode size down
-    BorrowerDeployer private immutable BORROWER_DEPLOYER;
+    BorrowerDeployer private immutable _BORROWER_DEPLOYER;
 
     /// @notice The rate model that `Lender`s will use when first created
     IRateModel public immutable DEFAULT_RATE_MODEL;
@@ -114,8 +114,8 @@ contract Factory {
     /// @notice Returns the borrowing `Parameters` associated with a Uniswap V3 pool
     mapping(IUniswapV3Pool => Parameters) public getParameters;
 
-    /// @notice Returns whether the given address is a `Lender` deployed by this `Factory`
-    mapping(address => bool) public isLender;
+    /// @notice Returns the other `Lender` in the `Market` iff input is itself a `Lender`, otherwise 0
+    mapping(address => address) public peer;
 
     /// @notice Returns whether the given address is a `Borrower` deployed by this `Factory`
     mapping(address => bool) public isBorrower;
@@ -147,7 +147,7 @@ contract Factory {
         GOVERNOR = governor;
         ORACLE = oracle;
         LENDER_IMPLEMENTATION = address(new Lender(reserve));
-        BORROWER_DEPLOYER = borrowerDeployer;
+        _BORROWER_DEPLOYER = borrowerDeployer;
         DEFAULT_RATE_MODEL = defaultRateModel;
     }
 
@@ -182,8 +182,8 @@ contract Factory {
 
         // Store deployment addresses
         getMarket[pool] = Market(lender0, lender1, borrowerImplementation);
-        isLender[address(lender0)] = true;
-        isLender[address(lender1)] = true;
+        peer[address(lender0)] = address(lender1);
+        peer[address(lender1)] = address(lender0);
 
         // Initialize lenders and set default market config
         lender0.initialize();
@@ -230,7 +230,8 @@ contract Factory {
         unchecked {
             uint256 count = lenders.length;
             for (uint256 i = 0; i < count; i++) {
-                assert(isLender[address(lenders[i])]);
+                // Make sure it is, in fact, a `Lender`
+                require(peer[address(lenders[i])] != address(0));
                 earned += lenders[i].claimRewards(msg.sender);
             }
         }
@@ -314,7 +315,7 @@ contract Factory {
     }
 
     function _newBorrower(IUniswapV3Pool pool, Lender lender0, Lender lender1) private returns (Borrower) {
-        (bool success, bytes memory data) = address(BORROWER_DEPLOYER).delegatecall(
+        (bool success, bytes memory data) = address(_BORROWER_DEPLOYER).delegatecall(
             abi.encodeCall(BorrowerDeployer.deploy, (ORACLE, pool, lender0, lender1))
         );
         require(success);

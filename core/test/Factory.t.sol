@@ -51,8 +51,8 @@ contract FactoryTest is Test {
         factory.createMarket(pool);
 
         (Lender lender0, Lender lender1, ) = factory.getMarket(pool);
-        assertTrue(factory.isLender(address(lender0)));
-        assertTrue(factory.isLender(address(lender1)));
+        assertEq(factory.peer(address(lender0)), address(lender1));
+        assertEq(factory.peer(address(lender1)), address(lender0));
         assertEq(address(lender0.rateModel()), address(factory.DEFAULT_RATE_MODEL()));
         assertEq(address(lender1.rateModel()), address(factory.DEFAULT_RATE_MODEL()));
         assertEq(lender0.reserveFactor(), DEFAULT_RESERVE_FACTOR);
