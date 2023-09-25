@@ -12,8 +12,6 @@ library Rewards {
 
     event RewardsClaimed(address indexed user, uint112 amount);
 
-    bytes32 private constant _REWARDS_SLOT = keccak256("aloe.ii.rewards");
-
     struct PoolState {
         // Accumulated rewards per token, scaled up by 1e16
         uint144 accumulated;
@@ -36,6 +34,8 @@ library Rewards {
         PoolState poolState;
         mapping(address => UserState) userStates;
     }
+
+    bytes32 private constant _REWARDS_SLOT = keccak256("aloe.ii.rewards");
 
     /**
      * @notice Sets the pool's rewards rate. May be 0.
