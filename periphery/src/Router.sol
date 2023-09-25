@@ -29,13 +29,12 @@ contract Router {
         bytes32 rL,
         bytes32 sL
     ) external returns (uint256 shares) {
-        if (allowance != 0) {
-            lender.asset().permit(msg.sender, address(this), allowance, deadline, v, r, s);
-        }
-
         lender.permit(msg.sender, address(this), 1, deadline, vL, rL, sL);
 
-        lender.asset().safeTransferFrom(msg.sender, address(lender), amount);
+        ERC20 asset = lender.asset();
+        asset.permit(msg.sender, address(this), allowance, deadline, v, r, s);
+        asset.safeTransferFrom(msg.sender, address(lender), amount);
+
         shares = lender.deposit(amount, msg.sender, courierId);
     }
 
@@ -70,6 +69,7 @@ contract Router {
 
     function repayWithPermit2(
         Lender lender,
+        bool max,
         uint256 amount,
         address beneficiary,
         uint256 nonce,
@@ -82,7 +82,7 @@ contract Router {
             deadline: deadline
         });
 
-        if (amount == type(uint256).max) amount = lender.borrowBalance(beneficiary);
+        if (max) amount = lender.borrowBalance(beneficiary);
 
         // Transfer tokens from the caller to the lender.
         PERMIT2.permitTransferFrom(
@@ -100,18 +100,5 @@ contract Router {
         );
 
         units = lender.repay(amount, beneficiary);
-    }
-
-    /**
-     * @notice Indicates whether `lender.maxRedeem(owner)` is dynamic, i.e. whether it's changing over time or not
-     * @dev In most cases, `lender.maxRedeem(owner)` returns a static number of shares, and a standard `lender.redeem`
-     * call can successfully redeem everything. However, if the user has a courier or if utilization is too high, the
-     * number of shares may change block by block. In that case, to redeem the maximum value, you can pass
-     * `type(uint256).max` to `lender.redeem`.
-     */
-    function isMaxRedeemDynamic(Lender lender, address owner) external view returns (bool) {
-        // NOTE: If the first statement is true, the second statement will also be true (unless this is the block in which
-        // they deposited for the first time). We include the first statement only to reduce computation.
-        return lender.courierOf(owner) > 0 || lender.balanceOf(owner) != lender.maxRedeem(owner);
     }
 }

@@ -5,36 +5,10 @@ import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {Q96, Q128} from "aloe-ii-core/libraries/constants/Q.sol";
+import {Q96} from "aloe-ii-core/libraries/constants/Q.sol";
 import {LiquidityAmounts} from "aloe-ii-core/libraries/LiquidityAmounts.sol";
+import {mulDiv96, mulDiv128} from "aloe-ii-core/libraries/MulDiv.sol";
 import {TickMath} from "aloe-ii-core/libraries/TickMath.sol";
-
-bytes32 constant UNISWAP_INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
-
-function computePoolAddress(
-    address factory,
-    address token0,
-    address token1,
-    uint24 fee
-) pure returns (IUniswapV3Pool pool) {
-    assert(token0 < token1);
-    pool = IUniswapV3Pool(
-        address(
-            uint160(
-                uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            hex"ff",
-                            factory,
-                            keccak256(abi.encode(token0, token1, fee)),
-                            UNISWAP_INIT_CODE_HASH
-                        )
-                    )
-                )
-            )
-        )
-    );
-}
 
 library Uniswap {
     using SafeCastLib for uint256;
@@ -64,6 +38,8 @@ library Uniswap {
         uint256 feeGrowthGlobal0X128;
         uint256 feeGrowthGlobal1X128;
     }
+
+    bytes32 private constant _INIT_CODE_HASH = 0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
 
     /// @dev Wrapper around `IUniswapV3Pool.positions()` that assumes `positions` is owned by `this`
     function info(
@@ -145,7 +121,7 @@ library Uniswap {
         uint256 amount0
     ) internal pure returns (uint128 liquidity) {
         assert(sqrtRatioAX96 < sqrtRatioBX96);
-        uint256 intermediate = Math.mulDiv(sqrtRatioAX96, sqrtRatioBX96, Q96);
+        uint256 intermediate = mulDiv96(sqrtRatioAX96, sqrtRatioBX96);
         liquidity = Math.mulDiv(amount0, intermediate, sqrtRatioBX96 - sqrtRatioAX96).safeCastTo128();
     }
 
@@ -248,6 +224,31 @@ library Uniswap {
             );
     }
 
+    function computePoolAddress(
+        address factory,
+        address token0,
+        address token1,
+        uint24 fee
+    ) internal pure returns (IUniswapV3Pool pool) {
+        assert(token0 < token1);
+        pool = IUniswapV3Pool(
+            address(
+                uint160(
+                    uint256(
+                        keccak256(
+                            abi.encodePacked(
+                                hex"ff",
+                                factory,
+                                keccak256(abi.encode(token0, token1, fee)),
+                                _INIT_CODE_HASH
+                            )
+                        )
+                    )
+                )
+            )
+        );
+    }
+
     function _fees(
         PositionInfo memory positionInfo,
         uint256 feeGrowthInside0X128,
@@ -256,11 +257,11 @@ library Uniswap {
         unchecked {
             amount0 =
                 positionInfo.tokensOwed0 +
-                Math.mulDiv(feeGrowthInside0X128 - positionInfo.feeGrowthInside0LastX128, positionInfo.liquidity, Q128);
+                mulDiv128(feeGrowthInside0X128 - positionInfo.feeGrowthInside0LastX128, positionInfo.liquidity);
 
             amount1 =
                 positionInfo.tokensOwed1 +
-                Math.mulDiv(feeGrowthInside1X128 - positionInfo.feeGrowthInside1LastX128, positionInfo.liquidity, Q128);
+                mulDiv128(feeGrowthInside1X128 - positionInfo.feeGrowthInside1LastX128, positionInfo.liquidity);
         }
     }
 }

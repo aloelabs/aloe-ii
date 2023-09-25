@@ -7,7 +7,7 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {MAX_LEVERAGE, LIQUIDATION_INCENTIVE} from "aloe-ii-core/libraries/constants/Constants.sol";
 import {Assets, Prices} from "aloe-ii-core/libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "aloe-ii-core/libraries/LiquidityAmounts.sol";
-import {square, mulDiv128} from "aloe-ii-core/libraries/MulDiv.sol";
+import {square, mulDiv128, mulDiv128Up} from "aloe-ii-core/libraries/MulDiv.sol";
 import {TickMath} from "aloe-ii-core/libraries/TickMath.sol";
 import {Borrower} from "aloe-ii-core/Borrower.sol";
 
@@ -27,12 +27,13 @@ contract BorrowerLens {
         (uint256 liabilities0, uint256 liabilities1) = getLiabilities(account, previewInterest);
 
         unchecked {
+            // The optimizer eliminates the conditional in `divUp`; don't worry about gas golfing that
             liabilities0 +=
-                (liabilities0 / MAX_LEVERAGE) +
-                (liabilities0.zeroFloorSub(mem.fixed0 + mem.fluid0C) / LIQUIDATION_INCENTIVE);
+                liabilities0.divUp(MAX_LEVERAGE) +
+                liabilities0.zeroFloorSub(mem.fixed0 + mem.fluid0C).divUp(LIQUIDATION_INCENTIVE);
             liabilities1 +=
-                (liabilities1 / MAX_LEVERAGE) +
-                (liabilities1.zeroFloorSub(mem.fixed1 + mem.fluid1C) / LIQUIDATION_INCENTIVE);
+                liabilities1.divUp(MAX_LEVERAGE) +
+                liabilities1.zeroFloorSub(mem.fixed1 + mem.fluid1C).divUp(LIQUIDATION_INCENTIVE);
         }
 
         // combine
@@ -41,19 +42,14 @@ contract BorrowerLens {
         uint256 assets;
 
         priceX128 = square(prices.a);
-        liabilities = liabilities1 + mulDiv128(liabilities0, priceX128);
+        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
         assets = mem.fluid1A + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
         healthA = liabilities > 0 ? (assets * 1e18) / liabilities : 1000e18;
 
         priceX128 = square(prices.b);
-        liabilities = liabilities1 + mulDiv128(liabilities0, priceX128);
+        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
         assets = mem.fluid1B + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
         healthB = liabilities > 0 ? (assets * 1e18) / liabilities : 1000e18;
-    }
-
-    function getAssets(Borrower account) external view returns (Assets memory) {
-        (Prices memory prices, ) = account.getPrices(1 << 32);
-        return _getAssets(account, account.getUniswapPositions(), prices);
     }
 
     function getUniswapFees(Borrower account) external view returns (bytes32[] memory keys, uint256[] memory fees) {
@@ -86,6 +82,11 @@ contract BorrowerLens {
         }
     }
 
+    function getAssets(Borrower account) external view returns (Assets memory) {
+        (Prices memory prices, ) = account.getPrices(1 << 32);
+        return _getAssets(account, account.getUniswapPositions(), prices);
+    }
+
     function getLiabilities(
         Borrower account,
         bool previewInterest
@@ -101,9 +102,10 @@ contract BorrowerLens {
 
     /* solhint-disable code-complexity */
 
+    /// @dev Mirrors the logic in `Borrower._getAssets`
     function _getAssets(
         Borrower account,
-        int24[] memory positions_,
+        int24[] memory positions,
         Prices memory prices
     ) private view returns (Assets memory assets) {
         assets.fixed0 = account.TOKEN0().balanceOf(address(account));
@@ -111,12 +113,12 @@ contract BorrowerLens {
 
         IUniswapV3Pool pool = account.UNISWAP_POOL();
 
-        uint256 count = positions_.length;
+        uint256 count = positions.length;
         unchecked {
             for (uint256 i; i < count; i += 2) {
-                // Load lower and upper ticks from the `positions_` array
-                int24 l = positions_[i];
-                int24 u = positions_[i + 1];
+                // Load lower and upper ticks from the `positions` array
+                int24 l = positions[i];
+                int24 u = positions[i + 1];
                 // Fetch amount of `liquidity` in the position
                 (uint128 liquidity, , , , ) = pool.positions(keccak256(abi.encodePacked(address(account), l, u)));
 
