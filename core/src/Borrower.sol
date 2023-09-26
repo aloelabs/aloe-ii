@@ -60,6 +60,18 @@ contract Borrower is IUniswapV3MintCallback {
      */
     event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX128);
 
+    enum State {
+        Ready,
+        Locked,
+        InModifyCallback
+    }
+
+    struct Slot0 {
+        address owner;
+        uint88 unleashLiquidationTime;
+        State state;
+    }
+
     /// @notice The factory that created this contract
     Factory public immutable FACTORY;
 
@@ -80,18 +92,6 @@ contract Borrower is IUniswapV3MintCallback {
 
     /// @notice The lender of `TOKEN1`
     Lender public immutable LENDER1;
-
-    enum State {
-        Ready,
-        Locked,
-        InModifyCallback
-    }
-
-    struct Slot0 {
-        address owner;
-        uint88 unleashLiquidationTime;
-        State state;
-    }
 
     Slot0 public slot0;
 

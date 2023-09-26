@@ -8,7 +8,7 @@
     "constructor-syntax": "error",
     "custom-errors": "off",
     "explicit-types": ["error", "explicit"],
-    "function-max-lines": ["warn", 50],
+    "function-max-lines": "off",
     "max-line-length": ["warn", 140],
     "max-states-count": ["warn", 10],
     "no-console": "error",
@@ -16,6 +16,7 @@
     "no-global-import": "warn",
     "no-unused-import": "error",
     "no-unused-vars": "error",
+    "one-contract-per-file": "off",
     "payable-fallback": "warn",
     "reason-string": ["off", { "maxLength": 32 }],
 

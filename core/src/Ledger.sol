@@ -19,10 +19,6 @@ contract Ledger {
     using FixedPointMathLib for uint256;
     using SafeRateLib for IRateModel;
 
-    Factory public immutable FACTORY;
-
-    address public immutable RESERVE;
-
     struct Cache {
         uint256 totalSupply;
         uint256 lastBalance;
@@ -30,6 +26,10 @@ contract Ledger {
         uint256 borrowBase;
         uint256 borrowIndex;
     }
+
+    Factory public immutable FACTORY;
+
+    address public immutable RESERVE;
 
     /*//////////////////////////////////////////////////////////////
                              LENDER STORAGE
@@ -66,9 +66,9 @@ contract Ledger {
                             ERC2612 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 internal initialDomainSeparator;
+    bytes32 internal _initialDomainSeparator;
 
-    uint256 internal initialChainId;
+    uint256 internal _initialChainId;
 
     mapping(address => uint256) public nonces;
 
@@ -126,7 +126,7 @@ contract Ledger {
 
     /// @notice The domain separator for EIP-2612
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
-        return block.chainid == initialChainId ? initialDomainSeparator : _computeDomainSeparator();
+        return block.chainid == _initialChainId ? _initialDomainSeparator : _computeDomainSeparator();
     }
 
     /**
