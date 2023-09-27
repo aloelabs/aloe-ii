@@ -19,7 +19,7 @@ library NFTSVG {
         int24 lower;
         int24 upper;
         bool inRange;
-        bool isGeneralized;
+        bool isActive;
         string color0;
         string color1;
         string color2;
@@ -40,7 +40,7 @@ library NFTSVG {
                 _generate3X3Quilt(params.color0, "rgb(242,245,238)", params.color1, params.color2, params.color3),
                 _generateAnimatedText(params.token0, params.token1, params.symbol0, params.symbol1),
                 "</g>",
-                _generatePositionDataText(params.tokenId, params.lower, params.upper, params.isGeneralized),
+                _generatePositionDataText(params.tokenId, params.lower, params.upper, params.isActive),
                 "</g></g></svg>"
             );
     }
@@ -227,9 +227,9 @@ library NFTSVG {
         string memory tokenId,
         int24 tickLower,
         int24 tickUpper,
-        bool isGeneralized
+        bool isActive
     ) private pure returns (string memory) {
-        if (isGeneralized) {
+        if (isActive) {
             return
                 string.concat(
                     '<g style="transform:translate(50px, 458px)">',

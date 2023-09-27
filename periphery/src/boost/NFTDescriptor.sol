@@ -22,7 +22,7 @@ library NFTDescriptor {
         uint24 fee;
         address poolAddress;
         address borrowerAddress;
-        bool isGeneralized;
+        bool isActive;
     }
 
     function constructTokenURI(ConstructTokenURIParams memory params) internal pure returns (string memory) {
@@ -131,7 +131,7 @@ library NFTDescriptor {
             params.tickLower,
             params.tickUpper,
             params.tickLower <= params.tickCurrent && params.tickCurrent < params.tickUpper,
-            params.isGeneralized,
+            params.isActive,
             _tokenToColor(params.token0, 60),
             _tokenToColor(params.token1, 32),
             _tokenToColor(params.token0, 80),

@@ -42,7 +42,7 @@ contract DeployBoostScript is Script {
             BoostManager boostManager = new BoostManager{salt: TAG}(factory, address(boostNft), uniswapNft);
 
             boostNft.setBoostManager(boostManager);
-            boostNft.setOwner(OWNER);
+            boostNft.setGovernor(OWNER);
 
             vm.stopBroadcast();
         }

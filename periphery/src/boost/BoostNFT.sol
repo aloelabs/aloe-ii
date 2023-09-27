@@ -11,84 +11,61 @@ import {NFTDescriptor} from "./NFTDescriptor.sol";
 import {SafeERC20Namer} from "./SafeERC20Namer.sol";
 
 contract BoostNFT is ERC721 {
+    event ReleaseBorrower(IUniswapV3Pool indexed pool, address indexed owner, address borrower);
+
     Factory public immutable FACTORY;
 
-    struct NFTAttributes {
-        Borrower borrower;
-        bool isGeneralized;
-    }
-
-    address public owner;
+    address public governor;
 
     IManager public boostManager;
 
-    mapping(uint256 => NFTAttributes) public attributesOf;
+    mapping(uint256 => Borrower) public borrowerFor;
 
-    Borrower[] internal _freeBorrowers;
-
-    /*//////////////////////////////////////////////////////////////
-                              CONSTRUCTOR
-    //////////////////////////////////////////////////////////////*/
-
-    constructor(address owner_, Factory factory) ERC721("Uniswap V3 - Aloe Edition", "UNI-V3-ALOE") {
-        owner = owner_;
+    constructor(address governor_, Factory factory) ERC721("Uniswap V3 - Aloe Edition", "UNI-V3-ALOE") {
+        governor = governor_;
         FACTORY = factory;
     }
 
-    /*//////////////////////////////////////////////////////////////
-                               GOVERNANCE
-    //////////////////////////////////////////////////////////////*/
-
-    function setOwner(address owner_) external {
-        require(msg.sender == owner);
-        owner = owner_;
+    function setGovernor(address governor_) external {
+        require(msg.sender == governor);
+        governor = governor_;
     }
 
     function setBoostManager(IManager boostManager_) external {
-        require(msg.sender == owner);
+        require(msg.sender == governor);
         boostManager = boostManager_;
     }
 
-    function createBorrower(IUniswapV3Pool pool) external {
-        _freeBorrowers.push(Borrower(FACTORY.createBorrower(pool, address(this))));
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                                  MINT
-    //////////////////////////////////////////////////////////////*/
-
-    function mint(IUniswapV3Pool pool, bytes memory initializationData, uint40 oracleSeed) public payable {
+    function mint(IUniswapV3Pool pool, bytes memory data, uint40 oracleSeed) public payable {
         uint256 id = uint256(keccak256(abi.encodePacked(msg.sender, balanceOf(msg.sender))));
 
-        Borrower borrower = _nextBorrower(pool);
-        attributesOf[id] = NFTAttributes(borrower, false);
+        Borrower borrower = Borrower(FACTORY.createBorrower(pool, address(this)));
+        borrowerFor[id] = borrower;
         _mint(msg.sender, id);
 
-        initializationData = abi.encode(msg.sender, 0, initializationData);
-        borrower.modify{value: msg.value}(boostManager, initializationData, oracleSeed);
+        data = abi.encode(msg.sender, 0, data);
+        borrower.modify{value: msg.value}(boostManager, data, oracleSeed);
     }
 
-    /*//////////////////////////////////////////////////////////////
-                            BORROWER MODIFY
-    //////////////////////////////////////////////////////////////*/
-
-    function modify(uint256 id, uint8 action, IManager manager, bytes memory data, uint40 oracleSeed) public payable {
-        require(msg.sender == _ownerOf[id], "Aloe: only NFT owner can modify");
-
-        NFTAttributes memory attributes = attributesOf[id];
-
-        if (address(manager) == address(0)) {
-            manager = boostManager;
-        } else if (!attributes.isGeneralized) {
-            attributesOf[id].isGeneralized = true;
-        }
+    function modify(uint256 id, uint8 action, bytes memory data, uint40 oracleSeed) external payable {
+        require(msg.sender == _ownerOf[id], "Aloe: only NFT owner");
 
         data = abi.encode(msg.sender, action, data);
-        attributes.borrower.modify{value: msg.value}(manager, data, oracleSeed);
+        borrowerFor[id].modify{value: msg.value}(boostManager, data, oracleSeed);
     }
 
-    function modify(uint256 id, uint8 action, bytes calldata data, uint40 oracleSeed) external payable {
-        modify(id, action, IManager(address(0)), data, oracleSeed);
+    /// @notice Permanently relinquish control of the `Borrower` associated with `id`. The owner can then
+    /// manage their Borrower manually.
+    function release(uint256 id) external {
+        require(msg.sender == _ownerOf[id], "Aloe: only NFT owner");
+
+        Borrower borrower = borrowerFor[id];
+        delete borrowerFor[id];
+        _burn(id);
+
+        // Give `msg.sender` manual control of their borrower
+        borrower.initialize(msg.sender);
+        emit ReleaseBorrower(borrower.UNISWAP_POOL(), msg.sender, address(borrower));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -96,24 +73,16 @@ contract BoostNFT is ERC721 {
     //////////////////////////////////////////////////////////////*/
 
     function tokenURI(uint256 id) public view virtual override returns (string memory) {
-        NFTAttributes memory attributes = attributesOf[id];
+        Borrower borrower = borrowerFor[id];
 
-        int24 tickLower;
-        int24 tickUpper;
-        int24 tickCurrent;
-        int24 tickSpacing;
-        IUniswapV3Pool poolAddress = attributes.borrower.UNISWAP_POOL();
+        IUniswapV3Pool poolAddress = borrower.UNISWAP_POOL();
+        int24[] memory positions = borrower.getUniswapPositions();
+        int24 tickLower = positions[0];
+        int24 tickUpper = positions[1];
+        (, int24 tickCurrent, , , , , ) = poolAddress.slot0();
 
-        if (!attributes.isGeneralized) {
-            int24[] memory positions = attributes.borrower.getUniswapPositions();
-            tickLower = positions[0];
-            tickUpper = positions[1];
-            (, tickCurrent, , , , , ) = poolAddress.slot0();
-            tickSpacing = poolAddress.tickSpacing();
-        }
-
-        ERC20 token0 = attributes.borrower.TOKEN0();
-        ERC20 token1 = attributes.borrower.TOKEN1();
+        ERC20 token0 = borrower.TOKEN0();
+        ERC20 token1 = borrower.TOKEN1();
         return
             NFTDescriptor.constructTokenURI(
                 NFTDescriptor.ConstructTokenURIParams({
@@ -127,25 +96,9 @@ contract BoostNFT is ERC721 {
                     tickCurrent: tickCurrent,
                     fee: poolAddress.fee(),
                     poolAddress: address(poolAddress),
-                    borrowerAddress: address(attributes.borrower),
-                    isGeneralized: attributes.isGeneralized
+                    borrowerAddress: address(borrower),
+                    isActive: address(borrower).balance > 0
                 })
             );
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                                HELPERS
-    //////////////////////////////////////////////////////////////*/
-
-    function _nextBorrower(IUniswapV3Pool pool) private returns (Borrower borrower) {
-        unchecked {
-            uint256 count = _freeBorrowers.length;
-            if (count > 0) {
-                borrower = _freeBorrowers[count - 1];
-                _freeBorrowers.pop();
-            } else {
-                borrower = Borrower(FACTORY.createBorrower(pool, address(this)));
-            }
-        }
     }
 }

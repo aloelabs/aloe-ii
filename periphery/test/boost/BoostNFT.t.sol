@@ -36,15 +36,15 @@ contract BoostNFTTest is Test {
         boostNft.setBoostManager(boostManager);
     }
 
-    function test_setOwner(address newOwner) public {
+    function test_setGovernor(address newOwner) public {
         vm.assume(newOwner != address(this));
 
         vm.prank(newOwner);
         vm.expectRevert(bytes(""));
-        boostNft.setOwner(newOwner);
+        boostNft.setGovernor(newOwner);
 
-        boostNft.setOwner(newOwner);
-        assertEq(boostNft.owner(), newOwner);
+        boostNft.setGovernor(newOwner);
+        assertEq(boostNft.governor(), newOwner);
     }
 
     function test_setBoostManager(address caller, IManager newBoostManager) public {
@@ -56,14 +56,6 @@ contract BoostNFTTest is Test {
 
         boostNft.setBoostManager(newBoostManager);
         assertEq(address(boostNft.boostManager()), address(newBoostManager));
-    }
-
-    function test_createBorrower() public {
-        IUniswapV3Pool pool = IUniswapV3Pool(0x85149247691df622eaF1a8Bd0CaFd40BC45154a9);
-
-        vm.expectEmit(true, true, false, false, address(FACTORY));
-        emit CreateBorrower(pool, address(boostNft), address(0));
-        boostNft.createBorrower(pool);
     }
 
     function test_mintPermissions() public {
@@ -97,9 +89,8 @@ contract BoostNFTTest is Test {
         uint256 id = uint256(keccak256(abi.encodePacked(owner, uint256(0))));
         assertEq(boostNft.ownerOf(id), owner);
         assertEq(boostNft.balanceOf(owner), 1);
-        (Borrower borrower, bool isGeneralized) = boostNft.attributesOf(id);
+        Borrower borrower = boostNft.borrowerFor(id);
         assertTrue(FACTORY.isBorrower(address(borrower)));
-        assertFalse(isGeneralized);
     }
 
     function test_gas_mint1x() public {

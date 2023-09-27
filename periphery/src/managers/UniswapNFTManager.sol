@@ -35,7 +35,7 @@ contract UniswapNFTManager is IManager {
 
         // move position from NonfungiblePositionManager to Borrower
         if (liquidity < 0) {
-            // safety checks since this contract will be approved to manager users' positions
+            // safety checks since this contract will be approved to manage users' positions
             require(FACTORY.isBorrower(msg.sender) && owner == NFT_MANAGER.ownerOf(tokenId));
 
             _withdrawFromNFT(tokenId, uint128(-liquidity), msg.sender);
