@@ -63,7 +63,7 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
             require(owner == UNISWAP_NFT.ownerOf(tokenId), "Aloe: owners must match to import");
 
             unchecked {
-                (uint256 amount0, uint256 amount1) = _withdrawFromNFT(tokenId, liquidity, msg.sender);
+                (uint256 amount0, uint256 amount1) = _withdrawFromUniswapNFT(tokenId, liquidity, msg.sender);
                 // Add 0.1% extra to account for rounding in Uniswap's math. This is more gas-efficient than
                 // computing exact amounts needed with LiquidityAmounts library, and has negligible impact on
                 // interest rates and liquidation thresholds.
@@ -144,13 +144,14 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
 
             unchecked {
                 borrower.transfer(assets0 - liabilities0, assets1 - liabilities1, owner);
+                borrower.withdrawAnte(payable(owner));
             }
         }
 
         return 0;
     }
 
-    function _withdrawFromNFT(
+    function _withdrawFromUniswapNFT(
         uint256 tokenId,
         uint128 liquidity,
         address recipient

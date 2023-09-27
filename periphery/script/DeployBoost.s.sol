@@ -16,9 +16,9 @@ contract DeployBoostScript is Script {
     string[] chains = ["optimism", "arbitrum", "base"];
 
     Factory[] factories = [
-        Factory(0x95110C9806833d3D3C250112fac73c5A6f631E80),
-        Factory(0x95110C9806833d3D3C250112fac73c5A6f631E80),
-        Factory(0xA56eA45565478Fcd131AEccaB2FE934F23BAD8dc)
+        Factory(0x3A0a11A7829bfB34400cE338a0442877FBC8582e),
+        Factory(0x3A0a11A7829bfB34400cE338a0442877FBC8582e),
+        Factory(0x00000006d6C0519e0eB953CFfeb7007e5200680B)
     ];
 
     IUniswapNFT[] uniswapNfts = [
@@ -53,9 +53,9 @@ contract UpdateBoostManagerScript is Script {
     string[] chains = ["optimism", "arbitrum", "base"];
 
     Factory[] factories = [
-        Factory(0x95110C9806833d3D3C250112fac73c5A6f631E80),
-        Factory(0x95110C9806833d3D3C250112fac73c5A6f631E80),
-        Factory(0xA56eA45565478Fcd131AEccaB2FE934F23BAD8dc)
+        Factory(0x3A0a11A7829bfB34400cE338a0442877FBC8582e),
+        Factory(0x3A0a11A7829bfB34400cE338a0442877FBC8582e),
+        Factory(0x00000006d6C0519e0eB953CFfeb7007e5200680B)
     ];
 
     IUniswapNFT[] uniswapNfts = [
@@ -65,9 +65,9 @@ contract UpdateBoostManagerScript is Script {
     ];
 
     BoostNFT[] boostNfts = [
-        BoostNFT(0xF4dee9b7dDdc447B4b325207c01e77e0FC12307f),
-        BoostNFT(0xF4dee9b7dDdc447B4b325207c01e77e0FC12307f),
-        BoostNFT(0xAe6Ce0306ED104Ab989b4C87ea305d9395C21F45)
+        BoostNFT(0x6A493103db746451E1B0a927f85D82F3624E407c),
+        BoostNFT(0x6A493103db746451E1B0a927f85D82F3624E407c),
+        BoostNFT(0xb60A0537908C5D750483750C3172ff437fcA9f32)
     ];
 
     function run() external {

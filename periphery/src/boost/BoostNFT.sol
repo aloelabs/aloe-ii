@@ -11,12 +11,12 @@ import {NFTDescriptor} from "./NFTDescriptor.sol";
 import {SafeERC20Namer} from "./SafeERC20Namer.sol";
 
 contract BoostNFT is ERC721 {
-    Factory public immutable FACTORY;
-
     struct NFTAttributes {
         Borrower borrower;
         bool isGeneralized;
     }
+
+    Factory public immutable FACTORY;
 
     address public owner;
 

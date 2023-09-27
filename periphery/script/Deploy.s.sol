@@ -8,8 +8,6 @@ import {Factory} from "aloe-ii-core/Factory.sol";
 import {BorrowerLens} from "src/BorrowerLens.sol";
 import {LenderLens} from "src/LenderLens.sol";
 import {Router, IPermit2} from "src/Router.sol";
-import {LenderAccrualHelper} from "src/helpers/LenderAccrualHelper.sol";
-import {OracleUpdateHelper} from "src/helpers/OracleUpdateHelper.sol";
 import {FrontendManager} from "src/managers/FrontendManager.sol";
 import {SimpleManager} from "src/managers/SimpleManager.sol";
 import {UniswapNFTManager, INFTManager} from "src/managers/UniswapNFTManager.sol";
@@ -20,9 +18,9 @@ contract DeployScript is Script {
     string[] chains = ["optimism", "arbitrum", "base"];
 
     Factory[] factories = [
-        Factory(0x95110C9806833d3D3C250112fac73c5A6f631E80),
-        Factory(0x95110C9806833d3D3C250112fac73c5A6f631E80),
-        Factory(0xA56eA45565478Fcd131AEccaB2FE934F23BAD8dc)
+        Factory(0x3A0a11A7829bfB34400cE338a0442877FBC8582e),
+        Factory(0x3A0a11A7829bfB34400cE338a0442877FBC8582e),
+        Factory(0x00000006d6C0519e0eB953CFfeb7007e5200680B)
     ];
 
     INFTManager[] uniswapNfts = [
@@ -49,9 +47,6 @@ contract DeployScript is Script {
             new BorrowerLens{salt: TAG}();
             new LenderLens{salt: TAG}();
             new Router{salt: TAG}(permit2);
-
-            new LenderAccrualHelper{salt: TAG}();
-            new OracleUpdateHelper{salt: TAG}(factory.ORACLE());
 
             new FrontendManager{salt: TAG}(factory);
             new SimpleManager{salt: TAG}();
