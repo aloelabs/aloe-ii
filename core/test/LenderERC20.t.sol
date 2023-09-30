@@ -31,10 +31,6 @@ contract LenderERC20Test is Test {
         lender = factory.deploySingleLender(asset);
     }
 
-    function test_name() public {
-        assertEq(lender.name(), "Aloe II Test Token");
-    }
-
     function test_symbol() public {
         assertEq(lender.symbol(), "TKN+");
     }

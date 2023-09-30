@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-import {Clones} from "clones-with-immutable-args/Clones.sol";
 import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
@@ -208,8 +207,7 @@ contract Factory {
     function createBorrower(IUniswapV3Pool pool, address owner) external returns (address payable account) {
         Market memory market = getMarket[pool];
 
-        account = payable(Clones.clone(address(market.borrowerImplementation)));
-        Borrower(account).initialize(owner);
+        account = payable(address(market.borrowerImplementation).clone({data: abi.encodePacked(owner)}));
         isBorrower[account] = true;
 
         market.lender0.whitelist(account);

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
+import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
@@ -11,7 +12,7 @@ import {Q128} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {square, mulDiv128} from "./libraries/MulDiv.sol";
-import {Positions} from "./libraries/Positions.sol";
+import {extract} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 
 import {Factory} from "./Factory.sol";
@@ -27,7 +28,7 @@ interface ILiquidator {
 }
 
 interface IManager {
-    function callback(bytes calldata data, address owner) external returns (uint144 positions);
+    function callback(bytes calldata data, address owner, uint144 positions) external returns (uint144);
 }
 
 /// @title Borrower
@@ -35,7 +36,6 @@ interface IManager {
 /// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract Borrower is IUniswapV3MintCallback {
     using SafeTransferLib for ERC20;
-    using Positions for int24[6];
 
     /**
      * @notice Most liquidations involve swapping one asset for another. To incentivize such swaps (even in
@@ -67,8 +67,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     struct Slot0 {
-        address owner;
-        uint88 unleashLiquidationTime;
+        uint144 positions;
+        uint104 unleashLiquidationTime;
         State state;
     }
 
@@ -95,8 +95,6 @@ contract Borrower is IUniswapV3MintCallback {
 
     Slot0 public slot0;
 
-    int24[6] public positions;
-
     /*//////////////////////////////////////////////////////////////
                        CONSTRUCTOR & INITIALIZER
     //////////////////////////////////////////////////////////////*/
@@ -116,14 +114,13 @@ contract Borrower is IUniswapV3MintCallback {
 
     receive() external payable {}
 
-    function initialize(address owner) external {
-        require(slot0.owner == address(0));
-        slot0.owner = owner;
+    function owner() public pure returns (address) {
+        return ImmutableArgs.addr();
     }
 
     function rescue(ERC20 token) external {
         require(token != TOKEN0 && token != TOKEN1);
-        token.safeTransfer(slot0.owner, token.balanceOf(address(this)));
+        token.safeTransfer(owner(), token.balanceOf(address(this)));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -138,19 +135,15 @@ contract Borrower is IUniswapV3MintCallback {
      * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
      */
     function warn(uint40 oracleSeed) external {
-        // Load `slot0` from storage. We don't use `_loadSlot0` here because the `require` is different
-        uint256 slot0_;
-        assembly ("memory-safe") {
-            slot0_ := sload(slot0.slot)
-        }
+        uint256 slot0_ = _loadSlot0();
         // Equivalent to `slot0.state == State.Ready && slot0.unleashLiquidationTime == 0`
-        require(slot0_ >> 160 == 0);
+        require(slot0_ >> 144 == 0);
 
         {
             // Fetch prices from oracle
             (Prices memory prices, ) = getPrices(oracleSeed);
             // Tally assets without actually withdrawing Uniswap positions
-            Assets memory assets = _getAssets(positions.read(), prices, false);
+            Assets memory assets = _getAssets(slot0_, prices, false);
             // Fetch liabilities from lenders
             (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
             // Ensure only unhealthy accounts get warned
@@ -158,7 +151,7 @@ contract Borrower is IUniswapV3MintCallback {
         }
 
         unchecked {
-            _saveSlot0(slot0_, (block.timestamp + LIQUIDATION_GRACE_PERIOD) << 160);
+            _saveSlot0(slot0_ + ((block.timestamp + LIQUIDATION_GRACE_PERIOD) << 144));
         }
         emit Warn();
     }
@@ -184,7 +177,9 @@ contract Borrower is IUniswapV3MintCallback {
      */
     function liquidate(ILiquidator callee, bytes calldata data, uint256 strain, uint40 oracleSeed) external {
         uint256 slot0_ = _loadSlot0();
-        _saveSlot0(slot0_, _formatted(State.Locked));
+        // Equivalent to `slot0.state == State.Ready`
+        require(slot0_ >> 248 == uint256(State.Ready));
+        _saveSlot0(slot0_, State.Locked);
 
         uint256 priceX128;
         uint256 liabilities0;
@@ -195,7 +190,7 @@ contract Borrower is IUniswapV3MintCallback {
             (Prices memory prices, ) = getPrices(oracleSeed);
             priceX128 = square(prices.c);
             // Withdraw Uniswap positions while tallying assets
-            Assets memory assets = _getAssets(positions.read(), prices, true);
+            Assets memory assets = _getAssets(slot0_, prices, true);
             // Fetch liabilities from lenders
             (liabilities0, liabilities1) = _getLiabilities();
             // Calculate liquidation incentive
@@ -239,7 +234,7 @@ contract Borrower is IUniswapV3MintCallback {
             }
 
             if (shouldSwap) {
-                uint256 unleashTime = slot0_ >> 160;
+                uint256 unleashTime = slot0_ >> 144;
                 require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
 
                 incentive1 /= strain;
@@ -267,7 +262,8 @@ contract Borrower is IUniswapV3MintCallback {
             }
 
             _repay(repayable0, repayable1);
-            _saveSlot0(slot0_ % (1 << 160), _formatted(State.Ready));
+            // Update `slot0`, keeping only `positions` (i.e. `state = State.Ready` and `unleashLiquidationTime = 0`)
+            _saveSlot0(slot0_ % (1 << 144));
 
             payable(callee).transfer(address(this).balance / strain);
             emit Liquidate(repayable0, repayable1, incentive1, priceX128);
@@ -286,11 +282,19 @@ contract Borrower is IUniswapV3MintCallback {
      * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
      */
     function modify(IManager callee, bytes calldata data, uint40 oracleSeed) external payable {
-        require(_loadSlot0() % (1 << 160) == uint160(msg.sender), "Aloe: only owner");
+        uint256 slot0_ = _loadSlot0();
+        // Equivalent to `slot0.state == State.Ready`
+        require(slot0_ >> 248 == uint256(State.Ready) && msg.sender == owner(), "Aloe: only owner");
 
-        _saveSlot0(uint160(msg.sender), _formatted(State.InModifyCallback));
-        int24[] memory positions_ = positions.write(callee.callback(data, msg.sender));
-        _saveSlot0(uint160(msg.sender), _formatted(State.Ready));
+        _saveSlot0(slot0_, State.InModifyCallback);
+        // Hand control to `callee` and accept new `positions` if it returned any
+        uint144 positions = callee.callback(data, msg.sender, uint144(slot0_));
+        assembly ("memory-safe") {
+            // Equivalent to `if (positions > 0) slot0_ = positions`
+            slot0_ := or(positions, mul(slot0_, iszero(positions)))
+        }
+        // Update `slot0`, keeping only `positions` (i.e. `state = State.Ready` and `unleashLiquidationTime = 0`)
+        _saveSlot0(slot0_ % (1 << 144));
 
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         if (liabilities0 > 0 || liabilities1 > 0) {
@@ -302,7 +306,7 @@ contract Borrower is IUniswapV3MintCallback {
                 "Aloe: missing ante / sus price"
             );
 
-            Assets memory assets = _getAssets(positions_, prices, false);
+            Assets memory assets = _getAssets(slot0_, prices, false);
             require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
         }
     }
@@ -431,7 +435,7 @@ contract Borrower is IUniswapV3MintCallback {
     //////////////////////////////////////////////////////////////*/
 
     function getUniswapPositions() external view returns (int24[] memory) {
-        return positions.read();
+        return extract(_loadSlot0());
     }
 
     function getPrices(uint40 oracleSeed) public view returns (Prices memory prices, bool seemsLegit) {
@@ -458,20 +462,17 @@ contract Borrower is IUniswapV3MintCallback {
         );
     }
 
-    function _getAssets(
-        int24[] memory positions_,
-        Prices memory prices,
-        bool withdraw
-    ) private returns (Assets memory assets) {
+    function _getAssets(uint256 slot0_, Prices memory prices, bool withdraw) private returns (Assets memory assets) {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
 
-        uint256 count = positions_.length;
+        int24[] memory positions = extract(slot0_);
+        uint256 count = positions.length;
         unchecked {
             for (uint256 i; i < count; i += 2) {
-                // Load lower and upper ticks from the `positions_` array
-                int24 l = positions_[i];
-                int24 u = positions_[i + 1];
+                // Load lower and upper ticks from the `positions` array
+                int24 l = positions[i];
+                int24 u = positions[i + 1];
                 // Fetch amount of `liquidity` in the position
                 (uint128 liquidity, , , , ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(address(this), l, u)));
 
@@ -528,9 +529,15 @@ contract Borrower is IUniswapV3MintCallback {
         }
     }
 
-    function _saveSlot0(uint256 slot0_, uint256 addend) private {
+    function _saveSlot0(uint256 slot0ReadyState, State state) private {
+        unchecked {
+            _saveSlot0(slot0ReadyState + (uint256(state) << 248));
+        }
+    }
+
+    function _saveSlot0(uint256 slot0_) private {
         assembly ("memory-safe") {
-            sstore(slot0.slot, add(slot0_, addend))
+            sstore(slot0.slot, slot0_)
         }
     }
 
@@ -538,11 +545,5 @@ contract Borrower is IUniswapV3MintCallback {
         assembly ("memory-safe") {
             slot0_ := sload(slot0.slot)
         }
-        // Equivalent to `slot0.state == State.Ready`
-        require(slot0_ >> 248 == uint256(State.Ready));
-    }
-
-    function _formatted(State state) private pure returns (uint256) {
-        return uint256(state) << 248;
     }
 }
