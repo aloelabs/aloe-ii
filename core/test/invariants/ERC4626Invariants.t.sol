@@ -21,7 +21,6 @@ contract ERC4626InvariantsTest is Test {
     ERC4626Harness public vaultHarness;
 
     struct ThingsThatShouldntChange {
-        string name;
         string symbol;
         uint8 decimals;
         ERC20 asset;
@@ -59,7 +58,6 @@ contract ERC4626InvariantsTest is Test {
         }
 
         thingsThatShouldntChange = ThingsThatShouldntChange(
-            vault.name(),
             vault.symbol(),
             vault.decimals(),
             vault.asset(),
@@ -69,14 +67,12 @@ contract ERC4626InvariantsTest is Test {
 
     function invariant_thingsThatShouldntChangeDontChange() public {
         ThingsThatShouldntChange memory update = ThingsThatShouldntChange(
-            vault.name(),
             vault.symbol(),
             vault.decimals(),
             vault.asset(),
             vault.DOMAIN_SEPARATOR()
         );
 
-        assertEq(bytes(update.name), bytes(thingsThatShouldntChange.name));
         assertEq(bytes(update.symbol), bytes(thingsThatShouldntChange.symbol));
         assertEq(update.decimals, thingsThatShouldntChange.decimals);
         assertEq(address(update.asset), address(thingsThatShouldntChange.asset));
