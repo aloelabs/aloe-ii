@@ -28,6 +28,16 @@ interface ILiquidator {
 }
 
 interface IManager {
+    /**
+     * @notice Gives the `IManager` full control of the `Borrower`. Called within `Borrower.modify`.
+     * @dev In most cases, you'll want to verify that `msg.sender` is, in fact, a `Borrower` using
+     * `factory.isBorrower(msg.sender)`.
+     * @param data Encoded parameters that were passed to `Borrower.modify`
+     * @param owner The owner of the `Borrower`
+     * @param positions The `Borrower`'s current Uniswap positions. You can convert them to an array using
+     * the `Positions` library
+     * @return Updated positions, encoded using `Positions.zip`. Return 0 if you don't wish to make any changes.
+     */
     function callback(bytes calldata data, address owner, uint144 positions) external returns (uint144);
 }
 
