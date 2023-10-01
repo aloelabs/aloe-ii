@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {Positions, extract, zip} from "src/libraries/Positions.sol";
+import {Positions, zip} from "src/libraries/Positions.sol";
 
 contract PositionsTest is Test {
     using Positions for int24[6];
@@ -42,7 +42,7 @@ contract PositionsTest is Test {
         }
 
         vm.expectSafeMemory(ptr, ptr + 32 * (1 + 2 * count));
-        extract(zipped);
+        Positions.extract(zipped);
     }
 
     function test_memoryExtractDirtyZip(
@@ -59,7 +59,7 @@ contract PositionsTest is Test {
         vm.assume(zl != xl || zu != xu);
 
         uint256 zipped = zip([xl, xu, yl, yu, zl, zu]) + (uint256(dirt) << 144);
-        int24[] memory extracted = extract(zipped);
+        int24[] memory extracted = Positions.extract(zipped);
 
         if (xl == xu && yl == yu && zl == zu) {
             assertEq(extracted.length, 0);
@@ -138,7 +138,7 @@ contract PositionsTest is Test {
             // ...could add more, doesn't really matter
         }
 
-        int24[] memory extracted = extract(zipped);
+        int24[] memory extracted = Positions.extract(zipped);
         if (xl != xu) {
             assertEq(extracted.length, 2);
             assertEq(extracted[0], xl);
@@ -441,7 +441,7 @@ contract PositionsTest is Test {
 
             sstore(positions.slot, slot0)
         }
-        positions_ = extract(slot0);
+        positions_ = Positions.extract(slot0);
     }
 
     function _read() private view returns (int24[] memory positions_) {
@@ -449,6 +449,6 @@ contract PositionsTest is Test {
         assembly ("memory-safe") {
             slot0 := sload(positions.slot)
         }
-        positions_ = extract(slot0);
+        positions_ = Positions.extract(slot0);
     }
 }

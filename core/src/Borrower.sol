@@ -12,7 +12,7 @@ import {Q128} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {square, mulDiv128} from "./libraries/MulDiv.sol";
-import {extract} from "./libraries/Positions.sol";
+import {Positions} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 
 import {Factory} from "./Factory.sol";
@@ -445,7 +445,7 @@ contract Borrower is IUniswapV3MintCallback {
     //////////////////////////////////////////////////////////////*/
 
     function getUniswapPositions() external view returns (int24[] memory) {
-        return extract(_loadSlot0());
+        return Positions.extract(_loadSlot0());
     }
 
     function getPrices(uint40 oracleSeed) public view returns (Prices memory prices, bool seemsLegit) {
@@ -476,7 +476,7 @@ contract Borrower is IUniswapV3MintCallback {
         assets.fixed0 = TOKEN0.balanceOf(address(this));
         assets.fixed1 = TOKEN1.balanceOf(address(this));
 
-        int24[] memory positions = extract(slot0_);
+        int24[] memory positions = Positions.extract(slot0_);
         uint256 count = positions.length;
         unchecked {
             for (uint256 i; i < count; i += 2) {
