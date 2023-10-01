@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
 import {IERC165} from "openzeppelin-contracts/contracts/interfaces/IERC165.sol";
+import {IERC2612} from "openzeppelin-contracts/contracts/interfaces/IERC2612.sol";
 import {IERC4626} from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
@@ -92,7 +93,10 @@ contract Ledger {
 
     /// @notice Returns true if this contract implements the interface defined by `interfaceId`
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return interfaceId == type(IERC165).interfaceId || interfaceId == type(IERC4626).interfaceId;
+        return
+            interfaceId == type(IERC165).interfaceId ||
+            interfaceId == type(IERC2612).interfaceId ||
+            interfaceId == type(IERC4626).interfaceId;
     }
 
     /// @notice The name of the banknote.
