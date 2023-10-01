@@ -66,10 +66,6 @@ contract Ledger {
                             ERC2612 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 internal _initialDomainSeparator;
-
-    uint256 internal _initialChainId;
-
     mapping(address => uint256) public nonces;
 
     /*//////////////////////////////////////////////////////////////
@@ -126,7 +122,15 @@ contract Ledger {
 
     /// @notice The domain separator for EIP-2612
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
-        return block.chainid == _initialChainId ? _initialDomainSeparator : _computeDomainSeparator();
+        return
+            keccak256(
+                abi.encode(
+                    keccak256("EIP712Domain(string version,uint256 chainId,address verifyingContract)"),
+                    keccak256("1"),
+                    block.chainid,
+                    address(this)
+                )
+            );
     }
 
     /**
@@ -316,18 +320,6 @@ contract Ledger {
     /*//////////////////////////////////////////////////////////////
                                  HELPERS
     //////////////////////////////////////////////////////////////*/
-
-    function _computeDomainSeparator() internal view returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    keccak256("EIP712Domain(string version,uint256 chainId,address verifyingContract)"),
-                    keccak256("1"),
-                    block.chainid,
-                    address(this)
-                )
-            );
-    }
 
     function _previewInterest(Cache memory cache) internal view returns (Cache memory, uint256, uint256) {
         unchecked {
