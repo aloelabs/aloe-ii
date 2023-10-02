@@ -49,6 +49,7 @@ jobs:
           sortCriteria: avg,max # sort diff rows by criteria
           sortOrders: desc,asc # and directions
           ignore: test-foundry/**/* # filter out gas reports from specific paths (test/ is included by default)
+          match: src/VolatilityOracle.sol,src/RateModel.sol,src/Lender.sol,src/Factory.sol,src/Borrower.sol
         id: gas_diff
 
       - name: Add gas diff to sticky comment
