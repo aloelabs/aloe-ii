@@ -122,7 +122,7 @@ contract BorrowerGasTest is Test, IManager {
         UNI_WITHDRAW
     }
 
-    function callback(bytes calldata data, address, uint144) external returns (uint144 positions) {
+    function callback(bytes calldata data, address, uint144 positions) external returns (uint144) {
         require(msg.sender == address(account));
 
         (Action action, uint256 amount0, uint256 amount1) = abi.decode(data, (Action, uint256, uint256));
@@ -139,6 +139,8 @@ contract BorrowerGasTest is Test, IManager {
         } else if (action == Action.UNI_WITHDRAW) {
             account.uniswapWithdraw(0, 60, 1000000, address(account));
         }
+
+        return positions;
     }
 
     function uniswapV3MintCallback(uint256 _amount0, uint256 _amount1, bytes calldata) external {

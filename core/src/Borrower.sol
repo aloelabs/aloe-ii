@@ -36,7 +36,7 @@ interface IManager {
      * @param owner The owner of the `Borrower`
      * @param positions The `Borrower`'s current Uniswap positions. You can convert them to an array using
      * the `Positions` library
-     * @return Updated positions, encoded using `Positions.zip`. Return 0 if you don't wish to make any changes.
+     * @return Updated positions, encoded using `Positions.zip` or (if unchanged) passed straight through
      */
     function callback(bytes calldata data, address owner, uint144 positions) external returns (uint144);
 }
@@ -272,8 +272,7 @@ contract Borrower is IUniswapV3MintCallback {
             }
 
             _repay(repayable0, repayable1);
-            // Update `slot0`, keeping only `positions` (i.e. `state = State.Ready` and `unleashLiquidationTime = 0`)
-            _saveSlot0(slot0_ % (1 << 144));
+            _saveSlot0(slot0_ % (1 << 144)); // `slot0` is now just `positions` -- other fields are 0
 
             payable(callee).transfer(address(this).balance / strain);
             emit Liquidate(repayable0, repayable1, incentive1, priceX128);
@@ -297,14 +296,8 @@ contract Borrower is IUniswapV3MintCallback {
         require(slot0_ >> 248 == uint256(State.Ready) && msg.sender == owner(), "Aloe: only owner");
 
         _saveSlot0(slot0_, State.InModifyCallback);
-        // Hand control to `callee` and accept new `positions` if it returned any
-        uint144 positions = callee.callback(data, msg.sender, uint144(slot0_));
-        assembly ("memory-safe") {
-            // Equivalent to `if (positions > 0) slot0_ = positions`
-            slot0_ := or(positions, mul(slot0_, iszero(positions)))
-        }
-        // Update `slot0`, keeping only `positions` (i.e. `state = State.Ready` and `unleashLiquidationTime = 0`)
-        _saveSlot0(slot0_ % (1 << 144));
+        slot0_ = callee.callback(data, msg.sender, uint144(slot0_));
+        _saveSlot0(slot0_ % (1 << 144)); // `slot0` is now just `positions` -- other fields are 0
 
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         if (liabilities0 > 0 || liabilities1 > 0) {

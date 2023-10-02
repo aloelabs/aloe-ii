@@ -211,7 +211,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
     }
 
     // IManager
-    function callback(bytes calldata data, address, uint144) external returns (uint144 positions) {
+    function callback(bytes calldata data, address, uint144 positions) external returns (uint144) {
         require(msg.sender == address(account));
 
         (Action action, uint256 amount0, uint256 amount1) = abi.decode(data, (Action, uint256, uint256));
@@ -224,6 +224,8 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
             account.uniswapDeposit(-75600, -75540, 100000000000000000);
             positions = zip([-75600, -75540, 0, 0, 0, 0]);
         }
+
+        return positions;
     }
 
     // ILiquidator
