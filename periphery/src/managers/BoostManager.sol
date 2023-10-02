@@ -33,7 +33,7 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
         borrower.transfer(amount0 > 0 ? uint256(amount0) : 0, amount1 > 0 ? uint256(amount1) : 0, msg.sender);
     }
 
-    function callback(bytes calldata data, address owner) external override returns (uint144) {
+    function callback(bytes calldata data, address owner, uint144 positions) external override returns (uint144) {
         // We cast `msg.sender` as a `Borrower`, but it could really be anything. DO NOT TRUST!
         Borrower borrower = Borrower(payable(msg.sender));
 
@@ -79,6 +79,8 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
             // The position's lower and upper ticks
             (int24 lower, int24 upper) = abi.decode(args, (int24, int24));
             borrower.uniswapWithdraw(lower, upper, 0, owner);
+
+            return positions;
         }
 
         // Burn liquidity
@@ -148,7 +150,7 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
             }
         }
 
-        return 0;
+        return positions;
     }
 
     function _withdrawFromUniswapNFT(

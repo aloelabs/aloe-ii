@@ -28,7 +28,7 @@ contract FrontendManager is IManager, IUniswapV3SwapCallback {
 
     /* solhint-disable code-complexity */
 
-    function callback(bytes calldata data, address owner) external returns (uint144 positions) {
+    function callback(bytes calldata data, address owner, uint144) external returns (uint144 positions) {
         // We cast `msg.sender` as a `Borrower`, but it could really be anything. DO NOT TRUST!
         Borrower account = Borrower(payable(msg.sender));
 
