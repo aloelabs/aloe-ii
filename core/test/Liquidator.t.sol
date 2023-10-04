@@ -36,7 +36,7 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
 
         factory.createMarket(pool);
         (lender0, lender1, ) = factory.getMarket(pool);
-        account = Borrower(factory.createBorrower(pool, address(this)));
+        account = Borrower(factory.createBorrower(pool, address(this), bytes12(0)));
     }
 
     function setUp() public {
