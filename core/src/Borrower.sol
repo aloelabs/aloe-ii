@@ -138,11 +138,7 @@ contract Borrower is IUniswapV3MintCallback {
      * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
      */
     function warn(uint40 oracleSeed) external {
-        // Load `slot0` from storage. We don't use `_loadSlot0` here because the `require` is different
-        uint256 slot0_;
-        assembly ("memory-safe") {
-            slot0_ := sload(slot0.slot)
-        }
+        uint256 slot0_ = _loadSlot0();
         // Equivalent to `slot0.state == State.Ready && slot0.unleashLiquidationTime == 0`
         require(slot0_ >> 160 == 0);
 
@@ -158,7 +154,7 @@ contract Borrower is IUniswapV3MintCallback {
         }
 
         unchecked {
-            _saveSlot0(slot0_, (block.timestamp + LIQUIDATION_GRACE_PERIOD) << 160);
+            _saveSlot0(slot0_ + ((block.timestamp + LIQUIDATION_GRACE_PERIOD) << 160));
         }
         emit Warn();
     }
@@ -184,7 +180,9 @@ contract Borrower is IUniswapV3MintCallback {
      */
     function liquidate(ILiquidator callee, bytes calldata data, uint256 strain, uint40 oracleSeed) external {
         uint256 slot0_ = _loadSlot0();
-        _saveSlot0(slot0_, _formatted(State.Locked));
+        // Equivalent to `slot0.state == State.Ready`
+        require(slot0_ >> 248 == uint256(State.Ready));
+        _saveSlot0(slot0_, State.Locked);
 
         uint256 priceX128;
         uint256 liabilities0;
@@ -267,7 +265,7 @@ contract Borrower is IUniswapV3MintCallback {
             }
 
             _repay(repayable0, repayable1);
-            _saveSlot0(slot0_ % (1 << 160), _formatted(State.Ready));
+            _saveSlot0(slot0_ % (1 << 160));
 
             payable(callee).transfer(address(this).balance / strain);
             emit Liquidate(repayable0, repayable1, incentive1, priceX128);
@@ -286,12 +284,13 @@ contract Borrower is IUniswapV3MintCallback {
      * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
      */
     function modify(IManager callee, bytes calldata data, uint40 oracleSeed) external payable {
-        _loadSlot0();
-        require(msg.sender == owner(), "Aloe: only owner");
+        uint256 slot0_ = _loadSlot0();
+        // Equivalent to `slot0.state == State.Ready`
+        require(slot0_ >> 248 == uint256(State.Ready) && msg.sender == owner(), "Aloe: only owner");
 
-        _saveSlot0(0, _formatted(State.InModifyCallback));
+        _saveSlot0(0, State.InModifyCallback);
         int24[] memory positions_ = positions.write(callee.callback(data, msg.sender));
-        _saveSlot0(0, _formatted(State.Ready));
+        _saveSlot0(0);
 
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         if (liabilities0 > 0 || liabilities1 > 0) {
@@ -529,9 +528,15 @@ contract Borrower is IUniswapV3MintCallback {
         }
     }
 
-    function _saveSlot0(uint256 slot0_, uint256 addend) private {
+    function _saveSlot0(uint256 slot0ReadyState, State state) private {
+        unchecked {
+            _saveSlot0(slot0ReadyState + (uint256(state) << 248));
+        }
+    }
+
+    function _saveSlot0(uint256 slot0_) private {
         assembly ("memory-safe") {
-            sstore(slot0.slot, add(slot0_, addend))
+            sstore(slot0.slot, slot0_)
         }
     }
 
@@ -539,11 +544,5 @@ contract Borrower is IUniswapV3MintCallback {
         assembly ("memory-safe") {
             slot0_ := sload(slot0.slot)
         }
-        // Equivalent to `slot0.state == State.Ready`
-        require(slot0_ >> 248 == uint256(State.Ready));
-    }
-
-    function _formatted(State state) private pure returns (uint256) {
-        return uint256(state) << 248;
     }
 }
