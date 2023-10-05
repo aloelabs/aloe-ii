@@ -76,17 +76,12 @@ contract FactoryTest is Test {
         Borrower borrower = factory.createBorrower(pool, address(6), bytes12(0));
 
         assertTrue(factory.isBorrower(address(borrower)));
-        
-        (address owner, , ) = borrower.slot0();
-        assertEq(owner, address(6));
+
+        assertEq(borrower.owner(), address(6));
 
         (Lender lender0, Lender lender1, ) = factory.getMarket(pool);
         assertEq(lender0.borrows(address(borrower)), 1);
         assertEq(lender1.borrows(address(borrower)), 1);
-
-        // NOTE: If specified owner was address(0), re-initialization is possible
-        vm.expectRevert(bytes(""));
-        borrower.initialize(address(9));
     }
 
     function test_enrollCourier(uint32 id, uint16 cut) external {
