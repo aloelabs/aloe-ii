@@ -36,7 +36,7 @@ contract BorrowerGasTest is Test, IManager {
 
         factory.createMarket(pool);
         (lender0, lender1, ) = factory.getMarket(pool);
-        account = Borrower(factory.createBorrower(pool, address(this)));
+        account = factory.createBorrower(pool, address(this), bytes12(0));
         oracleSeed = getSeed(pool);
     }
 
