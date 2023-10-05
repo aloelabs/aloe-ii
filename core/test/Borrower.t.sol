@@ -48,7 +48,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
 
         factory.createMarket(pool);
         (lender0, lender1, impl) = factory.getMarket(pool);
-        account = Borrower(factory.createBorrower(pool, address(this)));
+        account = factory.createBorrower(pool, address(this), bytes12(0));
 
         // Warmup storage
         pool.slot0();
@@ -77,13 +77,14 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
     function test_permissionsModify(
         address owner,
         address caller,
+        bytes12 salt,
         IManager arg0,
         bytes calldata arg1,
         uint40 arg2
     ) external {
         vm.assume(owner != caller);
 
-        Borrower borrower = Borrower(factory.createBorrower(pool, owner));
+        Borrower borrower = factory.createBorrower(pool, owner, salt);
 
         vm.prank(caller);
         vm.expectRevert(bytes("Aloe: only owner"));

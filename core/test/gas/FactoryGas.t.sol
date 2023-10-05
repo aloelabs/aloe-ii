@@ -36,6 +36,6 @@ contract FactoryGasTest is Test {
     }
 
     function test_createBorrower() public {
-        factory.createBorrower(poolB, address(this));
+        factory.createBorrower(poolB, address(this), bytes12(0));
     }
 }

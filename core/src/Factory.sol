@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-import {Clones} from "clones-with-immutable-args/Clones.sol";
 import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
@@ -35,7 +34,7 @@ contract Factory {
 
     event CreateMarket(IUniswapV3Pool indexed pool, Lender lender0, Lender lender1);
 
-    event CreateBorrower(IUniswapV3Pool indexed pool, address indexed owner, address account);
+    event CreateBorrower(IUniswapV3Pool indexed pool, address indexed owner, Borrower account);
 
     event EnrollCourier(uint32 indexed id, address indexed wallet, uint16 cut);
 
@@ -205,17 +204,22 @@ contract Factory {
         emit CreateMarket(pool, lender0, lender1);
     }
 
-    function createBorrower(IUniswapV3Pool pool, address owner) external returns (address payable account) {
+    function createBorrower(IUniswapV3Pool pool, address owner, bytes12 salt) external returns (Borrower borrower) {
         Market memory market = getMarket[pool];
 
-        account = payable(Clones.clone(address(market.borrowerImplementation)));
-        Borrower(account).initialize(owner);
-        isBorrower[account] = true;
+        borrower = Borrower(
+            address(market.borrowerImplementation).cloneDeterministic({
+                salt: bytes32(bytes.concat(bytes20(msg.sender), salt)),
+                data: abi.encodePacked(owner)
+            })
+        );
+        borrower.initialize(owner);
+        isBorrower[address(borrower)] = true;
 
-        market.lender0.whitelist(account);
-        market.lender1.whitelist(account);
+        market.lender0.whitelist(address(borrower));
+        market.lender1.whitelist(address(borrower));
 
-        emit CreateBorrower(pool, owner, account);
+        emit CreateBorrower(pool, owner, borrower);
     }
 
     /*//////////////////////////////////////////////////////////////
