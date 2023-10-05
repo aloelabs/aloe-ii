@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
+import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
@@ -67,7 +68,7 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     struct Slot0 {
-        address owner;
+        address empty;
         uint88 unleashLiquidationTime;
         State state;
     }
@@ -116,14 +117,13 @@ contract Borrower is IUniswapV3MintCallback {
 
     receive() external payable {}
 
-    function initialize(address owner) external {
-        require(slot0.owner == address(0));
-        slot0.owner = owner;
+    function owner() public pure returns (address) {
+        return ImmutableArgs.addr();
     }
 
     function rescue(ERC20 token) external {
         require(token != TOKEN0 && token != TOKEN1);
-        token.safeTransfer(slot0.owner, token.balanceOf(address(this)));
+        token.safeTransfer(owner(), token.balanceOf(address(this)));
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -286,11 +286,12 @@ contract Borrower is IUniswapV3MintCallback {
      * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
      */
     function modify(IManager callee, bytes calldata data, uint40 oracleSeed) external payable {
-        require(_loadSlot0() % (1 << 160) == uint160(msg.sender), "Aloe: only owner");
+        _loadSlot0();
+        require(msg.sender == owner(), "Aloe: only owner");
 
-        _saveSlot0(uint160(msg.sender), _formatted(State.InModifyCallback));
+        _saveSlot0(0, _formatted(State.InModifyCallback));
         int24[] memory positions_ = positions.write(callee.callback(data, msg.sender));
-        _saveSlot0(uint160(msg.sender), _formatted(State.Ready));
+        _saveSlot0(0, _formatted(State.Ready));
 
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         if (liabilities0 > 0 || liabilities1 > 0) {

@@ -213,7 +213,6 @@ contract Factory {
                 data: abi.encodePacked(owner)
             })
         );
-        borrower.initialize(owner);
         isBorrower[address(borrower)] = true;
 
         market.lender0.whitelist(address(borrower));
