@@ -26,6 +26,14 @@ import {VolatilityOracle} from "src/VolatilityOracle.sol";
 
 import {FatFactory} from "./Utils.sol";
 
+contract ReenteringManager is IManager {
+    function callback(bytes calldata data, address) external override returns (uint144) {
+        (bool success, ) = msg.sender.call(data);
+        require(success);
+        return 0;
+    }
+}
+
 contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
     uint256 constant BLOCK_TIME = 12 seconds;
 
@@ -100,6 +108,21 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
 
         vm.prank(address(pool));
         account.uniswapV3MintCallback(0, 0, "");
+    }
+
+    /// forge-config: default.fuzz.runs = 256
+    function test_reentrancyLock(uint40 oracleSeed) external {
+        ReenteringManager manager = new ReenteringManager();
+
+        bytes[] memory lockedFunctions = new bytes[](3);
+        lockedFunctions[0] = abi.encodeCall(Borrower.warn, (oracleSeed));
+        lockedFunctions[1] = abi.encodeCall(Borrower.liquidate, (ILiquidator(payable(address(0))), "", 1, oracleSeed));
+        lockedFunctions[2] = abi.encodeCall(Borrower.modify, (manager, "", oracleSeed));
+
+        for (uint256 i = 0; i < lockedFunctions.length; i++) {
+            vm.expectRevert(bytes(""));
+            account.modify(manager, lockedFunctions[i], oracleSeed);
+        }
     }
 
     function test_permissionsSubCommands() external {

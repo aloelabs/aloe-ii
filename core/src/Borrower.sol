@@ -98,6 +98,11 @@ contract Borrower is IUniswapV3MintCallback {
 
     int24[6] public positions;
 
+    modifier onlyInModifyCallback() {
+        require(slot0.state == State.InModifyCallback);
+        _;
+    }
+
     /*//////////////////////////////////////////////////////////////
                        CONSTRUCTOR & INITIALIZER
     //////////////////////////////////////////////////////////////*/
@@ -340,9 +345,7 @@ contract Borrower is IUniswapV3MintCallback {
         int24 lower,
         int24 upper,
         uint128 liquidity
-    ) external returns (uint256 amount0, uint256 amount1) {
-        require(slot0.state == State.InModifyCallback);
-
+    ) external onlyInModifyCallback returns (uint256 amount0, uint256 amount1) {
         (amount0, amount1) = UNISWAP_POOL.mint(address(this), lower, upper, liquidity, "");
     }
 
@@ -365,9 +368,7 @@ contract Borrower is IUniswapV3MintCallback {
         int24 upper,
         uint128 liquidity,
         address recipient
-    ) external returns (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) {
-        require(slot0.state == State.InModifyCallback);
-
+    ) external onlyInModifyCallback returns (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) {
         (burned0, burned1, collected0, collected1) = _uniswapWithdraw(lower, upper, liquidity, recipient);
     }
 
@@ -378,9 +379,7 @@ contract Borrower is IUniswapV3MintCallback {
      * @param amount1 The amount of `TOKEN1` to transfer
      * @param recipient Receives the transferred tokens
      */
-    function transfer(uint256 amount0, uint256 amount1, address recipient) external {
-        require(slot0.state == State.InModifyCallback);
-
+    function transfer(uint256 amount0, uint256 amount1, address recipient) external onlyInModifyCallback {
         if (amount0 > 0) TOKEN0.safeTransfer(recipient, amount0);
         if (amount1 > 0) TOKEN1.safeTransfer(recipient, amount1);
     }
@@ -394,9 +393,7 @@ contract Borrower is IUniswapV3MintCallback {
      * @param amount1 The amount of `TOKEN1` to borrow
      * @param recipient Receives the borrowed tokens. Usually the address of this `Borrower` account.
      */
-    function borrow(uint256 amount0, uint256 amount1, address recipient) external {
-        require(slot0.state == State.InModifyCallback);
-
+    function borrow(uint256 amount0, uint256 amount1, address recipient) external onlyInModifyCallback {
         if (amount0 > 0) LENDER0.borrow(amount0, recipient);
         if (amount1 > 0) LENDER1.borrow(amount1, recipient);
     }
@@ -410,9 +407,7 @@ contract Borrower is IUniswapV3MintCallback {
      * @param amount0 The amount of `TOKEN0` to repay
      * @param amount1 The amount of `TOKEN1` to repay
      */
-    function repay(uint256 amount0, uint256 amount1) external {
-        require(slot0.state == State.InModifyCallback);
-
+    function repay(uint256 amount0, uint256 amount1) external onlyInModifyCallback {
         _repay(amount0, amount1);
     }
 
@@ -420,9 +415,7 @@ contract Borrower is IUniswapV3MintCallback {
      * @notice Allows the account owner to withdraw their ante. Only works within the `modify` callback.
      * @param recipient Receives the ante (as Ether)
      */
-    function withdrawAnte(address payable recipient) external {
-        require(slot0.state == State.InModifyCallback);
-
+    function withdrawAnte(address payable recipient) external onlyInModifyCallback {
         recipient.transfer(address(this).balance);
     }
 
