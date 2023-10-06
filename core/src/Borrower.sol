@@ -12,7 +12,7 @@ import {Q128} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {square, mulDiv128} from "./libraries/MulDiv.sol";
-import {Positions, extract} from "./libraries/Positions.sol";
+import {extract} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 
 import {Factory} from "./Factory.sol";
@@ -34,9 +34,11 @@ interface IManager {
      * `factory.isBorrower(msg.sender)`.
      * @param data Encoded parameters that were passed to `Borrower.modify`
      * @param owner The owner of the `Borrower`
+     * @param positions The `Borrower`'s current Uniswap positions. You can convert them to an array using
+     * `Positions.extract`
      * @return Updated positions, encoded using `Positions.zip`. Return 0 if you don't wish to make any changes.
      */
-    function callback(bytes calldata data, address owner) external returns (uint144);
+    function callback(bytes calldata data, address owner, uint144 positions) external returns (uint144);
 }
 
 /// @title Borrower
@@ -297,7 +299,7 @@ contract Borrower is IUniswapV3MintCallback {
 
         slot0 = slot0_ | (uint256(State.InModifyCallback) << 248);
         {
-            uint144 positions = callee.callback(data, msg.sender);
+            uint144 positions = callee.callback(data, msg.sender, uint144(slot0_));
             assembly ("memory-safe") {
                 // Equivalent to `if (positions > 0) slot0_ = positions`
                 slot0_ := or(positions, mul(slot0_, iszero(positions)))

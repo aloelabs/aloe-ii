@@ -25,8 +25,8 @@ function zip(int24[6] memory positions) pure returns (uint144 zipped) {
  * such that lower and upper ticks are next to each other, e.g. one position may be at indices 0 & 1, and another
  * at indices 2 & 3.
  * @dev The output array's length will be one of {0, 2, 4, 6}. We do *not* validate that `lower < upper`, nor do
- * we check whether positions actually hold liquidity. Also note that this function will happily return duplicate
- * positions like [-100, 100, -100, 100].
+ * we check whether positions actually hold liquidity. Also note that this function will revert if `zipped`
+ * contains duplicate positions like [-100, 100, -100, 100].
  * @param zipped Encoded Uniswap positions. Equivalent to the layout of `int24[6] storage yourPositions`
  * @return positionsOfNonZeroWidth Flattened array of Uniswap positions that may or may not hold liquidity
  */
@@ -87,11 +87,4 @@ function extract(uint256 zipped) pure returns (int24[] memory positionsOfNonZero
         mstore(positionsOfNonZeroWidth, shr(5, sub(offset, 32)))
         mstore(0x40, add(positionsOfNonZeroWidth, offset))
     }
-}
-
-/// @title Positions
-/// @notice Provides functions for handling Uniswap positions in `Borrower`'s storage
-/// @author Aloe Labs, Inc.
-library Positions {
-
 }

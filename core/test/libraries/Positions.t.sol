@@ -3,11 +3,9 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {Positions, extract, zip} from "src/libraries/Positions.sol";
+import {extract, zip} from "src/libraries/Positions.sol";
 
 contract PositionsTest is Test {
-    using Positions for int24[6];
-
     int24[6] public positions;
 
     function setUp() public {
