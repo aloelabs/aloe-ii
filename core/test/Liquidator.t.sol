@@ -82,7 +82,7 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
 
         account.warn((1 << 32));
 
-        (, uint88 unleashLiquidationTime, ) = account.slot0();
+        uint104 unleashLiquidationTime = uint104((account.slot0() >> 144) % (1 << 104));
         assertEq(unleashLiquidationTime, block.timestamp + LIQUIDATION_GRACE_PERIOD);
 
         vm.expectRevert(bytes(""));
@@ -500,7 +500,7 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
         data = abi.encode(assets1);
         account.liquidate(this, data, strain, (1 << 32));
 
-        (, uint88 unleashLiquidationTime, ) = account.slot0();
+        uint104 unleashLiquidationTime = uint104((account.slot0() >> 144) % (1 << 104));
         assertEq(unleashLiquidationTime, 0);
     }
 
@@ -511,10 +511,7 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
     }
 
     // IManager
-    function callback(
-        bytes calldata data,
-        address
-    ) external returns (uint144 positions) {
+    function callback(bytes calldata data, address) external returns (uint144 positions) {
         require(msg.sender == address(account));
 
         (Action action, uint256 amount0, uint256 amount1) = abi.decode(data, (Action, uint256, uint256));

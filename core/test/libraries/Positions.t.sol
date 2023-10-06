@@ -25,12 +25,16 @@ contract PositionsTest is Test {
         zip(arr);
     }
 
-    function test_memoryExtract(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu) public {
+    function test_memoryExtract(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu, uint112 dirt) public {
+        vm.assume(xl != yl || xu != yu);
+        vm.assume(yl != zl || yu != zu);
+        vm.assume(zl != xl || zu != xu);
+
         uint64 count = 0;
         if (xl != xu) count += 1;
         if (yl != yu) count += 1;
         if (zl != zu) count += 1;
-        uint256 zipped = zip([xl, xu, yl, yu, zl, zu]);
+        uint256 zipped = zip([xl, xu, yl, yu, zl, zu]) + (uint256(dirt) << 144);
 
         uint64 ptr;
         assembly ("memory-safe") {
@@ -41,8 +45,86 @@ contract PositionsTest is Test {
         extract(zipped);
     }
 
-    function test_memoryExtractDirty(int24 xl, int24 xu, uint256 dirt) public {
-        uint256 zipped = zip([xl, xu, xl, xu, xl, xu]);
+    function test_memoryExtractDirtyZip(
+        int24 xl,
+        int24 xu,
+        int24 yl,
+        int24 yu,
+        int24 zl,
+        int24 zu,
+        uint112 dirt
+    ) public {
+        vm.assume(xl != yl || xu != yu);
+        vm.assume(yl != zl || yu != zu);
+        vm.assume(zl != xl || zu != xu);
+
+        uint256 zipped = zip([xl, xu, yl, yu, zl, zu]) + (uint256(dirt) << 144);
+        int24[] memory extracted = extract(zipped);
+
+        if (xl == xu && yl == yu && zl == zu) {
+            assertEq(extracted.length, 0);
+            return;
+        }
+
+        if (xl != xu && yl == yu && zl == zu) {
+            assertEq(extracted.length, 2);
+            assertEq(extracted[0], xl);
+            assertEq(extracted[1], xu);
+            return;
+        }
+
+        if (xl == xu && yl != yu && zl == zu) {
+            assertEq(extracted.length, 2);
+            assertEq(extracted[0], yl);
+            assertEq(extracted[1], yu);
+            return;
+        }
+
+        if (xl == xu && yl == yu && zl != zu) {
+            assertEq(extracted.length, 2);
+            assertEq(extracted[0], zl);
+            assertEq(extracted[1], zu);
+            return;
+        }
+
+        if (xl != xu && yl != yu && zl == zu) {
+            assertEq(extracted.length, 4);
+            assertEq(extracted[0], xl);
+            assertEq(extracted[1], xu);
+            assertEq(extracted[2], yl);
+            assertEq(extracted[3], yu);
+            return;
+        }
+
+        if (xl == xu && yl != yu && zl != zu) {
+            assertEq(extracted.length, 4);
+            assertEq(extracted[0], yl);
+            assertEq(extracted[1], yu);
+            assertEq(extracted[2], zl);
+            assertEq(extracted[3], zu);
+            return;
+        }
+
+        if (xl != xu && yl == yu && zl != zu) {
+            assertEq(extracted.length, 4);
+            assertEq(extracted[0], xl);
+            assertEq(extracted[1], xu);
+            assertEq(extracted[2], zl);
+            assertEq(extracted[3], zu);
+            return;
+        }
+
+        assertEq(extracted.length, 6);
+        assertEq(extracted[0], xl);
+        assertEq(extracted[1], xu);
+        assertEq(extracted[2], yl);
+        assertEq(extracted[3], yu);
+        assertEq(extracted[4], zl);
+        assertEq(extracted[5], zu);
+    }
+
+    function test_memoryExtractDirtyPtr(int24 xl, int24 xu, uint256 dirt) public {
+        uint256 zipped = zip([xl, xu, 0, 0, 0, 0]);
 
         // Write data after the free memory pointer, without updating the pointer
         // (make it dirty)
@@ -58,13 +140,9 @@ contract PositionsTest is Test {
 
         int24[] memory extracted = extract(zipped);
         if (xl != xu) {
-            assertEq(extracted.length, 6);
+            assertEq(extracted.length, 2);
             assertEq(extracted[0], xl);
             assertEq(extracted[1], xu);
-            assertEq(extracted[2], xl);
-            assertEq(extracted[3], xu);
-            assertEq(extracted[4], xl);
-            assertEq(extracted[5], xu);
         } else {
             assertEq(extracted.length, 0);
         }
@@ -84,14 +162,18 @@ contract PositionsTest is Test {
     }
 
     function test_emptyWrite(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu) public {
+        vm.assume(xl != yl || xu != yu);
+        vm.assume(yl != zl || yu != zu);
+        vm.assume(zl != xl || zu != xu);
+
         positions[0] = xl;
         positions[1] = xu;
         positions[2] = yl;
         positions[3] = yu;
         positions[4] = zl;
         positions[5] = zu;
-        
-        positions.write(0);
+
+        _write(0);
 
         // Writing `0` tells it not to change anything
         assertEq(positions[0], xl);
@@ -103,15 +185,19 @@ contract PositionsTest is Test {
     }
 
     function test_writePassthrough(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu) public {
+        vm.assume(xl != yl || xu != yu);
+        vm.assume(yl != zl || yu != zu);
+        vm.assume(zl != xl || zu != xu);
+
         positions[0] = xl;
         positions[1] = xu;
         positions[2] = yl;
         positions[3] = yu;
         positions[4] = zl;
         positions[5] = zu;
-        
-        int24[] memory a = positions.write(0);
-        int24[] memory b = positions.read();
+
+        int24[] memory a = _write(0);
+        int24[] memory b = _read();
 
         assertEq(a.length, b.length);
 
@@ -132,7 +218,7 @@ contract PositionsTest is Test {
     function test_singleWrite(int24 xl, int24 xu) public {
         vm.assume(xl != 0 || xu != 0);
 
-        positions.write(zip([xl, xu, 0, 0, 0, 0]));
+        _write(zip([xl, xu, 0, 0, 0, 0]));
 
         assertEq(positions[0], xl);
         assertEq(positions[1], xu);
@@ -145,7 +231,7 @@ contract PositionsTest is Test {
     function test_doubleWrite(int24 xl, int24 xu, int24 yl, int24 yu) public {
         vm.assume(xl != yl || xu != yu);
 
-        positions.write(zip([xl, xu, yl, yu, 0, 0]));
+        _write(zip([xl, xu, yl, yu, 0, 0]));
 
         assertEq(positions[0], xl);
         assertEq(positions[1], xu);
@@ -157,10 +243,8 @@ contract PositionsTest is Test {
 
     function test_doubleWriteSpaceBetween(int24 xl, int24 xu, int24 yl, int24 yu) public {
         vm.assume(xl != yl || xu != yu);
-        vm.assume(xl != 0 || xu != 0);
-        vm.assume(yl != 0 || yu != 0);
 
-        positions.write(zip([xl, xu, 0, 0, yl, yu]));
+        _write(zip([xl, xu, 0, 0, yl, yu]));
 
         assertEq(positions[0], xl);
         assertEq(positions[1], xu);
@@ -172,10 +256,10 @@ contract PositionsTest is Test {
 
     function test_tripleWrite(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu) public {
         vm.assume(xl != yl || xu != yu);
-        vm.assume(xl != zl || xu != zu);
         vm.assume(yl != zl || yu != zu);
+        vm.assume(zl != xl || zu != xu);
 
-        positions.write(zip([xl, xu, yl, yu, zl, zu]));
+        _write(zip([xl, xu, yl, yu, zl, zu]));
 
         assertEq(positions[0], xl);
         assertEq(positions[1], xu);
@@ -189,36 +273,36 @@ contract PositionsTest is Test {
         vm.assume(xl != zl || xu != zu);
         vm.assume(xl != xu);
 
-        vm.expectRevert(bytes(""));
-        positions.write(zip([xl, xu, xl, xu, zl, zu]));
+        vm.expectRevert(0xe13355df);
+        _write(zip([xl, xu, xl, xu, zl, zu]));
     }
 
     function test_cannotWriteIdenticalYZ(int24 xl, int24 xu, int24 yl, int24 yu) public {
         vm.assume(xl != yl || xu != yu);
         vm.assume(yl != yu);
 
-        vm.expectRevert(bytes(""));
-        positions.write(zip([xl, xu, yl, yu, yl, yu]));
+        vm.expectRevert(0xe13355df);
+        _write(zip([xl, xu, yl, yu, yl, yu]));
     }
 
     function test_cannotWriteIdenticalXZ(int24 xl, int24 xu, int24 yl, int24 yu) public {
         vm.assume(xl != yl || xu != yu);
         vm.assume(xl != xu);
 
-        vm.expectRevert(bytes(""));
-        positions.write(zip([xl, xu, yl, yu, xl, xu]));
+        vm.expectRevert(0xe13355df);
+        _write(zip([xl, xu, yl, yu, xl, xu]));
     }
 
     function test_cannotWriteIdenticalXYZ(int24 xl, int24 xu) public {
         vm.assume(xl != xu);
 
-        vm.expectRevert(bytes(""));
-        positions.write(zip([xl, xu, xl, xu, xl, xu]));
+        vm.expectRevert(0xe13355df);
+        _write(zip([xl, xu, xl, xu, xl, xu]));
     }
 
     function test_emptyRead() public {
         delete positions;
-        int24[] memory positions_ = positions.read();
+        int24[] memory positions_ = _read();
         assertEq(positions_.length, 0);
     }
 
@@ -230,7 +314,7 @@ contract PositionsTest is Test {
         positions[4] = 0;
         positions[5] = 0;
 
-        int24[] memory positions_ = positions.read();
+        int24[] memory positions_ = _read();
 
         if (xl == xu) {
             assertEq(positions_.length, 0);
@@ -242,6 +326,8 @@ contract PositionsTest is Test {
     }
 
     function test_doubleRead(int24 xl, int24 xu, int24 yl, int24 yu) public {
+        vm.assume(xl != yl || xu != yu);
+
         positions[0] = xl;
         positions[1] = xu;
         positions[2] = yl;
@@ -249,7 +335,7 @@ contract PositionsTest is Test {
         positions[4] = 0;
         positions[5] = 0;
 
-        int24[] memory positions_ = positions.read();
+        int24[] memory positions_ = _read();
 
         if (xl == xu && yl == yu) {
             assertEq(positions_.length, 0);
@@ -271,6 +357,10 @@ contract PositionsTest is Test {
     }
 
     function test_tripleRead(int24 xl, int24 xu, int24 yl, int24 yu, int24 zl, int24 zu) public {
+        vm.assume(xl != yl || xu != yu);
+        vm.assume(yl != zl || yu != zu);
+        vm.assume(zl != xl || zu != xu);
+
         positions[0] = xl;
         positions[1] = xu;
         positions[2] = yl;
@@ -278,7 +368,7 @@ contract PositionsTest is Test {
         positions[4] = zl;
         positions[5] = zu;
 
-        int24[] memory positions_ = positions.read();
+        int24[] memory positions_ = _read();
 
         if (xl == xu && yl == yu && zl == zu) {
             assertEq(positions_.length, 0);
@@ -340,5 +430,25 @@ contract PositionsTest is Test {
         assertEq(positions_[3], yu);
         assertEq(positions_[4], zl);
         assertEq(positions_[5], zu);
+    }
+
+    function _write(uint144 update) private returns (int24[] memory positions_) {
+        uint256 slot0;
+        assembly ("memory-safe") {
+            slot0 := sload(positions.slot)
+            // Equivalent to `if (update > 0) slot0 = update`
+            slot0 := or(update, mul(slot0, iszero(update)))
+
+            sstore(positions.slot, slot0)
+        }
+        positions_ = extract(slot0);
+    }
+
+    function _read() private view returns (int24[] memory positions_) {
+        uint256 slot0;
+        assembly ("memory-safe") {
+            slot0 := sload(positions.slot)
+        }
+        positions_ = extract(slot0);
     }
 }
