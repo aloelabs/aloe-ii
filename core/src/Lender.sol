@@ -54,9 +54,6 @@ contract Lender is Ledger {
         require(borrowIndex == 0);
         borrowIndex = uint72(ONE);
         lastAccrualTime = uint32(block.timestamp);
-
-        _initialDomainSeparator = _computeDomainSeparator();
-        _initialChainId = block.chainid;
     }
 
     /// @notice Sets the `rateModel` and `reserveFactor`. Only the `FACTORY` can call this.

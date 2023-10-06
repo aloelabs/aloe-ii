@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
 import {IERC165} from "openzeppelin-contracts/contracts/interfaces/IERC165.sol";
+import {IERC2612} from "openzeppelin-contracts/contracts/interfaces/IERC2612.sol";
 import {IERC4626} from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
@@ -66,10 +67,6 @@ contract Ledger {
                             ERC2612 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    bytes32 internal _initialDomainSeparator;
-
-    uint256 internal _initialChainId;
-
     mapping(address => uint256) public nonces;
 
     /*//////////////////////////////////////////////////////////////
@@ -96,7 +93,10 @@ contract Ledger {
 
     /// @notice Returns true if this contract implements the interface defined by `interfaceId`
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return interfaceId == type(IERC165).interfaceId || interfaceId == type(IERC4626).interfaceId;
+        return
+            interfaceId == type(IERC165).interfaceId ||
+            interfaceId == type(IERC2612).interfaceId ||
+            interfaceId == type(IERC4626).interfaceId;
     }
 
     /// @notice The name of the banknote.
@@ -126,7 +126,15 @@ contract Ledger {
 
     /// @notice The domain separator for EIP-2612
     function DOMAIN_SEPARATOR() public view returns (bytes32) {
-        return block.chainid == _initialChainId ? _initialDomainSeparator : _computeDomainSeparator();
+        return
+            keccak256(
+                abi.encode(
+                    keccak256("EIP712Domain(string version,uint256 chainId,address verifyingContract)"),
+                    keccak256("1"),
+                    block.chainid,
+                    address(this)
+                )
+            );
     }
 
     /**
@@ -316,18 +324,6 @@ contract Ledger {
     /*//////////////////////////////////////////////////////////////
                                  HELPERS
     //////////////////////////////////////////////////////////////*/
-
-    function _computeDomainSeparator() internal view returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    keccak256("EIP712Domain(string version,uint256 chainId,address verifyingContract)"),
-                    keccak256("1"),
-                    block.chainid,
-                    address(this)
-                )
-            );
-    }
 
     function _previewInterest(Cache memory cache) internal view returns (Cache memory, uint256, uint256) {
         unchecked {
