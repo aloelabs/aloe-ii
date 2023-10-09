@@ -27,7 +27,7 @@ import {VolatilityOracle} from "src/VolatilityOracle.sol";
 import {FatFactory} from "./Utils.sol";
 
 contract ReenteringManager is IManager {
-    function callback(bytes calldata data, address, uint144) external override returns (uint144) {
+    function callback(bytes calldata data, address, uint208) external override returns (uint208) {
         (bool success, ) = msg.sender.call(data);
         require(success);
         return 0;
@@ -576,7 +576,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         if (amount1Delta > 0) deal(address(asset1), msg.sender, asset1.balanceOf(msg.sender) + uint256(amount1Delta));
     }
 
-    function callback(bytes calldata data, address, uint144) external returns (uint144) {
+    function callback(bytes calldata data, address, uint208) external returns (uint208) {
         Borrower account_ = Borrower(payable(msg.sender));
 
         (uint256 amount0, uint256 amount1, bool withdraw) = abi.decode(data, (uint256, uint256, bool));
