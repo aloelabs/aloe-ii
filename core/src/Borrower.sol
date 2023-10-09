@@ -102,6 +102,15 @@ contract Borrower is IUniswapV3MintCallback {
     /// @notice The lender of `TOKEN1`
     Lender public immutable LENDER1;
 
+    /**
+     * @notice The `Borrower`'s only mutable storage. Lowest 144 bits store the lower/upper bounds of up to 3 Uniswap
+     * positions, encoded by `Positions.zip`. Next 64 bits are unused within the `Borrower` and available to users as
+     * "free" storage － no additional sstore's. These 208 bits (144 + 64) are passed to `IManager.callback`, and get
+     * updated when the callback returns a non-zero value. The next 40 bits are either 0 or `unleashLiquidationTime`,
+     * as explained in the `Warn` event docs. The highest 8 bits represent the current `State` enum, plus 128. We add
+     * 128 (i.e. set the highest bit to 1) so that the slot is always non-zero, even in the absence of Uniswap
+     * positions － this saves gas.
+     */
     uint256 public slot0;
 
     modifier onlyInModifyCallback() {
