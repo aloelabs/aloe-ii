@@ -38,7 +38,7 @@ interface IManager {
      * `Positions.extract`
      * @return Updated positions, encoded using `Positions.zip`. Return 0 if you don't wish to make any changes.
      */
-    function callback(bytes calldata data, address owner, uint144 positions) external returns (uint144);
+    function callback(bytes calldata data, address owner, uint208 positions) external returns (uint208);
 }
 
 /// @title Borrower
@@ -76,10 +76,10 @@ contract Borrower is IUniswapV3MintCallback {
         InModifyCallback
     }
 
-    uint256 private constant SLOT0_MASK_POSITIONS = 0x0000000000000000000000000000ffffffffffffffffffffffffffffffffffff;
-    uint256 private constant SLOT0_MASK_UNLEASH = 0x00ffffffffffffffffffffffffff000000000000000000000000000000000000;
-    uint256 private constant SLOT0_MASK_STATE = 0x7f00000000000000000000000000000000000000000000000000000000000000;
-    uint256 private constant SLOT0_DIRT = 1 << 255;
+    uint256 private constant SLOT0_MASK_POSITIONS = 0x000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    uint256 private constant SLOT0_MASK_UNLEASH   = 0x00ffffffffff0000000000000000000000000000000000000000000000000000; // prettier-ignore
+    uint256 private constant SLOT0_MASK_STATE     = 0x7f00000000000000000000000000000000000000000000000000000000000000; // prettier-ignore
+    uint256 private constant SLOT0_DIRT           = 0x8000000000000000000000000000000000000000000000000000000000000000; // prettier-ignore
 
     /// @notice The factory that created this contract
     Factory public immutable FACTORY;
@@ -164,7 +164,7 @@ contract Borrower is IUniswapV3MintCallback {
             require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
         }
 
-        slot0 = slot0_ | ((block.timestamp + LIQUIDATION_GRACE_PERIOD) << 144);
+        slot0 = slot0_ | ((block.timestamp + LIQUIDATION_GRACE_PERIOD) << 208);
         emit Warn();
     }
 
@@ -246,7 +246,7 @@ contract Borrower is IUniswapV3MintCallback {
             }
 
             if (shouldSwap) {
-                uint256 unleashTime = (slot0_ & SLOT0_MASK_UNLEASH) >> 144;
+                uint256 unleashTime = (slot0_ & SLOT0_MASK_UNLEASH) >> 208;
                 require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
 
                 incentive1 /= strain;
@@ -299,7 +299,7 @@ contract Borrower is IUniswapV3MintCallback {
 
         slot0 = slot0_ | (uint256(State.InModifyCallback) << 248);
         {
-            uint144 positions = callee.callback(data, msg.sender, uint144(slot0_));
+            uint208 positions = callee.callback(data, msg.sender, uint208(slot0_));
             assembly ("memory-safe") {
                 // Equivalent to `if (positions > 0) slot0_ = positions`
                 slot0_ := or(positions, mul(slot0_, iszero(positions)))
