@@ -82,6 +82,12 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         vm.createSelectFork(vm.rpcUrl("anvil"));
     }
 
+    function test_stateMaskIsAddition(uint8 state) external {
+        state = uint8(bound(state, 0, 127));
+        assertEq(state | 0x80, state + 128);
+        assertEq((state | 0x80) & 0x7f, state);
+    }
+
     function test_permissionsModify(
         address owner,
         address caller,
