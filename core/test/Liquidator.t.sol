@@ -14,7 +14,7 @@ import "src/RateModel.sol";
 
 import {FatFactory, VolatilityOracleMock} from "./Utils.sol";
 
-contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
+contract LiquidatorTest is Test, IManager, ILiquidator {
     IUniswapV3Pool constant pool = IUniswapV3Pool(0xC2e9F25Be6257c210d7Adf0D4Cd6E3E881ba25f8);
     ERC20 constant asset0 = ERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     ERC20 constant asset1 = ERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
@@ -50,8 +50,8 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
     }
 
     function test_warn(uint8 seed0, uint8 seed1) public {
-        uint256 margin0 = 1e18 * (seed0 % 8 + 1); // TODO: Fuzz testing RPC concerns
-        uint256 margin1 = 0.1e18 * (seed1 % 8 + 1);
+        uint256 margin0 = 1e18 * ((seed0 % 8) + 1); // TODO: Fuzz testing RPC concerns
+        uint256 margin1 = 0.1e18 * ((seed1 % 8) + 1);
         uint256 borrows0 = margin0 * 200;
         uint256 borrows1 = margin1 * 200;
 
@@ -77,12 +77,12 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
 
         setInterest(lender0, 10010);
         setInterest(lender1, 10010);
-        assertEq(lender0.borrowBalance(address(account)), borrows0 * 10010 / 10000);
-        assertEq(lender1.borrowBalance(address(account)), borrows1 * 10010 / 10000);
+        assertEq(lender0.borrowBalance(address(account)), (borrows0 * 10010) / 10000);
+        assertEq(lender1.borrowBalance(address(account)), (borrows1 * 10010) / 10000);
 
         account.warn((1 << 32));
 
-        uint104 unleashLiquidationTime = uint104((account.slot0() >> 144) % (1 << 104));
+        uint40 unleashLiquidationTime = uint40((account.slot0() >> 208) % (1 << 40));
         assertEq(unleashLiquidationTime, block.timestamp + LIQUIDATION_GRACE_PERIOD);
 
         vm.expectRevert(bytes(""));
@@ -93,8 +93,8 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
 
         assertEq(lender0.borrowBalance(address(account)), 0);
         assertEq(lender1.borrowBalance(address(account)), 0);
-        assertEq(asset0.balanceOf(address(account)), borrows0 + margin0 - borrows0 * 10010 / 10000);
-        assertEq(asset1.balanceOf(address(account)), borrows1 + margin1 - borrows1 * 10010 / 10000);
+        assertEq(asset0.balanceOf(address(account)), borrows0 + margin0 - (borrows0 * 10010) / 10000);
+        assertEq(asset1.balanceOf(address(account)), borrows1 + margin1 - (borrows1 * 10010) / 10000);
     }
 
     function test_spec_repayDAI() public {
@@ -224,7 +224,9 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
         assertEq(asset0.balanceOf(address(account)), 899999999999999999);
         assertEq(asset1.balanceOf(address(account)), 79999999999999999);
 
-        (uint128 liquidity, , , , ) = pool.positions(keccak256(abi.encodePacked(address(account), int24(-75600), int24(-75540))));
+        (uint128 liquidity, , , , ) = pool.positions(
+            keccak256(abi.encodePacked(address(account), int24(-75600), int24(-75540)))
+        );
         assertEq(liquidity, 0);
     }
 
@@ -258,9 +260,7 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
         assertLe(debt - (1595e18 * 10010) / 10000, 1);
 
         // Disable warn() requirement by setting unleashLiquidationTime=1
-        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(
-            uint160(address(this)) + (1 << 160)
-        )));
+        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(1 << 208)));
 
         vm.expectRevert();
         account.liquidate(this, bytes(""), 0, (1 << 32));
@@ -295,12 +295,10 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
         account.modify(this, data, (1 << 32));
 
         setInterest(lender0, 10010);
-        debt = debt * 10010 / 10000;
+        debt = (debt * 10010) / 10000;
 
         // Disable warn() requirement by setting unleashLiquidationTime=1
-        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(
-            uint160(address(this)) + (1 << 160)
-        )));
+        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(1 << 208)));
 
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
@@ -320,7 +318,7 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
         // These tests are forked, so we don't want to spam the RPC with too many fuzzing values
         strain = (strain % 8) + 1;
 
-        (Prices memory prices,) = account.getPrices(1 << 32);
+        (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 borrow1 = 1e18 * ((scale % 4) + 1); // Same concern here
         {
             uint256 effectiveLiabilities1 = borrow1 + borrow1 / 200 + borrow1 / 20;
@@ -346,13 +344,11 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
         account.liquidate(this, bytes(""), 1, (1 << 32));
 
         setInterest(lender1, 10010);
-        borrow1 = borrow1 * 10010 / 10000;
+        borrow1 = (borrow1 * 10010) / 10000;
         assertEq(lender1.borrowBalance(address(account)), borrow1);
 
         // Disable warn() requirement by setting unleashLiquidationTime=1
-        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(
-            uint160(address(this)) + (1 << 160)
-        )));
+        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(1 << 208)));
 
         vm.expectRevert();
         account.liquidate(this, bytes(""), 0, (1 << 32));
@@ -416,9 +412,7 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
         }
 
         // Disable warn() requirement by setting unleashLiquidationTime=1
-        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(
-            uint160(address(this)) + (1 << 160)
-        )));
+        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(1 << 208)));
 
         (prices, ) = account.getPrices(1 << 32);
 
@@ -500,7 +494,7 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
         data = abi.encode(assets1);
         account.liquidate(this, data, strain, (1 << 32));
 
-        uint104 unleashLiquidationTime = uint104((account.slot0() >> 144) % (1 << 104));
+        uint40 unleashLiquidationTime = uint40((account.slot0() >> 208) % (1 << 40));
         assertEq(unleashLiquidationTime, 0);
     }
 
@@ -529,11 +523,7 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
     // ILiquidator
     receive() external payable {}
 
-    function swap1For0(
-        bytes calldata data,
-        uint256 actual,
-        uint256 expected0
-    ) external {
+    function swap1For0(bytes calldata data, uint256 actual, uint256 expected0) external {
         uint256 expected = abi.decode(data, (uint256));
         if (expected == type(uint256).max) {
             Borrower(payable(msg.sender)).liquidate(this, data, 1, (1 << 32));
@@ -542,11 +532,7 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
         pool.swap(msg.sender, false, -int256(expected0), TickMath.MAX_SQRT_RATIO - 1, bytes(""));
     }
 
-    function swap0For1(
-        bytes calldata data,
-        uint256 actual,
-        uint256 expected1
-    ) external {
+    function swap0For1(bytes calldata data, uint256 actual, uint256 expected1) external {
         uint256 expected = abi.decode(data, (uint256));
         if (expected == type(uint256).max) {
             Borrower(payable(msg.sender)).liquidate(this, data, 1, (1 << 32));
@@ -556,11 +542,7 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
     }
 
     // IUniswapV3SwapCallback
-    function uniswapV3SwapCallback(
-        int256 amount0Delta,
-        int256 amount1Delta,
-        bytes calldata
-    ) external {
+    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata) external {
         if (amount0Delta > 0) asset0.transfer(msg.sender, uint256(amount0Delta));
         if (amount1Delta > 0) asset1.transfer(msg.sender, uint256(amount1Delta));
     }
@@ -579,7 +561,7 @@ contract BorrowerLiquidationsTest is Test, IManager, ILiquidator {
         uint256 borrowBase = slot1 % (1 << 184);
         uint256 borrowIndex = slot1 >> 184;
 
-        uint256 newSlot1 = borrowBase + ((borrowIndex * amount / 10_000) << 184);
+        uint256 newSlot1 = borrowBase + (((borrowIndex * amount) / 10_000) << 184);
         vm.store(address(lender), ID, bytes32(newSlot1));
     }
 }

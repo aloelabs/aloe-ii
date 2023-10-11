@@ -141,11 +141,6 @@ contract Borrower is IUniswapV3MintCallback {
         return ImmutableArgs.addr();
     }
 
-    function rescue(ERC20 token) external {
-        require(token != TOKEN0 && token != TOKEN1);
-        token.safeTransfer(owner(), token.balanceOf(address(this)));
-    }
-
     /*//////////////////////////////////////////////////////////////
                            MAIN ENTRY POINTS
     //////////////////////////////////////////////////////////////*/
@@ -348,8 +343,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /**
-     * @notice Allows the account owner to add liquidity to a Uniswap position (or create a new one).
-     * Only works within the `modify` callback.
+     * @notice Allows the `owner()` to add liquidity to a Uniswap position (or create a new one). Only works
+     * within the `modify` callback.
      * @dev The `LiquidityAmounts` library can help convert underlying amounts to units of `liquidity`.
      * NOTE: Depending on your use-case, it may be more gas-efficient to call `UNISWAP_POOL.mint` in your
      * own contract, instead of doing `uniswapDeposit` inside of `modify`'s callback. As long as you set
@@ -369,8 +364,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /**
-     * @notice Allows the account owner to withdraw liquidity from one of their Uniswap positions. Only
-     * works within the `modify` callback.
+     * @notice Allows the `owner()` to withdraw liquidity from one of their Uniswap positions. Only works within
+     * the `modify` callback.
      * @dev The `LiquidityAmounts` library can help convert underlying amounts to units of `liquidity`
      * @param lower The tick at the position's lower bound
      * @param upper The tick at the position's upper bound
@@ -392,8 +387,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /**
-     * @notice The most flexible sub-command. Allows the account owner to transfer amounts of `TOKEN0` and
-     * `TOKEN1` to any `recipient` they want. Only works within the `modify` callback.
+     * @notice The most flexible sub-command. Allows the `owner()` to transfer amounts of `TOKEN0` and `TOKEN1`
+     * to any `recipient` they want. Only works within the `modify` callback.
      * @param amount0 The amount of `TOKEN0` to transfer
      * @param amount1 The amount of `TOKEN1` to transfer
      * @param recipient Receives the transferred tokens
@@ -404,8 +399,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /**
-     * @notice Allows the account owner to borrow funds from `LENDER0` and `LENDER1`. Only works within
-     * the `modify` callback.
+     * @notice Allows the `owner()` to borrow funds from `LENDER0` and `LENDER1`. Only works within the `modify`
+     * callback.
      * @dev If `amount0 > 0` and interest hasn't yet accrued in this block for `LENDER0`, it will accrue
      * prior to processing your new borrow. Same goes for `amount1 > 0` and `LENDER1`.
      * @param amount0 The amount of `TOKEN0` to borrow
@@ -418,8 +413,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /**
-     * @notice Allows the account owner to repay debts to `LENDER0` and `LENDER1`. Only works within the
-     * `modify` callback.
+     * @notice Allows the `owner()` to repay debts to `LENDER0` and `LENDER1`. Only works within the `modify`
+     * callback.
      * @dev This is technically unnecessary since you could call `Lender.repay` directly, specifying this
      * contract as the `beneficiary` and using the `transfer` sub-command to make payments. We include it
      * because it's convenient and gas-efficient for common use-cases.
@@ -431,11 +426,24 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /**
-     * @notice Allows the account owner to withdraw their ante. Only works within the `modify` callback.
+     * @notice Allows the `owner()` to withdraw their ante. Only works within the `modify` callback.
      * @param recipient Receives the ante (as Ether)
      */
     function withdrawAnte(address payable recipient) external onlyInModifyCallback {
+        // WARNING: External call to user-specified address
         recipient.transfer(address(this).balance);
+    }
+
+    /**
+     * @notice Allows the `owner()` to perform arbitrary transfers. Useful for rescuing misplaced funds. Only
+     * works within the `modify` callback.
+     * @param token The ERC20 token to transfer
+     * @param amount The amount to transfer
+     * @param recipient Receives the transferred tokens
+     */
+    function rescue(ERC20 token, uint256 amount, address recipient) external onlyInModifyCallback {
+        // WARNING: External call to user-specified address
+        token.safeTransfer(recipient, amount);
     }
 
     /*//////////////////////////////////////////////////////////////
