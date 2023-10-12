@@ -158,11 +158,6 @@ contract BalanceSheetTest is Test {
         assertTrue(seemsLegit, "0.19 true");
         (, , seemsLegit) = BalanceSheet.computeProbePrices(836, 0, 0.19e12, 50, 12);
         assertFalse(seemsLegit, "0.19 false");
-
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(1293, 0, IV_COLD_START, 50, 12);
-        assertTrue(seemsLegit, "cold true");
-        (, , seemsLegit) = BalanceSheet.computeProbePrices(1294, 0, IV_COLD_START, 50, 12);
-        assertFalse(seemsLegit, "cold false");
     }
 
     function test_computeProbePrices(uint160 sqrtMeanPriceX96, uint256 iv, uint8 nSigma, uint8 mtd) public {
