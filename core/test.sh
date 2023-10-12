@@ -79,9 +79,15 @@ fi
 # Run forge tests
 if [ "$CHECK_FORGE_TESTS" = true ]; then
     if [ "$CI" = true ]; then
-        forge test -vv --no-match-contract ".*Gas|BorrowerTest" --no-match-test "historical|Ffi"
+        (forge test -vv --no-match-contract ".*Gas|BorrowerTest" --no-match-test "historical|Ffi")
     else
-        forge test -vv --no-match-contract ".*Gas" --no-match-test "historical|Ffi" --ffi
+        (forge test -vv --no-match-contract ".*Gas" --no-match-test "historical|Ffi" --ffi)
+    fi
+
+    tests_pass=$?
+    if [ "${tests_pass}" != "0" ]; then
+        echo "❌ forge tests failed" >> $GITHUB_STEP_SUMMARY
+        exit 1
     fi
 
     echo "✅ forge tests pass" >> $GITHUB_STEP_SUMMARY
