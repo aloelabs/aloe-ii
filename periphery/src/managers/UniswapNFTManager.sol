@@ -20,7 +20,7 @@ contract UniswapNFTManager is IManager {
         NFT_MANAGER = nftManager;
     }
 
-    function callback(bytes calldata data, address owner) external override returns (uint144 positions) {
+    function callback(bytes calldata data, address owner, uint208) external override returns (uint208 positions) {
         Borrower borrower = Borrower(payable(msg.sender));
 
         // The ID of the NFT to which liquidity will be added/removed
