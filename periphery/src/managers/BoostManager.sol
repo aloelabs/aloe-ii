@@ -33,7 +33,7 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
         borrower.transfer(amount0 > 0 ? uint256(amount0) : 0, amount1 > 0 ? uint256(amount1) : 0, msg.sender);
     }
 
-    function callback(bytes calldata data, address owner) external override returns (uint144) {
+    function callback(bytes calldata data, address owner, uint208) external override returns (uint208) {
         // We cast `msg.sender` as a `Borrower`, but it could really be anything. DO NOT TRUST!
         Borrower borrower = Borrower(payable(msg.sender));
 
