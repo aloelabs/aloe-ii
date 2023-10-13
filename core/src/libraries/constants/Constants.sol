@@ -121,9 +121,9 @@ uint256 constant LTV_MAX = LTV_NUMERATOR / (PROBE_SQRT_SCALER_MIN * PROBE_SQRT_S
 uint32 constant IV_SCALE = 24 hours;
 
 /// @dev The initial value of implied volatility, used when `VolatilityOracle.prepare` is called for a new pool.
-/// Expressed as a 1e12 percentage at `IV_SCALE`, e.g. {0.30e12, 24 hours} → 30% daily → 573% annual. Error on the
+/// Expressed as a 1e12 percentage at `IV_SCALE`, e.g. {0.12e12, 24 hours} → 12% daily → 229% annual. Error on the
 /// side of making this too large (resulting in low LTV).
-uint128 constant IV_COLD_START = 0.30e12;
+uint128 constant IV_COLD_START = 0.127921282726e12;
 
 /// @dev The maximum rate at which (reported) implied volatility can change. Raw samples in `VolatilityOracle.update`
 /// are clamped (before being stored) so as not to exceed this rate.
