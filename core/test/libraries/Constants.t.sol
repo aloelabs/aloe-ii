@@ -7,7 +7,6 @@ import "src/libraries/constants/Constants.sol";
 import {TickMath} from "src/libraries/TickMath.sol";
 
 contract ConstantsTest is Test {
-
     function setUp() public {}
 
     function test_spec() external {

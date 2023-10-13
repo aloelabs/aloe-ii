@@ -8,7 +8,6 @@ import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.so
 import {exp1e12} from "src/libraries/Exp.sol";
 
 contract ExpTest is Test {
-
     function setUp() public {}
 
     function test_comparative(int256 input) external {
@@ -24,7 +23,10 @@ contract ExpTest is Test {
     function test_bounds() external {
         assertEq(exp1e12(-28324168296488 + 0), 0);
         assertEq(exp1e12(-28324168296488 + 1), 0);
-        assertEq(exp1e12(149121509926857 - 1), 57896044618570924033038090251570834612273709678020728724140821450240425059140);
+        assertEq(
+            exp1e12(149121509926857 - 1),
+            57896044618570924033038090251570834612273709678020728724140821450240425059140
+        );
         assertEq(exp1e12(149121509926857 - 0), type(int256).max);
         assertEq(exp1e12(type(int256).max), type(int256).max);
     }

@@ -102,7 +102,124 @@ contract VolatilityTest is Test {
         assertEq(dailyIV, 0); // 0%
     }
 
-    function test_estimate(
+    function test_spec_amount0ToAmount1() public {
+        uint256 amount1;
+
+        amount1 = Volatility.amount0ToAmount1(0, TickMath.getSqrtRatioAtTick(1000));
+        assertEq(amount1, 0);
+        amount1 = Volatility.amount0ToAmount1(0, TickMath.getSqrtRatioAtTick(-1000));
+        assertEq(amount1, 0);
+        amount1 = Volatility.amount0ToAmount1(type(uint128).max, TickMath.getSqrtRatioAtTick(1000));
+        assertEq(amount1, 376068295634136240002369832473867089913);
+        amount1 = Volatility.amount0ToAmount1(type(uint128).max, TickMath.getSqrtRatioAtTick(-1000));
+        assertEq(amount1, 307901757690220954445983032426865855048);
+        amount1 = Volatility.amount0ToAmount1(4000000000, TickMath.getSqrtRatioAtTick(193325)); // ~ 4000 USDC
+        assertEq(amount1, 994576722964113793); // ~ 1 ETH
+    }
+
+    function test_fuzz_amount0ToAmount1(uint128 amount0, int24 tick) public {
+        tick = int24(bound(tick, -100000, 100000));
+        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
+        uint256 amount1 = Volatility.amount0ToAmount1(amount0, sqrtPriceX96);
+
+        if (amount0 == 0) {
+            assertEq(amount1, 0);
+            return;
+        }
+        if (amount0 < 1e6) return;
+
+        uint256 priceX128Actual = Math.mulDiv(amount1, 2 ** 128, amount0);
+        uint256 priceX128Expected = Math.mulDiv(sqrtPriceX96, sqrtPriceX96, 2 ** 64);
+
+        assertApproxEqRel(priceX128Actual, priceX128Expected, 0.01e18);
+    }
+
+    function test_spec_computeRevenueGamma() public {
+        uint256 revenueGamma = Volatility.computeRevenueGamma(11111111111, 222222222222, 3975297179, 5000, 100);
+        assertEq(revenueGamma, 26);
+    }
+
+    function test_spec_computeTickTvl() public {
+        uint256 tickTvl;
+        tickTvl = Volatility.computeTickTvl(1, 19000, TickMath.getSqrtRatioAtTick(19000), 100000000000);
+        assertEq(tickTvl, 12926964);
+        tickTvl = Volatility.computeTickTvl(10, 19000, TickMath.getSqrtRatioAtTick(19000), 9763248618769789);
+        assertEq(tickTvl, 12618077941403);
+        tickTvl = Volatility.computeTickTvl(60, -19000, TickMath.getSqrtRatioAtTick(-19000), 100000000000);
+        assertEq(tickTvl, 115925394);
+        tickTvl = Volatility.computeTickTvl(60, -3000, TickMath.getSqrtRatioAtTick(-3000), 999999999);
+        assertEq(tickTvl, 2578145);
+    }
+
+    function test_fuzz_computeTickTvl(int24 currentTick, uint8 tickSpacing, uint128 tickLiquidity) public {
+        if (tickSpacing == 0) return; // Always true in the real world
+        int24 _tickSpacing = int24(uint24(tickSpacing));
+
+        if (currentTick < TickMath.MIN_TICK) currentTick = TickMath.MIN_TICK + _tickSpacing;
+        if (currentTick > TickMath.MAX_TICK) currentTick = TickMath.MAX_TICK - _tickSpacing;
+        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(currentTick);
+
+        // Ensure it doesn't revert
+        uint256 tickTvl = Volatility.computeTickTvl(_tickSpacing, currentTick, sqrtPriceX96, tickLiquidity);
+
+        // Check that it's non-zero in cases where we don't expect truncation
+        int24 lowerBound = TickMath.MIN_TICK / 2;
+        int24 upperBound = TickMath.MAX_TICK / 2;
+        if (tickLiquidity > 1_000_000 && currentTick < lowerBound && currentTick > upperBound) assertGt(tickTvl, 0);
+    }
+
+    function test_fuzz_computeTickTvlDoesNotRevert(uint8 tier, int24 tick, uint128 liquidity) public pure {
+        int24 tickSpacing;
+        tier = tier % 4;
+        if (tier == 0) tickSpacing = 1;
+        else if (tier == 1) tickSpacing = 10;
+        else if (tier == 2) tickSpacing = 60;
+        else if (tier == 3) tickSpacing = 100;
+
+        if (tick < TickMath.MIN_TICK + tickSpacing) tick = TickMath.MIN_TICK + tickSpacing;
+        else if (tick > TickMath.MAX_TICK - tickSpacing) tick = TickMath.MAX_TICK - tickSpacing;
+
+        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
+
+        Volatility.computeTickTvl(tickSpacing, tick, sqrtPriceX96, liquidity);
+    }
+
+    function test_fuzz_computeRevenueGammaDoesNotRevertA(
+        uint256 feeGrowthGlobalAX128,
+        uint256 feeGrowthGlobalBX128,
+        uint160 secondsPerLiquidityX128
+    ) public pure {
+        if (secondsPerLiquidityX128 == 0) return;
+        Volatility.computeRevenueGamma(feeGrowthGlobalAX128, feeGrowthGlobalBX128, secondsPerLiquidityX128, 5000, 100);
+    }
+
+    function test_fuzz_computeRevenueGammaDoesNotRevertB(
+        uint256 feeGrowthGlobalAX128,
+        uint224 feeGrowthGlobalDeltaX128,
+        uint160 secondsPerLiquidityX128,
+        uint32 secondsAgo,
+        uint24 gamma
+    ) public pure {
+        // NOTE: Important assumption here, since this value only changes when ticks are crossed!
+        vm.assume(secondsPerLiquidityX128 != 0);
+
+        gamma = gamma % 1e6;
+
+        uint256 feeGrowthGlobalBX128;
+        unchecked {
+            feeGrowthGlobalBX128 = feeGrowthGlobalAX128 + feeGrowthGlobalDeltaX128;
+        }
+
+        Volatility.computeRevenueGamma(
+            feeGrowthGlobalAX128,
+            feeGrowthGlobalBX128,
+            secondsPerLiquidityX128,
+            secondsAgo,
+            gamma
+        );
+    }
+
+    function test_fuzz_estimateDoesNotRevertA(
         uint128 tickLiquidity,
         int16 tick,
         int8 tickMeanOffset,
@@ -129,137 +246,7 @@ contract VolatilityTest is Test {
         );
     }
 
-    function test_spec_amount0ToAmount1() public {
-        uint256 amount1;
-
-        amount1 = Volatility.amount0ToAmount1(0, TickMath.getSqrtRatioAtTick(1000));
-        assertEq(amount1, 0);
-        amount1 = Volatility.amount0ToAmount1(0, TickMath.getSqrtRatioAtTick(-1000));
-        assertEq(amount1, 0);
-        amount1 = Volatility.amount0ToAmount1(type(uint128).max, TickMath.getSqrtRatioAtTick(1000));
-        assertEq(amount1, 376068295634136240002369832473867089913);
-        amount1 = Volatility.amount0ToAmount1(type(uint128).max, TickMath.getSqrtRatioAtTick(-1000));
-        assertEq(amount1, 307901757690220954445983032426865855048);
-        amount1 = Volatility.amount0ToAmount1(4000000000, TickMath.getSqrtRatioAtTick(193325)); // ~ 4000 USDC
-        assertEq(amount1, 994576722964113793); // ~ 1 ETH
-    }
-
-    function test_amount0ToAmount1(uint128 amount0, int24 tick) public {
-        tick = int24(bound(tick, -100000, 100000));
-        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
-        uint256 amount1 = Volatility.amount0ToAmount1(amount0, sqrtPriceX96);
-
-        if (amount0 == 0) {
-            assertEq(amount1, 0);
-            return;
-        }
-        if (amount0 < 1e6) return;
-
-        uint256 priceX128Actual = Math.mulDiv(amount1, 2 ** 128, amount0);
-        uint256 priceX128Expected = Math.mulDiv(sqrtPriceX96, sqrtPriceX96, 2 ** 64);
-
-        assertApproxEqRel(priceX128Actual, priceX128Expected, 0.01e18);
-    }
-
-    function test_spec_computeRevenueGamma() public {
-        uint256 revenueGamma = Volatility.computeRevenueGamma(11111111111, 222222222222, 3975297179, 5000, 100);
-        assertEq(revenueGamma, 26);
-    }
-
-    function test_computeRevenueGamma(
-        uint256 feeGrowthGlobalAX128,
-        uint256 feeGrowthGlobalBX128,
-        uint160 secondsPerLiquidityX128
-    ) public pure {
-        if (secondsPerLiquidityX128 == 0) return;
-        Volatility.computeRevenueGamma(feeGrowthGlobalAX128, feeGrowthGlobalBX128, secondsPerLiquidityX128, 5000, 100);
-    }
-
-    function test_spec_computeTickTvl() public {
-        uint256 tickTvl;
-        tickTvl = Volatility.computeTickTvl(1, 19000, TickMath.getSqrtRatioAtTick(19000), 100000000000);
-        assertEq(tickTvl, 12926964);
-        tickTvl = Volatility.computeTickTvl(10, 19000, TickMath.getSqrtRatioAtTick(19000), 9763248618769789);
-        assertEq(tickTvl, 12618077941403);
-        tickTvl = Volatility.computeTickTvl(60, -19000, TickMath.getSqrtRatioAtTick(-19000), 100000000000);
-        assertEq(tickTvl, 115925394);
-        tickTvl = Volatility.computeTickTvl(60, -3000, TickMath.getSqrtRatioAtTick(-3000), 999999999);
-        assertEq(tickTvl, 2578145);
-    }
-
-    function test_computeTickTvl(
-        int24 currentTick,
-        uint8 tickSpacing,
-        uint128 tickLiquidity
-    ) public {
-        if (tickSpacing == 0) return; // Always true in the real world
-        int24 _tickSpacing = int24(uint24(tickSpacing));
-
-        if (currentTick < TickMath.MIN_TICK) currentTick = TickMath.MIN_TICK + _tickSpacing;
-        if (currentTick > TickMath.MAX_TICK) currentTick = TickMath.MAX_TICK - _tickSpacing;
-        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(currentTick);
-
-        // Ensure it doesn't revert
-        uint256 tickTvl = Volatility.computeTickTvl(_tickSpacing, currentTick, sqrtPriceX96, tickLiquidity);
-
-        // Check that it's non-zero in cases where we don't expect truncation
-        int24 lowerBound = TickMath.MIN_TICK / 2;
-        int24 upperBound = TickMath.MAX_TICK / 2;
-        if (tickLiquidity > 1_000_000 && currentTick < lowerBound && currentTick > upperBound) assertGt(tickTvl, 0);
-    }
-
-    function test_noRevert_computeTickTvl(
-        uint8 tier,
-        int24 tick,
-        uint128 liquidity
-    ) public pure {
-        int24 tickSpacing;
-        tier = tier % 4;
-        if (tier == 0) tickSpacing = 1;
-        else if (tier == 1) tickSpacing = 10;
-        else if (tier == 2) tickSpacing = 60;
-        else if (tier == 3) tickSpacing = 100;
-
-        if (tick < TickMath.MIN_TICK + tickSpacing) tick = TickMath.MIN_TICK + tickSpacing;
-        else if (tick > TickMath.MAX_TICK - tickSpacing) tick = TickMath.MAX_TICK - tickSpacing;
-
-        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
-
-        Volatility.computeTickTvl(
-            tickSpacing,
-            tick,
-            sqrtPriceX96,
-            liquidity
-        );
-    }
-
-    function test_noRevert_computeRevenueGamma(
-        uint256 feeGrowthGlobalAX128,
-        uint224 feeGrowthGlobalDeltaX128,
-        uint160 secondsPerLiquidityX128,
-        uint32 secondsAgo,
-        uint24 gamma
-    ) public pure {
-        // NOTE: Important assumption here, since this value only changes when ticks are crossed!
-        vm.assume(secondsPerLiquidityX128 != 0);
-
-        gamma = gamma % 1e6;
-
-        uint256 feeGrowthGlobalBX128;
-        unchecked {
-            feeGrowthGlobalBX128 = feeGrowthGlobalAX128 + feeGrowthGlobalDeltaX128;
-        }
-
-        Volatility.computeRevenueGamma(
-            feeGrowthGlobalAX128,
-            feeGrowthGlobalBX128,
-            secondsPerLiquidityX128,
-            secondsAgo,
-            gamma
-        );
-    }
-
-    function test_noRevert_estimate(
+    function test_fuzz_estimateDoesNotRevertB(
         uint32 feeGrowthSampleAge,
         uint256 feeGrowthGlobalA0X128,
         uint256 feeGrowthGlobalA1X128,
@@ -291,8 +278,8 @@ contract VolatilityTest is Test {
             else if (tier == 3) metadata.tickSpacing = 100;
         }
 
-        tick = boundTick(tick, metadata.tickSpacing);
-        arithmeticMeanTick = boundTick(arithmeticMeanTick, metadata.tickSpacing);
+        tick = _boundTick(tick, metadata.tickSpacing);
+        arithmeticMeanTick = _boundTick(arithmeticMeanTick, metadata.tickSpacing);
         Oracle.PoolData memory data = Oracle.PoolData(
             TickMath.getSqrtRatioAtTick(tick),
             tick,
@@ -316,7 +303,7 @@ contract VolatilityTest is Test {
         assertLt(Volatility.estimate(metadata, data, a, b, scale), 1 << 128);
     }
 
-    function boundTick(int24 tick, int24 tickSpacing) private pure returns (int24) {
+    function _boundTick(int24 tick, int24 tickSpacing) private pure returns (int24) {
         if (tick < TickMath.MIN_TICK + tickSpacing) return TickMath.MIN_TICK + tickSpacing;
         else if (tick > TickMath.MAX_TICK - tickSpacing) return TickMath.MAX_TICK - tickSpacing;
         else return tick;

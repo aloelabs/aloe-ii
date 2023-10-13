@@ -32,7 +32,7 @@ contract LibraryWrapper {
 contract BalanceSheetTest is Test {
     function setUp() public {}
 
-    function test_alwaysHealthyWhenLiabilitiesAre0(
+    function test_fuzz_alwaysHealthyWhenLiabilitiesAre0(
         uint128 fixed0,
         uint128 fixed1,
         uint128 fluid1A,
@@ -160,7 +160,7 @@ contract BalanceSheetTest is Test {
         assertFalse(seemsLegit, "0.19 false");
     }
 
-    function test_computeProbePrices(uint160 sqrtMeanPriceX96, uint256 iv, uint8 nSigma, uint8 mtd) public {
+    function test_fuzz_computeProbePrices(uint160 sqrtMeanPriceX96, uint256 iv, uint8 nSigma, uint8 mtd) public {
         // The lower bound is related to how precise our assertion is. For prices to be correct within 0.01%,
         // the sqrtPrice must be >= 2^40 (approximately). Calculations for that are here:
         // https://www.desmos.com/calculator/suq1f7yswt
