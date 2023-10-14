@@ -49,8 +49,9 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         deal(address(account), DEFAULT_ANTE + 1);
     }
 
-    function test_warn(uint8 seed0, uint8 seed1) public {
-        uint256 margin0 = 1e18 * ((seed0 % 8) + 1); // TODO: Fuzz testing RPC concerns
+    /// forge-config: default.fuzz.runs = 16
+    function test_fuzz_warn(uint8 seed0, uint8 seed1) public {
+        uint256 margin0 = 1e18 * ((seed0 % 8) + 1);
         uint256 margin1 = 0.1e18 * ((seed1 % 8) + 1);
         uint256 borrows0 = margin0 * 200;
         uint256 borrows1 = margin1 * 200;
@@ -75,8 +76,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(this, bytes(""), 1, (1 << 32));
 
-        setInterest(lender0, 10010);
-        setInterest(lender1, 10010);
+        _setInterest(lender0, 10010);
+        _setInterest(lender1, 10010);
         assertEq(lender0.borrowBalance(address(account)), (borrows0 * 10010) / 10000);
         assertEq(lender1.borrowBalance(address(account)), (borrows1 * 10010) / 10000);
 
@@ -112,7 +113,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(this, bytes(""), strain, (1 << 32));
 
-        setInterest(lender0, 10010);
+        _setInterest(lender0, 10010);
         assertEq(lender0.borrowBalance(address(account)), 200.2e18);
 
         vm.expectRevert();
@@ -140,7 +141,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(this, bytes(""), strain, (1 << 32));
 
-        setInterest(lender1, 10010);
+        _setInterest(lender1, 10010);
         assertEq(lender1.borrowBalance(address(account)), 20.02e18);
 
         vm.expectRevert();
@@ -171,8 +172,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(this, bytes(""), strain, (1 << 32));
 
-        setInterest(lender0, 10010);
-        setInterest(lender1, 10010);
+        _setInterest(lender0, 10010);
+        _setInterest(lender1, 10010);
         assertEq(lender0.borrowBalance(address(account)), 200.2e18);
         assertEq(lender1.borrowBalance(address(account)), 20.02e18);
 
@@ -208,8 +209,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(this, bytes(""), strain, (1 << 32));
 
-        setInterest(lender0, 10010);
-        setInterest(lender1, 10010);
+        _setInterest(lender0, 10010);
+        _setInterest(lender1, 10010);
         assertEq(lender0.borrowBalance(address(account)), 200.2e18);
         assertEq(lender1.borrowBalance(address(account)), 20.02e18);
 
@@ -230,7 +231,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(liquidity, 0);
     }
 
-    function test_spec_interestTriggerRepayDAIUsingSwap(uint8 strain) public {
+    /// forge-config: default.fuzz.runs = 16
+    function test_fuzz_interestTriggerRepayDAIUsingSwap(uint8 strain) public {
         strain = (strain % 8) + 1;
 
         // give the account 1 WETH
@@ -255,7 +257,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(this, bytes(""), 1, (1 << 32));
 
-        setInterest(lender0, 10010);
+        _setInterest(lender0, 10010);
         debt = lender0.borrowBalance(address(account));
         assertLe(debt - (1595e18 * 10010) / 10000, 1);
 
@@ -278,7 +280,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertGt(asset1.balanceOf(address(this)), 0);
     }
 
-    function test_spec_cannotReenterLiquidate(uint8 strain) public {
+    /// forge-config: default.fuzz.runs = 16
+    function test_fuzz_cannotReenterLiquidate(uint8 strain) public {
         strain = (strain % 8) + 1;
 
         // give the account 1 WETH
@@ -294,7 +297,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         data = abi.encode(Action.WITHDRAW, debt, 0);
         account.modify(this, data, (1 << 32));
 
-        setInterest(lender0, 10010);
+        _setInterest(lender0, 10010);
         debt = (debt * 10010) / 10000;
 
         // Disable warn() requirement by setting unleashLiquidationTime=1
@@ -314,7 +317,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.liquidate(this, data, strain, (1 << 32));
     }
 
-    function test_spec_interestTriggerRepayETHUsingSwap(uint8 scale, uint8 strain) public {
+    /// forge-config: default.fuzz.runs = 16
+    function test_fuzz_interestTriggerRepayETHUsingSwap(uint8 scale, uint8 strain) public {
         // These tests are forked, so we don't want to spam the RPC with too many fuzzing values
         strain = (strain % 8) + 1;
 
@@ -343,7 +347,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         vm.expectRevert(bytes("Aloe: healthy"));
         account.liquidate(this, bytes(""), 1, (1 << 32));
 
-        setInterest(lender1, 10010);
+        _setInterest(lender1, 10010);
         borrow1 = (borrow1 * 10010) / 10000;
         assertEq(lender1.borrowBalance(address(account)), borrow1);
 
@@ -428,7 +432,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertGt(asset1.balanceOf(address(this)), 0);
     }
 
-    function test_warnDoesProtect() public {
+    function test_spec_warnDoesProtect() public {
         uint256 strain = 1;
 
         (Prices memory prices, ) = account.getPrices(1 << 32);
@@ -554,7 +558,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     }
 
     // (helpers)
-    function setInterest(Lender lender, uint256 amount) private {
+    function _setInterest(Lender lender, uint256 amount) private {
         bytes32 ID = bytes32(uint256(1));
         uint256 slot1 = uint256(vm.load(address(lender), ID));
 

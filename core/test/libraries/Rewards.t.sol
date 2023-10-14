@@ -31,11 +31,7 @@ contract MockERC20Rewards is MockERC20 {
         return super.transfer(to, amount);
     }
 
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) public virtual override returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {
         (Rewards.Storage storage s, uint144 a) = Rewards.load();
         Rewards.updateUserState(s, a, from, balanceOf[from]);
         Rewards.updateUserState(s, a, to, balanceOf[to]);
@@ -61,10 +57,7 @@ contract MockERC20Rewards is MockERC20 {
 
     function claim() external {
         (Rewards.Storage storage s, uint144 a) = Rewards.load();
-        REWARDS_TOKEN.transfer(
-            msg.sender,
-            Rewards.claim(s, a, msg.sender, balanceOf[msg.sender])
-        );
+        REWARDS_TOKEN.transfer(msg.sender, Rewards.claim(s, a, msg.sender, balanceOf[msg.sender]));
     }
 
     function rewards(address user) external view returns (uint112) {
@@ -143,12 +136,12 @@ contract RewardsTest is Test {
     }
 
     function test_mock_minRateMaxSupply() public {
-        uint256 minRate = uint256(10) * 1e18 / 365 days;
+        uint256 minRate = (uint256(10) * 1e18) / 365 days;
         uint256 maxSupply = uint256(1e9) * 1e18;
 
         pool.setRate(uint56(minRate));
         assertEq(pool.rewardsRate(), minRate);
-        
+
         address alice = address(12345);
         pool.mint(alice, maxSupply);
 
@@ -160,7 +153,7 @@ contract RewardsTest is Test {
     }
 
     function test_mock_maxRateMinSupply() public {
-        uint256 maxRate = uint256(1e6) * 1e18 / 365 days;
+        uint256 maxRate = (uint256(1e6) * 1e18) / 365 days;
         uint256 minSupply = 1;
 
         pool.setRate(uint56(maxRate));
@@ -177,12 +170,12 @@ contract RewardsTest is Test {
     }
 
     function test_mock_minRateMaxSupplyLongTime() public {
-        uint256 minRate = uint256(10) * 1e18 / 365 days;
+        uint256 minRate = (uint256(10) * 1e18) / 365 days;
         uint256 maxSupply = uint256(1e9) * 1e18;
 
         pool.setRate(uint56(minRate));
         assertEq(pool.rewardsRate(), minRate);
-        
+
         address alice = address(12345);
         pool.mint(alice, maxSupply);
 
@@ -194,7 +187,7 @@ contract RewardsTest is Test {
     }
 
     function test_mock_maxRateMinSupplyLongTime() public {
-        uint256 maxRate = uint256(1e6) * 1e18 / 365 days;
+        uint256 maxRate = (uint256(1e6) * 1e18) / 365 days;
         uint256 minSupply = 1;
 
         pool.setRate(uint56(maxRate));
@@ -224,7 +217,7 @@ contract RewardsTest is Test {
         skip(deltaT);
 
         uint256 actual = pool.rewardsAccumulator() - before;
-        uint256 expected = 1e16 * uint256(deltaT) * rate / totalSupply;
+        uint256 expected = (1e16 * uint256(deltaT) * rate) / totalSupply;
 
         assertLe(actual, expected);
         if (actual / deltaT > 1e3) assertApproxEqRel(actual, expected, 0.002e18);
@@ -291,7 +284,7 @@ contract RewardsTest is Test {
         assertEq(pool.rewards(alice), 6000);
 
         rewardsToken.mint(address(pool), 6000);
-        
+
         vm.prank(alice);
         pool.claim();
 

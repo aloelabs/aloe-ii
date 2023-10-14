@@ -10,7 +10,7 @@ import "src/libraries/Log2.sol";
 contract Log2Test is Test {
     function setUp() public {}
 
-    function test_msb() public {
+    function test_spec_msb() public {
         assertEq(msb(0), 0);
         assertEq(msb(1), 0);
         assertEq(msb(2), 1);
@@ -110,7 +110,7 @@ contract Log2Test is Test {
         assertGe(recovered / 1e4, x / 1e4);
     }
 
-    function test_rewardsUsage(uint56 rate, uint112 totalSupply) public {
+    function test_rewardsStyleUsage(uint56 rate, uint112 totalSupply) public {
         vm.assume(totalSupply > 0);
 
         int24 log2TotalSupply;
@@ -120,8 +120,8 @@ contract Log2Test is Test {
         }
         uint256 recoveredTotalSupply = exp2(log2TotalSupply);
 
-        uint256 a = 1e16 * uint256(rate) / recoveredTotalSupply;
-        uint256 b = 1e16 * uint256(rate) / totalSupply;
+        uint256 a = (1e16 * uint256(rate)) / recoveredTotalSupply;
+        uint256 b = (1e16 * uint256(rate)) / totalSupply;
 
         assertLe(a, b);
         if (a > 1e3) assertApproxEqRel(a, b, 0.002e18);

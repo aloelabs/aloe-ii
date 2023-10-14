@@ -8,7 +8,7 @@ import {TickMath} from "src/libraries/TickMath.sol";
 contract TickMathTest is Test {
     function setUp() public {}
 
-    function test_memoryGetTickAtSqrtRatio(uint160 sqrtPriceX96) public {
+    function test_fuzz_memoryGetTickAtSqrtRatio(uint160 sqrtPriceX96) public {
         if (sqrtPriceX96 < TickMath.MIN_SQRT_RATIO) sqrtPriceX96 = TickMath.MIN_SQRT_RATIO;
         else if (sqrtPriceX96 >= TickMath.MAX_SQRT_RATIO) sqrtPriceX96 = TickMath.MAX_SQRT_RATIO - 1;
 
@@ -16,7 +16,7 @@ contract TickMathTest is Test {
         TickMath.getTickAtSqrtRatio(sqrtPriceX96);
     }
 
-    function test_floor(int24 tick, uint8 tickSpacing) public {
+    function test_fuzz_floor(int24 tick, uint8 tickSpacing) public {
         if (tick > TickMath.MAX_TICK || tick < TickMath.MIN_TICK) return;
         if (tickSpacing == 0) return;
         int24 _tickSpacing = int24(uint24(tickSpacing));
@@ -41,7 +41,7 @@ contract TickMathTest is Test {
         assertEq(TickMath.floor(-3, 1), -3);
     }
 
-    function test_ceil(int24 tick, uint8 tickSpacing) public {
+    function test_fuzz_ceil(int24 tick, uint8 tickSpacing) public {
         if (tick > TickMath.MAX_TICK || tick < TickMath.MIN_TICK) return;
         if (tickSpacing == 0) return;
         int24 _tickSpacing = int24(uint24(tickSpacing));

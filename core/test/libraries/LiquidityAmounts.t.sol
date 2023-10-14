@@ -23,7 +23,7 @@ contract LiquidityAmountsTest is Test {
         assertEq(amount1, 499487993);
     }
 
-    function test_getAmountsForLiquidity(
+    function test_fuzz_getAmountsForLiquidity(
         uint160 sqrtPrice,
         uint160 sqrtLower,
         uint160 sqrtUpper,

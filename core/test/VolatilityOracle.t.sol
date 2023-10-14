@@ -21,7 +21,7 @@ contract VolatilityOracleTest is Test {
         0x73B14a78a0D396C521f954532d43fd5fFe385216, // WETH/WBTC
         0x1C3140aB59d6cAf9fa7459C6f83D4B52ba881d36, // OP/USDC
         0x535541F1aa08416e69Dc4D610131099FA2Ae7222, // WETH/PERP
-        0xF334F6104A179207DdaCfb41FA3567FEea8595C2  // WETH/LYRA
+        0xF334F6104A179207DdaCfb41FA3567FEea8595C2 // WETH/LYRA
     ];
 
     function setUp() public {
@@ -79,8 +79,8 @@ contract VolatilityOracleTest is Test {
         oracle.prepare(IUniswapV3Pool(0xbf16ef186e715668AA29ceF57e2fD7f9D48AdFE6));
     }
 
-    function test_updateTooLate() public {
-        prepareAllPools();
+    function test_spec_updateTooLate() public {
+        _prepareAllPools();
 
         vm.makePersistent(address(oracle));
         vm.rollFork(TWELVE_HOURS_LATER);
@@ -107,8 +107,8 @@ contract VolatilityOracleTest is Test {
         }
     }
 
-    function test_updateTooSoon() public {
-        prepareAllPools();
+    function test_spec_updateTooSoon() public {
+        _prepareAllPools();
 
         vm.makePersistent(address(oracle));
         vm.rollFork(START_BLOCK + 16 seconds / 2 seconds); // roll forward approx. 16 seconds, assuming 2 seconds per block
@@ -131,8 +131,8 @@ contract VolatilityOracleTest is Test {
         }
     }
 
-    function test_updateNormal() public {
-        prepareAllPools();
+    function test_spec_updateNormal() public {
+        _prepareAllPools();
 
         vm.makePersistent(address(oracle));
         vm.rollFork(SIX_HOURS_LATER);
@@ -195,7 +195,7 @@ contract VolatilityOracleTest is Test {
         console2.log("Time Simulated:", currentTime - initialTime, "seconds");
     }
 
-    function test_historicalETHUSDC() public {
+    function test_historical_ETHUSDC() public {
         IUniswapV3Pool pool = IUniswapV3Pool(pools[1]); // WETH/USDC
         oracle.prepare(pool);
         vm.makePersistent(address(oracle));
@@ -204,7 +204,7 @@ contract VolatilityOracleTest is Test {
         uint256 totalGas = 0;
 
         for (uint256 i = 0; i < 600; i++) {
-            currentBlock += (1 + uint256(blockhash(block.number)) % 3) * 7200;
+            currentBlock += (1 + (uint256(blockhash(block.number)) % 3)) * 7200;
             vm.createSelectFork("optimism", currentBlock);
 
             uint256 g = gasleft();
@@ -217,7 +217,7 @@ contract VolatilityOracleTest is Test {
         console2.log("avg gas to update oracle:", totalGas / 600);
     }
 
-    function prepareAllPools() private {
+    function _prepareAllPools() private {
         uint256 count = pools.length;
         for (uint256 i = 0; i < count; i++) {
             IUniswapV3Pool pool = IUniswapV3Pool(pools[i]);
