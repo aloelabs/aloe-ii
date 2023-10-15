@@ -74,6 +74,7 @@ contract Lender is Ledger {
         Rewards.setRate(rate);
     }
 
+    /// @notice Allows `borrower` to call `borrow`. One the `FACTORY` can call this.
     function whitelist(address borrower) external {
         // Requirements:
         // - `msg.sender == FACTORY` so that only the factory can whitelist borrowers
@@ -211,6 +212,7 @@ contract Lender is Ledger {
                            BORROW/REPAY LOGIC
     //////////////////////////////////////////////////////////////*/
 
+    /// @notice Sends `amount` of `asset` to `recipient` and increases `msg.sender`'s debt by `units`
     function borrow(uint256 amount, address recipient) external returns (uint256 units) {
         uint256 b = borrows[msg.sender];
         require(b != 0, "Aloe: not a borrower");
@@ -238,6 +240,20 @@ contract Lender is Ledger {
         emit Borrow(msg.sender, recipient, amount, units);
     }
 
+    /**
+     * @notice Reduces `beneficiary`'s debt by `units`, assuming someone has pre-paid `amount` of `asset`. To repay
+     * all debt for some account, call `repay(borrowBalance(account), account)`.
+     * @dev To avoid frontrunning, `amount` should be pre-paid in the same transaction as the `repay` call.
+     * @custom:example ```solidity
+     *   PERMIT2.permitTransferFrom(
+     *     permitMsg,
+     *     IPermit2.SignatureTransferDetails({to: address(lender), requestedAmount: amount}),
+     *     msg.sender,
+     *     signature
+     *   );
+     *   lender.repay(amount, beneficiary)
+     * ```
+     */
     function repay(uint256 amount, address beneficiary) external returns (uint256 units) {
         uint256 b = borrows[beneficiary];
 
@@ -270,7 +286,12 @@ contract Lender is Ledger {
         emit Repay(msg.sender, beneficiary, amount, units);
     }
 
-    /// @dev Reentrancy guard is critical here! Without it, one could use a flash loan to repay a normal loan.
+    /**
+     * @notice Gives `to` temporary control over `amount` of `asset` in the `IFlashBorrower.onFlashLoan` callback.
+     * Arbitrary `data` can be forwarded to the callback. Before returning, the `IFlashBorrower` must have sent
+     * at least `amount` back to this contract.
+     * @dev Reentrancy guard is critical here! Without it, one could use a flash loan to repay a normal loan.
+     */
     function flash(uint256 amount, IFlashBorrower to, bytes calldata data) external {
         // Guard against reentrancy
         uint32 lastAccrualTime_ = lastAccrualTime;
@@ -374,6 +395,7 @@ contract Lender is Ledger {
                                 HELPERS
     //////////////////////////////////////////////////////////////*/
 
+    /// @dev Transfers `shares` from `from` to `to`, iff neither of them have a courier
     function _transfer(address from, address to, uint256 shares) private {
         (Rewards.Storage storage s, uint144 a) = Rewards.load();
 

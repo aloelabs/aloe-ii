@@ -150,7 +150,7 @@ contract Borrower is IUniswapV3MintCallback {
      * forced to call this in cases where the 5% swap bonus is up for grabs.
      * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
-     * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
+     * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
      */
     function warn(uint40 oracleSeed) external {
         uint256 slot0_ = slot0;
@@ -189,7 +189,7 @@ contract Borrower is IUniswapV3MintCallback {
      * `3` one third, and so on.
      * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
-     * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
+     * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
      */
     function liquidate(ILiquidator callee, bytes calldata data, uint256 strain, uint40 oracleSeed) external {
         uint256 slot0_ = slot0;
@@ -294,7 +294,7 @@ contract Borrower is IUniswapV3MintCallback {
      * @param data Encoded parameters that get forwarded to `callee`
      * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
-     * TWAPs. If any of the highest 8 bits are set, we fallback to binary search.
+     * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
      */
     function modify(IManager callee, bytes calldata data, uint40 oracleSeed) external payable {
         uint256 slot0_ = slot0;
@@ -454,6 +454,15 @@ contract Borrower is IUniswapV3MintCallback {
         return extract(slot0);
     }
 
+    /**
+     * @notice Summarizes all oracle data pertinent to account health
+     * @dev If `seemsLegit == false`, you can call `Factory.pause` to temporarily disable borrows
+     * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
+     * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
+     * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
+     * @return prices The probe prices currently being used to evaluate account health
+     * @return seemsLegit Whether the Uniswap TWAP seems to have been manipulated or not
+     */
     function getPrices(uint40 oracleSeed) public view returns (Prices memory prices, bool seemsLegit) {
         (, uint8 nSigma, uint8 manipulationThresholdDivisor, ) = FACTORY.getParameters(UNISWAP_POOL);
         (prices, seemsLegit) = _getPrices(oracleSeed, nSigma, manipulationThresholdDivisor);
