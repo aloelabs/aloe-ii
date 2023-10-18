@@ -2,6 +2,8 @@
 pragma solidity 0.8.17;
 
 library BytesLib {
+    error RemovalFailed();
+
     function pack(uint256[] memory items, uint256 chunkSize) internal pure returns (bytes memory newList) {
         uint256 shift;
         unchecked {
@@ -111,8 +113,9 @@ library BytesLib {
         }
     }
 
-    /// @dev Removes all occurrences of `item` from `oldList`, a packed array where each element spans `chunkSize` bytes
-    function remove(
+    /// @dev Removes all occurrences of `item` from `oldList`, a packed array where each element spans
+    /// `chunkSize` bytes
+    function filter(
         bytes memory oldList,
         uint256 item,
         uint256 chunkSize
@@ -152,6 +155,17 @@ library BytesLib {
             // Update free memory pointer
             mstore(0x40, newPtr)
         }
+    }
+
+    /// @dev Removes all occurrences of `item` from `oldList`, a packed array where each element spans
+    /// `chunkSize` bytes. Reverts if nothing was removed.
+    function remove(
+        bytes memory oldList,
+        uint256 item,
+        uint256 chunkSize
+    ) internal pure returns (bytes memory newList) {
+        newList = filter(oldList, item, chunkSize);
+        if (newList.length == oldList.length) revert RemovalFailed();
     }
 
     /// @dev Checks whether `item` is present in `list`, a packed array where each element spans `chunkSize` bytes

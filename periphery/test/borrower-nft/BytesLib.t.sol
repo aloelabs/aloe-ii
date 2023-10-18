@@ -185,10 +185,10 @@ contract BytesLibTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                                 REMOVE
+                                 FILTER
     //////////////////////////////////////////////////////////////*/
 
-    function test_remove(bytes calldata raw, uint256 item, uint256 chunkSize) public {
+    function test_filter(bytes calldata raw, uint256 item, uint256 chunkSize) public {
         chunkSize = bound(chunkSize, 1, 28);
         item = bound(item, 0, (1 << (chunkSize << 3)) - 1);
 
@@ -198,34 +198,34 @@ contract BytesLibTest is Test {
             data = raw[0:length];
         }
 
-        bytes memory newList = data.remove(item, chunkSize);
+        bytes memory newList = data.filter(item, chunkSize);
         assertFalse(newList.includes(item, chunkSize));
 
         data = data.append(item, chunkSize);
         data = bytes.concat(data, data);
         assertTrue(data.includes(item, chunkSize));
 
-        newList = data.remove(item, chunkSize);
+        newList = data.filter(item, chunkSize);
         assertFalse(newList.includes(item, chunkSize));
     }
 
-    function test_spec_remove(uint256 x) public {
+    function test_spec_filter(uint256 x) public {
         vm.assume(x != 12 && x != 34 && x != 56 && x != 78);
         bytes memory a = abi.encodePacked(uint56(12), uint56(34), uint56(56), uint56(78));
 
-        bytes memory b = a.remove(12, 7);
+        bytes memory b = a.filter(12, 7);
         assertEq(b, abi.encodePacked(uint56(34), uint56(56), uint56(78)));
 
-        b = a.remove(34, 7);
+        b = a.filter(34, 7);
         assertEq(b, abi.encodePacked(uint56(12), uint56(56), uint56(78)));
 
-        b = a.remove(56, 7);
+        b = a.filter(56, 7);
         assertEq(b, abi.encodePacked(uint56(12), uint56(34), uint56(78)));
 
-        b = a.remove(78, 7);
+        b = a.filter(78, 7);
         assertEq(b, abi.encodePacked(uint56(12), uint56(34), uint56(56)));
 
-        b = a.remove(x, 7);
+        b = a.filter(x, 7);
         assertEq(b, a);
     }
 
