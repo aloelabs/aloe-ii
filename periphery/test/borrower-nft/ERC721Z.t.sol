@@ -61,7 +61,7 @@ contract ERC721Baseline is ERC721 {
         require(qty > 0 && qty == attributes.length, "BAD_QUANTITY");
 
         for (uint256 i; i < qty; i++) {
-            uint256 tokenId = (attributes[i] << 32) + ((totalSupply + i) % (1 << 32));
+            uint256 tokenId = (attributes[i] << 16) + ((totalSupply + i) % (1 << 16));
 
             hasToken[to][tokenId] = true;
             super._mint(to, tokenId);
@@ -83,7 +83,7 @@ contract Harness {
 
     address[] public owners;
 
-    mapping(uint256 => bool) internal _isTokenId;
+    mapping(uint256 => bool) public isTokenId;
 
     uint256[] public tokenIds;
 
@@ -93,7 +93,7 @@ contract Harness {
     }
 
     function approve(address caller, address spender, uint256 id) public {
-        if (!_isTokenId[id]) {
+        if (!isTokenId[id]) {
             vm.expectRevert(bytes("NOT_MINTED"));
             MOCK.approve(spender, id);
 
@@ -147,7 +147,7 @@ contract Harness {
         }
 
         // SSTORE2 can only handle up to 24,576 bytes
-        if (balance + qty >= uint256(24476) / 20) {
+        if (balance + qty >= uint256(24476) / 22) {
             vm.expectRevert(0x30116425);
             MOCK.mint(to, qty, attributes);
             return;
@@ -155,8 +155,8 @@ contract Harness {
 
         // Expected events
         for (uint256 i; i < qty; i++) {
-            uint256 tokenId = (attributes[i] << 32) + (totalSupply + i);
-            _isTokenId[tokenId] = true;
+            uint256 tokenId = (attributes[i] << 16) + (totalSupply + i);
+            isTokenId[tokenId] = true;
             tokenIds.push(tokenId);
 
             vm.expectEmit(true, true, true, false, address(MOCK));
@@ -185,7 +185,7 @@ contract Harness {
             to = owners[tokenId % owners.length];
         }
 
-        if (!_isTokenId[tokenId]) {
+        if (!isTokenId[tokenId]) {
             vm.prank(from);
             vm.expectRevert(BytesLib.RemovalFailed.selector);
             MOCK.transferFrom(from, to, tokenId);
@@ -289,6 +289,38 @@ contract ERC721ZTest is Test {
         }
     }
 
+    function invariant_tokenByIndex() public {
+        uint256 numTokens = harness.getNumTokenIds();
+        for (uint256 i; i < numTokens; i++) {
+            uint256 tokenId = harness.tokenIds(i);
+            assertEq(mock.tokenByIndex(i), tokenId);
+        }
+
+        vm.expectRevert();
+        mock.tokenByIndex(numTokens);
+    }
+
+    function invariant_tokenOfOwnerByIndex() public {
+        uint256 numOwners = harness.getNumOwners();
+        for (uint256 i; i < numOwners; i++) {
+            address owner = harness.owners(i);
+            uint256 balance = baseline.balanceOf(owner);
+
+            for (uint256 j; j < balance; j++) {
+                uint256 tokenId = mock.tokenOfOwnerByIndex(owner, j);
+                assertTrue(harness.isTokenId(tokenId));
+            }
+
+            vm.expectRevert();
+            mock.tokenOfOwnerByIndex(owner, balance);
+        }
+
+        for (uint256 i; i < 20; i++) {
+            vm.expectRevert();
+            mock.tokenOfOwnerByIndex(address(0), i);
+        }
+    }
+
     function invariant_hasAttributes() public {
         uint256 numOwners = harness.getNumOwners();
         uint256 numTokens = harness.getNumTokenIds();
@@ -296,7 +328,7 @@ contract ERC721ZTest is Test {
             address owner = harness.owners(i);
 
             for (uint256 j; j < numTokens; j++) {
-                uint256 tokenId = harness.tokenIds(j) % (1 << 224);
+                uint256 tokenId = harness.tokenIds(j);
 
                 assertEq(mock.hasToken(owner, tokenId), baseline.hasToken(owner, tokenId));
             }

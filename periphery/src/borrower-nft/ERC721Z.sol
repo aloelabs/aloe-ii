@@ -73,6 +73,30 @@ abstract contract ERC721Z {
     }
 
     /*//////////////////////////////////////////////////////////////
+                            ENUMERABLE LOGIC
+    //////////////////////////////////////////////////////////////*/
+
+    function tokenByIndex(uint256 index) external view returns (uint256) {
+        require(index < totalSupply, "NOT_MINTED");
+
+        address owner;
+        unchecked {
+            uint256 i = index;
+            while (true) {
+                owner = _owners[i];
+                if (owner != address(0)) break;
+                i++;
+            }
+
+            return _pointers[owner].read().find(index, _MAX_SUPPLY() - 1, _TOKEN_SIZE());
+        }
+    }
+
+    function tokenOfOwnerByIndex(address owner, uint256 index) external view returns (uint256) {
+        return _pointers[owner].read().at(index, _TOKEN_SIZE());
+    }
+
+    /*//////////////////////////////////////////////////////////////
                               ERC721 LOGIC
     //////////////////////////////////////////////////////////////*/
 
