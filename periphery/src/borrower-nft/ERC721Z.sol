@@ -31,28 +31,24 @@ abstract contract ERC721Z {
     event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
 
     /*//////////////////////////////////////////////////////////////
-                           ATTRIBUTES STORAGE
-    //////////////////////////////////////////////////////////////*/
-
-    /// @dev Mapping from `owner` to an SSTORE2 pointer where all their `tokenId`s are stored
-    /// @custom:future-work If there are properties specific to an `owner` (_not_ a token) this could map to a
-    /// struct instead of just an `address`. There are 96 extra bits to work with.
-    mapping(address => address) internal _pointers;
-
-    /*//////////////////////////////////////////////////////////////
                              ERC721 STORAGE
     //////////////////////////////////////////////////////////////*/
 
     uint256 public totalSupply;
+
+    mapping(uint256 => address) public getApproved;
+
+    mapping(address => mapping(address => bool)) public isApprovedForAll;
 
     /// @dev The lowest bits of `tokenId` are a counter. The counter starts at 0, and increases by 1 after each
     /// mint. To get the owner of a `tokenId` with counter = i, search this mapping (beginning at the ith index and
     /// moving up) until a non-zero entry is found. That entry is the owner.
     mapping(uint256 => address) internal _owners;
 
-    mapping(uint256 => address) public getApproved;
-
-    mapping(address => mapping(address => bool)) public isApprovedForAll;
+    /// @dev Mapping from `owner` to an SSTORE2 pointer where all their `tokenId`s are stored
+    /// @custom:future-work If there are properties specific to an `owner` (_not_ a token) this could map to a
+    /// struct instead of just an `address`. There are 96 extra bits to work with.
+    mapping(address => address) internal _pointers;
 
     /*//////////////////////////////////////////////////////////////
                              METADATA LOGIC
@@ -65,30 +61,20 @@ abstract contract ERC721Z {
     function tokenURI(uint256 tokenId) external view virtual returns (string memory);
 
     /*//////////////////////////////////////////////////////////////
-                              ERC721 LOGIC
+                              ERC165 LOGIC
     //////////////////////////////////////////////////////////////*/
 
-    function ownerOf(uint256 tokenId) public view virtual returns (address owner) {
-        uint256 i = _indexOf(tokenId);
-        require(i < totalSupply, "NOT_MINTED");
-
-        unchecked {
-            while (true) {
-                owner = _owners[i];
-                if (owner != address(0)) break;
-                i++;
-            }
-        }
-
-        require(_pointers[owner].read().includes(tokenId, _TOKEN_SIZE()), "NOT_MINTED");
+    function supportsInterface(bytes4 interfaceId) external view virtual returns (bool) {
+        return
+            interfaceId == 0x01ffc9a7 || // ERC165 Interface ID for ERC165
+            interfaceId == 0x80ac58cd || // ERC165 Interface ID for ERC721
+            interfaceId == 0x5b5e139f || // ERC165 Interface ID for ERC721Metadata
+            interfaceId == 0x780e9d63; // ERC165 Interface ID for ERC721Enumerable
     }
 
-    function balanceOf(address owner) public view virtual returns (uint256) {
-        require(owner != address(0), "ZERO_ADDRESS");
-
-        address pointer = _pointers[owner];
-        return pointer == address(0) ? 0 : (pointer.code.length - SSTORE2.DATA_OFFSET) / _TOKEN_SIZE();
-    }
+    /*//////////////////////////////////////////////////////////////
+                              ERC721 LOGIC
+    //////////////////////////////////////////////////////////////*/
 
     function approve(address spender, uint256 tokenId) public virtual {
         address owner = ownerOf(tokenId);
@@ -145,15 +131,26 @@ abstract contract ERC721Z {
         );
     }
 
-    /*//////////////////////////////////////////////////////////////
-                              ERC165 LOGIC
-    //////////////////////////////////////////////////////////////*/
+    function ownerOf(uint256 tokenId) public view virtual returns (address owner) {
+        uint256 i = _indexOf(tokenId);
+        require(i < totalSupply, "NOT_MINTED");
 
-    function supportsInterface(bytes4 interfaceId) external view virtual returns (bool) {
-        return
-            interfaceId == 0x01ffc9a7 || // ERC165 Interface ID for ERC165
-            interfaceId == 0x80ac58cd || // ERC165 Interface ID for ERC721
-            interfaceId == 0x5b5e139f; // ERC165 Interface ID for ERC721Metadata
+        unchecked {
+            while (true) {
+                owner = _owners[i];
+                if (owner != address(0)) break;
+                i++;
+            }
+        }
+
+        require(_pointers[owner].read().includes(tokenId, _TOKEN_SIZE()), "NOT_MINTED");
+    }
+
+    function balanceOf(address owner) public view virtual returns (uint256) {
+        require(owner != address(0), "ZERO_ADDRESS");
+
+        address pointer = _pointers[owner];
+        return pointer == address(0) ? 0 : ((pointer.code.length - SSTORE2.DATA_OFFSET) / _TOKEN_SIZE());
     }
 
     /*//////////////////////////////////////////////////////////////
