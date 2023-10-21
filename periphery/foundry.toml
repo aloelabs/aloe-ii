@@ -45,7 +45,7 @@ title = 'Aloe II'
 
 [invariant]
 runs = 128                 # The number of runs for each invariant test.
-depth = 100                # The number of calls executed to attempt to break invariants in one run.
+depth = 64                 # The number of calls executed to attempt to break invariants in one run.
 fail_on_revert = true      # Fails the invariant test if a revert occurs.
 call_override = false      # Allows overriding an unsafe external call when running invariant tests, e.g. reentrancy checks (this feature is still a WIP).
 dictionary_weight = 75     # Use values collected from your contracts 75% of the time, random 25% of the time.

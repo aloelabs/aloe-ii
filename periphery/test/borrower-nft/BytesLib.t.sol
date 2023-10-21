@@ -323,6 +323,28 @@ contract BytesLibTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
+                                   AT
+    //////////////////////////////////////////////////////////////*/
+
+    function test_at(uint256[] memory arr, uint256 chunkSize) public {
+        chunkSize = bound(chunkSize, 1, 32);
+
+        bytes memory data = BytesLib.pack(arr, chunkSize);
+
+        for (uint256 i; i < arr.length; i++) {
+            uint256 expected = chunkSize == 32 ? arr[i] : (arr[i] % (1 << (chunkSize << 3)));
+            assertEq(data.at(i, chunkSize), expected);
+        }
+    }
+
+    function testFail_at_badIndex(uint256[] memory arr, uint256 chunkSize, uint128 i) public view {
+        chunkSize = bound(chunkSize, 1, 32);
+
+        bytes memory data = BytesLib.pack(arr, chunkSize);
+        data.at(arr.length + i, chunkSize);
+    }
+
+    /*//////////////////////////////////////////////////////////////
                                 HELPERS
     //////////////////////////////////////////////////////////////*/
 

@@ -7,6 +7,8 @@ library BytesLib {
 
     error IndexOutOfBounds();
 
+    error ItemNotFound();
+
     function pack(uint256[] memory items, uint256 chunkSize) internal pure returns (bytes memory newList) {
         uint256 shift;
         unchecked {
@@ -194,7 +196,8 @@ library BytesLib {
         }
     }
 
-    // TODO: test this
+    /// @dev Returns the first element of `list` where `(element & mask) == item`, if such exists, otherwise reverts.
+    /// Each element of `list` must span `chunkSize` bytes.
     function find(
         bytes memory list,
         uint256 item,
@@ -214,17 +217,24 @@ library BytesLib {
             for { } lt(ptr, memEnd) { ptr := add(ptr, chunkSize) } {
                 // Load 32 bytes from `list`. Since chunks may overlap, `shr` to isolate the current one
                 result := shr(shift, mload(ptr))
-                // If masked `result` matches `item`, return it
+                // If masked `result` matches `item`, we're done
                 if eq(and(result, mask), item) {
+                    // Reuse `ptr` as a flag to indicate that `item` was found
+                    ptr := 0
                     break
                 }
             }
 
-            // TODO: probably error with `NotFound()` if it isn't found
+            if ptr {
+                // Store the function selector of `ItemNotFound()`.
+                mstore(0x00, 0xd3ed043d)
+                // Revert with (offset, size).
+                revert(0x1c, 0x04)
+            }
         }
     }
 
-    // TODO: test this
+    /// @dev Gets `list[index]`, where `list` is a packed array with elements spanning `chunkSize` bytes
     function at(bytes memory list, uint256 index, uint256 chunkSize) internal pure returns (uint256 result) {
         uint256 shift;
         unchecked {
@@ -236,7 +246,7 @@ library BytesLib {
 
             {
                 let length := mload(list)
-                if or(mod(length, chunkSize), iszero(lt(start, length))) {
+                if iszero(lt(start, length)) {
                     // Store the function selector of `IndexOutOfBounds()`.
                     mstore(0x00, 0x4e23d035)
                     // Revert with (offset, size).

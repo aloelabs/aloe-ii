@@ -12,8 +12,8 @@ import {SafeSSTORE2} from "./SafeSSTORE2.sol";
  * Credits: beskay0x, chiru-labs, solmate, transmissions11, nftchance, squeebo_nft and others
  * @notice ERC-721 implementation optimized for minting multiple tokens at once, similar to
  * [ERC721A](https://github.com/chiru-labs/ERC721A) and [ERC721B](https://github.com/beskay/ERC721B). This version allows
- * tokens to have "attributes" (up to 224 bits of data stored in the `tokenId`) and enables gas-efficient queries of all
- * tokens held by a given `owner`.
+ * token "attributes" to be stored in the `tokenId`, and enables gas-efficient queries of all tokens held by a given
+ * `owner`.
  */
 abstract contract ERC721Z {
     using SafeSSTORE2 for address;
@@ -226,6 +226,7 @@ abstract contract ERC721Z {
         return (1 << (_INDEX_SIZE() << 3));
     }
 
+    /// @dev The number of bytes required to store a `tokenId`
     function _TOKEN_SIZE() internal pure returns (uint256 tokenSize) {
         unchecked {
             tokenSize = _INDEX_SIZE() + _ATTRIBUTES_SIZE();
