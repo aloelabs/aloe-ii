@@ -43,6 +43,15 @@ override_spacing = true
 [doc]
 title = 'Aloe II'
 
+[invariant]
+runs = 128                 # The number of runs for each invariant test.
+depth = 64                 # The number of calls executed to attempt to break invariants in one run.
+fail_on_revert = true      # Fails the invariant test if a revert occurs.
+call_override = false      # Allows overriding an unsafe external call when running invariant tests, e.g. reentrancy checks (this feature is still a WIP).
+dictionary_weight = 75     # Use values collected from your contracts 75% of the time, random 25% of the time.
+include_storage = true     # Collect values from contract storage and add them to the dictionary.
+include_push_bytes = true  # Collect PUSH bytes from the contract code and add them to the dictionary.
+
 [rpc_endpoints]
 mainnet = "${RPC_URL_MAINNET}"
 goerli = "${RPC_URL_GOERLI}"

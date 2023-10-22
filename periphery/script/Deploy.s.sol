@@ -8,6 +8,10 @@ import {Factory} from "aloe-ii-core/Factory.sol";
 import {BorrowerLens} from "src/BorrowerLens.sol";
 import {LenderLens} from "src/LenderLens.sol";
 import {Router, IPermit2} from "src/Router.sol";
+
+import {BorrowerNFT} from "src/borrower-nft/BorrowerNFT.sol";
+
+import {BoostManager} from "src/managers/BoostManager.sol";
 import {FrontendManager} from "src/managers/FrontendManager.sol";
 import {SimpleManager} from "src/managers/SimpleManager.sol";
 import {UniswapNFTManager, INFTManager} from "src/managers/UniswapNFTManager.sol";
@@ -48,6 +52,9 @@ contract DeployScript is Script {
             new LenderLens{salt: TAG}();
             new Router{salt: TAG}(permit2);
 
+            BorrowerNFT borrowerNft = new BorrowerNFT{salt: TAG}(factory);
+
+            new BoostManager{salt: TAG}(factory, address(borrowerNft), uniswapNft);
             new FrontendManager{salt: TAG}(factory);
             new SimpleManager{salt: TAG}();
             new UniswapNFTManager{salt: TAG}(factory, uniswapNft);

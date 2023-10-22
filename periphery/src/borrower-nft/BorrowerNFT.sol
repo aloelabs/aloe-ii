@@ -1,0 +1,124 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.17;
+
+import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+
+import {Borrower, IManager} from "aloe-ii-core/Borrower.sol";
+import {Factory} from "aloe-ii-core/Factory.sol";
+
+import {ERC721Z, SafeSSTORE2, BytesLib} from "./ERC721Z.sol";
+
+contract BorrowerNFT is ERC721Z {
+    using SafeSSTORE2 for address;
+    using BytesLib for bytes;
+
+    /*//////////////////////////////////////////////////////////////
+                                 EVENTS
+    //////////////////////////////////////////////////////////////*/
+
+    event Modify(address indexed owner, Borrower indexed borrower, IManager indexed manager);
+
+    /*//////////////////////////////////////////////////////////////
+                              CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
+
+    Factory public immutable FACTORY;
+
+    constructor(Factory factory) {
+        FACTORY = factory;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           ERC721Z OVERRIDES
+    //////////////////////////////////////////////////////////////*/
+
+    function name() external pure override returns (string memory) {
+        return "Aloe Borrower";
+    }
+
+    function symbol() external pure override returns (string memory) {
+        return "BORROW";
+    }
+
+    function tokenURI(uint256) external view override returns (string memory) {
+        // TODO: implement this, also could use number of leading zeros as a design parameter
+        return "";
+    }
+
+    /// @inheritdoc ERC721Z
+    function _INDEX_SIZE() internal pure override returns (uint256) {
+        return 2;
+    }
+
+    /// @inheritdoc ERC721Z
+    function _ATTRIBUTES_SIZE() internal pure override returns (uint256) {
+        return 20;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                             MINT & MODIFY
+    //////////////////////////////////////////////////////////////*/
+
+    function mint(address to, IUniswapV3Pool[] calldata pools, bytes12[] calldata salts) external {
+        uint256 qty = pools.length;
+
+        uint256[] memory attributes = new uint256[](qty);
+        unchecked {
+            for (uint256 i; i < qty; i++) {
+                Borrower borrower = FACTORY.createBorrower(pools[i], address(this), salts[i]);
+                attributes[i] = uint160(address(borrower));
+            }
+        }
+
+        _mint(to, qty, attributes);
+    }
+
+    function modify(
+        address owner,
+        uint16[] calldata indices,
+        IManager[] calldata managers,
+        bytes[] calldata datas,
+        uint16[] calldata antes
+    ) external payable {
+        bytes memory tokenIds = _pointers[owner].read();
+
+        bool authorized = msg.sender == owner || isApprovedForAll[owner][msg.sender];
+
+        unchecked {
+            uint256 count = indices.length;
+            for (uint256 k; k < count; k++) {
+                uint256 tokenId = tokenIds.at(indices[k], _TOKEN_SIZE());
+
+                if (!authorized) require(msg.sender == getApproved[tokenId], "NOT_AUTHORIZED");
+
+                Borrower borrower = _borrowerOf(tokenId);
+                borrower.modify{value: antes[k] * 1e13}({
+                    callee: managers[k],
+                    data: bytes.concat(bytes20(owner), datas[k]),
+                    oracleSeed: 1 << 32
+                });
+
+                emit Modify(owner, borrower, managers[k]);
+            }
+        }
+
+        require(address(this).balance == 0, "Aloe: antes sum");
+    }
+
+    function multicall(bytes[] calldata data) external payable {
+        unchecked {
+            uint256 count = data.length;
+            for (uint256 i; i < count; i++) {
+                (bool success, ) = address(this).delegatecall(data[i]);
+                require(success);
+            }
+        }
+    }
+
+    function _borrowerOf(uint256 tokenId) private pure returns (Borrower borrower) {
+        uint256 attributes = _attributesOf(tokenId);
+        assembly ("memory-safe") {
+            borrower := attributes
+        }
+    }
+}

@@ -11,43 +11,42 @@ library NFTDescriptor {
     using LibString for uint256;
 
     struct ConstructTokenURIParams {
-        uint256 tokenId;
+        address poolAddress;
+        uint24 fee;
         address token0;
         address token1;
         string symbol0;
         string symbol1;
-        int24 tickLower;
-        int24 tickUpper;
-        int24 tickCurrent;
-        uint24 fee;
-        address poolAddress;
         address borrowerAddress;
-        bool isGeneralized;
+        uint256 counter;
+        uint24 health;
+        bool hasAnte;
     }
 
     function constructTokenURI(ConstructTokenURIParams memory params) internal pure returns (string memory) {
-        params.symbol0 = params.symbol0.escapeJSON();
-        params.symbol1 = params.symbol1.escapeJSON();
-
-        string memory tokenId = params.tokenId.toString();
+        // Pool-specific parameters
+        string memory poolString = _addressToString(params.poolAddress);
+        string memory feeString = _feeToString(params.fee);
         string memory token0 = _addressToString(params.token0);
         string memory token1 = _addressToString(params.token1);
-        string memory feeString = _feeToString(params.fee);
-        string memory poolString = _addressToString(params.poolAddress);
+        params.symbol0 = params.symbol0.escapeJSON();
+        params.symbol1 = params.symbol1.escapeJSON();
+        // Borrower-specific parameters
         string memory borrowerString = _addressToString(params.borrowerAddress);
+        string memory counter = params.counter.toString();
 
-        string memory name = _generateName(params, feeString);
+        string memory name = _generateName(params);
         string memory description = _generateDescription(
-            tokenId,
-            params.symbol0,
-            params.symbol1,
+            poolString,
+            feeString,
             token0,
             token1,
-            feeString,
-            poolString,
-            borrowerString
+            params.symbol0,
+            params.symbol1,
+            borrowerString,
+            counter
         );
-        string memory image = Base64.encode(bytes(_generateSVGImage(params, tokenId, token0, token1, feeString)));
+        string memory image = Base64.encode(bytes(_generateSVGImage(params, counter, token0, token1, feeString)));
 
         return
             string.concat(
@@ -69,33 +68,28 @@ library NFTDescriptor {
             );
     }
 
-    function _generateName(
-        ConstructTokenURIParams memory params,
-        string memory feeString
-    ) private pure returns (string memory) {
-        return string.concat("Uniswap V3 (Aloe) - ", feeString, " - ", params.symbol0, "/", params.symbol1);
+    function _generateName(ConstructTokenURIParams memory params) private pure returns (string memory) {
+        return string.concat(params.symbol0, "/", params.symbol1, " Borrower");
     }
 
     function _generateDescription(
-        string memory tokenId,
-        string memory symbol0,
-        string memory symbol1,
+        string memory poolString,
+        string memory feeString,
         string memory token0,
         string memory token1,
-        string memory feeString,
-        string memory poolString,
-        string memory borrowerString
+        string memory symbol0,
+        string memory symbol1,
+        string memory borrowerString,
+        string memory counter
     ) private pure returns (string memory) {
         return
             string.concat(
-                "This NFT grants the owner control of an Aloe II Boosted Position in the ",
+                "This NFT grants its owner control of an Aloe II Borrower in the ",
                 symbol0,
                 "-",
                 symbol1,
-                " Uniswap V3 pool.\\n",
-                "\\nPool: ",
-                poolString,
-                "\\n\\nBorrower: ",
+                " market.\\n",
+                "\\nBorrower: ",
                 borrowerString,
                 "\\n\\n",
                 symbol0,
@@ -105,10 +99,13 @@ library NFTDescriptor {
                 symbol1,
                 ": ",
                 token1,
-                "\\n\\nFee Tier: ",
+                "\\n\\nUniswap Pool: ",
+                poolString,
+                " (",
                 feeString,
+                " Fee Tier)",
                 "\\n\\nToken ID: ",
-                tokenId,
+                counter,
                 "\\n\\n",
                 unicode"⚠️ DISCLAIMER: Due diligence is imperative when assessing this NFT. Make sure token addresses match the expected tokens, as token symbols may be imitated."
             );
@@ -128,10 +125,8 @@ library NFTDescriptor {
             params.symbol0,
             params.symbol1,
             feeString,
-            params.tickLower,
-            params.tickUpper,
-            params.tickLower <= params.tickCurrent && params.tickCurrent < params.tickUpper,
-            params.isGeneralized,
+            params.health,
+            params.hasAnte,
             _tokenToColor(params.token0, 60),
             _tokenToColor(params.token1, 32),
             _tokenToColor(params.token0, 80),
