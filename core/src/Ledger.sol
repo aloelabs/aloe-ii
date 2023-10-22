@@ -209,6 +209,10 @@ contract Ledger {
         }
     }
 
+    /**
+     * @notice The amount of `asset` owed by `account` after accruing the latest interest. If one calls
+     * `repay(borrowBalance(account), account)`, the `account` will be left with a borrow balance of 0.
+     */
     function borrowBalance(address account) external view returns (uint256) {
         uint256 b = borrows[account];
 
@@ -218,6 +222,7 @@ contract Ledger {
         }
     }
 
+    /// @notice The amount of `asset` owed by `account` before accruing the latest interest.
     function borrowBalanceStored(address account) external view returns (uint256) {
         uint256 b = borrows[account];
 
@@ -325,6 +330,10 @@ contract Ledger {
                                  HELPERS
     //////////////////////////////////////////////////////////////*/
 
+    /**
+     * @dev Accrues interest up to the current `block.timestamp`. Updates and returns `cache`, but doesn't write
+     * anything to storage.
+     */
     function _previewInterest(Cache memory cache) internal view returns (Cache memory, uint256, uint256) {
         unchecked {
             // Guard against reentrancy
@@ -337,6 +346,7 @@ contract Ledger {
                 return (cache, oldInventory, cache.totalSupply);
             }
 
+            // sload `reserveFactor` and `rateModel` at the same time since they're in the same slot
             uint8 rf = reserveFactor;
             uint256 accrualFactor = rateModel.getAccrualFactor({
                 utilization: (1e18 * oldBorrows) / oldInventory,
@@ -376,6 +386,7 @@ contract Ledger {
         return roundUp ? shares.mulDivUp(inventory, totalSupply_) : shares.mulDivDown(inventory, totalSupply_);
     }
 
+    /// @dev The `account`'s balance, minus any shares earned by their courier
     function _nominalShares(
         address account,
         uint256 inventory,

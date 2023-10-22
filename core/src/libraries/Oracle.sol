@@ -33,7 +33,7 @@ library Oracle {
      * @param pool Address of the pool that we want to observe
      * @param seed The indices of `pool.observations` where we start our search for the 30-minute-old (lowest 16 bits)
      * and 60-minute-old (next 16 bits) observations. Determine these off-chain to make this method more efficient
-     * than Uniswap's binary search. If any of the highest 8 bits are set, we fallback to binary search.
+     * than Uniswap's binary search. If any of the highest 8 bits are set, we fallback to onchain binary search.
      * @return data An up-to-date `PoolData` struct containing all fields except `oracleLookback` and `tickLiquidity`
      * @return metric If the price was manipulated at any point in the past `UNISWAP_AVG_WINDOW` seconds, then at
      * some point in that period, this value will spike. It may still be high now, or (if the attacker is smart and
