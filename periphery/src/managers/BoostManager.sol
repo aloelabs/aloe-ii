@@ -18,13 +18,13 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
 
     Factory public immutable FACTORY;
 
-    address public immutable BOOST_NFT;
+    address public immutable BORROWER_NFT;
 
     IUniswapNFT public immutable UNISWAP_NFT;
 
-    constructor(Factory factory, address boostNft, IUniswapNFT uniswapNft) {
+    constructor(Factory factory, address borrowerNft, IUniswapNFT uniswapNft) {
         FACTORY = factory;
-        BOOST_NFT = boostNft;
+        BORROWER_NFT = borrowerNft;
         UNISWAP_NFT = uniswapNft;
     }
 
@@ -37,16 +37,16 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
         // We cast `msg.sender` as a `Borrower`, but it could really be anything. DO NOT TRUST!
         Borrower borrower = Borrower(payable(msg.sender));
 
-        // Need to check that `msg.sender` is really a borrower and that its owner is `BOOST_NFT`
+        // Need to check that `msg.sender` is really a borrower and that its owner is `BORROWER_NFT`
         // in order to be sure that incoming `data` is in the expected format
-        require(FACTORY.isBorrower(msg.sender) && owner == BOOST_NFT, "Aloe: bad caller");
+        require(FACTORY.isBorrower(msg.sender) && owner == BORROWER_NFT, "Aloe: bad caller");
 
         // Now `owner` is the true owner of the borrower
-        uint8 action;
-        bytes memory args;
-        (owner, action, args) = abi.decode(data, (address, uint8, bytes));
+        owner = address(bytes20(data[:20]));
+        // Decode remaining data
+        (uint8 action, bytes memory args) = abi.decode(data[20:], (uint8, bytes));
 
-        // Mint Boost NFT (import funds from Uniswap NFT)
+        // Add liquidity (import funds from Uniswap NFT and borrow enough for specified boost factor)
         if (action == 0) {
             // The ID of the Uniswap NFT to import
             uint256 tokenId;

@@ -16,10 +16,8 @@ library NFTSVG {
         string symbol0;
         string symbol1;
         string feeTier;
-        int24 lower;
-        int24 upper;
-        bool inRange;
-        bool isGeneralized;
+        uint24 health;
+        bool hasAnte;
         string color0;
         string color1;
         string color2;
@@ -36,11 +34,11 @@ library NFTSVG {
                 '<rect width="350" height="475" x="30" y="30" fill="white" />',
                 _generateSVGHeaderText(params.symbol0, params.symbol1, params.feeTier),
                 '<g clip-path="url(#square330)" style="transform:translate(40px,165px)"',
-                params.inRange ? ">" : ' filter="url(#grayscale)">',
+                params.hasAnte ? ">" : ' filter="url(#grayscale)">',
                 _generate3X3Quilt(params.color0, "rgb(242,245,238)", params.color1, params.color2, params.color3),
                 _generateAnimatedText(params.token0, params.token1, params.symbol0, params.symbol1),
                 "</g>",
-                _generatePositionDataText(params.tokenId, params.lower, params.upper, params.isGeneralized),
+                _generatePositionDataText(params.tokenId, params.health, true),
                 "</g></g></svg>"
             );
     }
@@ -225,8 +223,7 @@ library NFTSVG {
 
     function _generatePositionDataText(
         string memory tokenId,
-        int24 tickLower,
-        int24 tickUpper,
+        uint24 health,
         bool isGeneralized
     ) private pure returns (string memory) {
         if (isGeneralized) {
@@ -242,8 +239,7 @@ library NFTSVG {
                 );
         }
 
-        string memory tickLowerStr = int256(tickLower).toString();
-        string memory tickUpperStr = int256(tickUpper).toString();
+        string memory healthStr = uint256(health).toString();
 
         return
             string.concat(
@@ -256,17 +252,17 @@ library NFTSVG {
                 "</text></g>",
                 ' <g style="transform:translate(50px, 428px)">',
                 '<rect width="',
-                uint256(7 * (bytes(tickLowerStr).length + 14)).toString(),
+                uint256(7 * (bytes(healthStr).length + 14)).toString(),
                 'px" height="26px" rx="8px" ry="8px" fill="white" />',
                 '<text x="12px" y="17px" font-family="\'Courier New\', monospace" font-size="12px" fill="black"><tspan fill="rgba(0,0,0,0.6)">Min Tick: </tspan>',
-                tickLowerStr,
+                healthStr,
                 "</text></g>",
                 '<g style="transform:translate(50px, 458px)">',
                 '<rect width="',
-                uint256(7 * (bytes(tickUpperStr).length + 14)).toString(),
+                uint256(7 * (bytes(healthStr).length + 14)).toString(),
                 'px" height="26px" rx="8px" ry="8px" fill="white" />',
                 '<text x="12px" y="17px" font-family="\'Courier New\', monospace" font-size="12px" fill="black"><tspan fill="rgba(0,0,0,0.6)">Max Tick: </tspan>',
-                tickUpperStr,
+                healthStr,
                 "</text></g>"
             );
     }
