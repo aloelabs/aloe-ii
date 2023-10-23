@@ -11,10 +11,11 @@ import {Router, IPermit2} from "src/Router.sol";
 
 import {BorrowerNFT, IBorrowerURISource} from "src/borrower-nft/BorrowerNFT.sol";
 
+import {IUniswapPositionNFT} from "src/interfaces/IUniswapPositionNFT.sol";
 import {BoostManager} from "src/managers/BoostManager.sol";
 import {FrontendManager} from "src/managers/FrontendManager.sol";
 import {SimpleManager} from "src/managers/SimpleManager.sol";
-import {UniswapNFTManager, INFTManager} from "src/managers/UniswapNFTManager.sol";
+import {UniswapNFTManager} from "src/managers/UniswapNFTManager.sol";
 
 bytes32 constant TAG = bytes32(uint256(0xA10EBE1A3));
 
@@ -33,10 +34,10 @@ contract DeployScript is Script {
         IBorrowerURISource(0x0000000000000000000000000000000000000000)
     ];
 
-    INFTManager[] uniswapNfts = [
-        INFTManager(0xC36442b4a4522E871399CD717aBDD847Ab11FE88),
-        INFTManager(0xC36442b4a4522E871399CD717aBDD847Ab11FE88),
-        INFTManager(0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1)
+    IUniswapPositionNFT[] uniswapNfts = [
+        IUniswapPositionNFT(0xC36442b4a4522E871399CD717aBDD847Ab11FE88),
+        IUniswapPositionNFT(0xC36442b4a4522E871399CD717aBDD847Ab11FE88),
+        IUniswapPositionNFT(0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1)
     ];
 
     IPermit2[] permit2s = [
@@ -49,7 +50,7 @@ contract DeployScript is Script {
         for (uint256 i = 0; i < chains.length; i++) {
             Factory factory = factories[i];
             IBorrowerURISource uriSource = uriSources[i];
-            INFTManager uniswapNft = uniswapNfts[i];
+            IUniswapPositionNFT uniswapNft = uniswapNfts[i];
             IPermit2 permit2 = permit2s[i];
 
             vm.createSelectFork(vm.rpcUrl(chains[i]));
