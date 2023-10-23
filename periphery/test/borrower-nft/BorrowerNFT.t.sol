@@ -10,7 +10,7 @@ import {Factory, BorrowerDeployer} from "aloe-ii-core/Factory.sol";
 import {RateModel} from "aloe-ii-core/RateModel.sol";
 import {VolatilityOracle} from "aloe-ii-core/VolatilityOracle.sol";
 
-import {BorrowerNFT} from "src/borrower-nft/BorrowerNFT.sol";
+import {BorrowerNFT, IBorrowerURISource} from "src/borrower-nft/BorrowerNFT.sol";
 
 contract NoOp is IManager {
     function callback(bytes calldata, address, uint208) external pure override returns (uint208) {
@@ -37,7 +37,7 @@ contract BorrowerNFTTest is Test, IManager {
         Factory factory = new Factory(address(0), address(0), oracle, deployer, rateModel);
         factory.createMarket(POOL);
 
-        borrowerNft = new BorrowerNFT(factory);
+        borrowerNft = new BorrowerNFT(factory, IBorrowerURISource(address(0)));
         noOpManager = new NoOp();
     }
 

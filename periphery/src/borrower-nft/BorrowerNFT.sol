@@ -8,6 +8,10 @@ import {Factory} from "aloe-ii-core/Factory.sol";
 
 import {ERC721Z, SafeSSTORE2, BytesLib} from "./ERC721Z.sol";
 
+interface IBorrowerURISource {
+    function uriOf(Borrower borrower) external view returns (string memory);
+}
+
 contract BorrowerNFT is ERC721Z {
     using SafeSSTORE2 for address;
     using BytesLib for bytes;
@@ -24,8 +28,11 @@ contract BorrowerNFT is ERC721Z {
 
     Factory public immutable FACTORY;
 
-    constructor(Factory factory) {
+    IBorrowerURISource public immutable URI_SOURCE;
+
+    constructor(Factory factory, IBorrowerURISource uriSource) {
         FACTORY = factory;
+        URI_SOURCE = uriSource;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -40,9 +47,8 @@ contract BorrowerNFT is ERC721Z {
         return "BORROW";
     }
 
-    function tokenURI(uint256) external view override returns (string memory) {
-        // TODO: implement this, also could use number of leading zeros as a design parameter
-        return "";
+    function tokenURI(uint256 tokenId) external view override returns (string memory) {
+        return URI_SOURCE.uriOf(_borrowerOf(tokenId));
     }
 
     /// @inheritdoc ERC721Z
@@ -59,7 +65,7 @@ contract BorrowerNFT is ERC721Z {
                              MINT & MODIFY
     //////////////////////////////////////////////////////////////*/
 
-    function mint(address to, IUniswapV3Pool[] calldata pools, bytes12[] calldata salts) external {
+    function mint(address to, IUniswapV3Pool[] calldata pools, bytes12[] calldata salts) external payable {
         uint256 qty = pools.length;
 
         uint256[] memory attributes = new uint256[](qty);
