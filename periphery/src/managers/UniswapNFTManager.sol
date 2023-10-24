@@ -6,18 +6,18 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {Borrower, IManager} from "aloe-ii-core/Borrower.sol";
 import {Factory} from "aloe-ii-core/Factory.sol";
 
-import {INonfungiblePositionManager as INFTManager} from "../interfaces/INonfungiblePositionManager.sol";
+import {IUniswapPositionNFT} from "../interfaces/IUniswapPositionNFT.sol";
 
 contract UniswapNFTManager is IManager {
     using SafeTransferLib for ERC20;
 
     Factory public immutable FACTORY;
 
-    INFTManager public immutable NFT_MANAGER;
+    IUniswapPositionNFT public immutable UNISWAP_NFT;
 
-    constructor(Factory factory, INFTManager nftManager) {
+    constructor(Factory factory, IUniswapPositionNFT uniswapNft) {
         FACTORY = factory;
-        NFT_MANAGER = nftManager;
+        UNISWAP_NFT = uniswapNft;
     }
 
     function callback(bytes calldata data, address owner, uint208) external override returns (uint208 positions) {
@@ -36,7 +36,7 @@ contract UniswapNFTManager is IManager {
         // move position from NonfungiblePositionManager to Borrower
         if (liquidity < 0) {
             // safety checks since this contract will be approved to manager users' positions
-            require(FACTORY.isBorrower(msg.sender) && owner == NFT_MANAGER.ownerOf(tokenId));
+            require(FACTORY.isBorrower(msg.sender) && owner == UNISWAP_NFT.ownerOf(tokenId));
 
             _withdrawFromNFT(tokenId, uint128(-liquidity), msg.sender);
             borrower.uniswapDeposit(lower, upper, uint128(-liquidity));
@@ -53,10 +53,10 @@ contract UniswapNFTManager is IManager {
                 address(this)
             );
 
-            token0.safeApprove(address(NFT_MANAGER), burned0);
-            token1.safeApprove(address(NFT_MANAGER), burned1);
-            NFT_MANAGER.increaseLiquidity(
-                INFTManager.IncreaseLiquidityParams({
+            token0.safeApprove(address(UNISWAP_NFT), burned0);
+            token1.safeApprove(address(UNISWAP_NFT), burned1);
+            UNISWAP_NFT.increaseLiquidity(
+                IUniswapPositionNFT.IncreaseLiquidityParams({
                     tokenId: tokenId,
                     amount0Desired: burned0,
                     amount1Desired: burned1,
@@ -72,8 +72,8 @@ contract UniswapNFTManager is IManager {
     }
 
     function _withdrawFromNFT(uint256 tokenId, uint128 liquidity, address recipient) private {
-        NFT_MANAGER.decreaseLiquidity(
-            INFTManager.DecreaseLiquidityParams({
+        UNISWAP_NFT.decreaseLiquidity(
+            IUniswapPositionNFT.DecreaseLiquidityParams({
                 tokenId: tokenId,
                 liquidity: liquidity,
                 amount0Min: 0,
@@ -82,8 +82,8 @@ contract UniswapNFTManager is IManager {
             })
         );
 
-        NFT_MANAGER.collect(
-            INFTManager.CollectParams({
+        UNISWAP_NFT.collect(
+            IUniswapPositionNFT.CollectParams({
                 tokenId: tokenId,
                 recipient: recipient,
                 amount0Max: type(uint128).max,

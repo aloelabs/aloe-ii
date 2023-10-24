@@ -11,7 +11,7 @@ import {Borrower, IManager} from "aloe-ii-core/Borrower.sol";
 import {Factory} from "aloe-ii-core/Factory.sol";
 import {Lender} from "aloe-ii-core/Lender.sol";
 
-import {INonfungiblePositionManager as IUniswapNFT} from "../interfaces/INonfungiblePositionManager.sol";
+import {IUniswapPositionNFT} from "../interfaces/IUniswapPositionNFT.sol";
 
 contract BoostManager is IManager, IUniswapV3SwapCallback {
     using SafeTransferLib for ERC20;
@@ -20,9 +20,9 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
 
     address public immutable BORROWER_NFT;
 
-    IUniswapNFT public immutable UNISWAP_NFT;
+    IUniswapPositionNFT public immutable UNISWAP_NFT;
 
-    constructor(Factory factory, address borrowerNft, IUniswapNFT uniswapNft) {
+    constructor(Factory factory, address borrowerNft, IUniswapPositionNFT uniswapNft) {
         FACTORY = factory;
         BORROWER_NFT = borrowerNft;
         UNISWAP_NFT = uniswapNft;
@@ -157,7 +157,7 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
         address recipient
     ) private returns (uint256 burned0, uint256 burned1) {
         (burned0, burned1) = UNISWAP_NFT.decreaseLiquidity(
-            IUniswapNFT.DecreaseLiquidityParams({
+            IUniswapPositionNFT.DecreaseLiquidityParams({
                 tokenId: tokenId,
                 liquidity: liquidity,
                 amount0Min: 0,
@@ -167,7 +167,7 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
         );
 
         UNISWAP_NFT.collect(
-            IUniswapNFT.CollectParams({
+            IUniswapPositionNFT.CollectParams({
                 tokenId: tokenId,
                 recipient: recipient,
                 amount0Max: type(uint128).max,
