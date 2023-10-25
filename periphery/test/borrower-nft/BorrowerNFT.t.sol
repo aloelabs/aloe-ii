@@ -95,6 +95,7 @@ contract BorrowerNFTTest is Test, IManager {
 
     function test_modifyAuthorization(address nonOwner, bytes memory data) public {
         vm.assume(nonOwner != address(this));
+        vm.assume(nonOwner != address(0));
 
         _test_gas_mint(2);
 
