@@ -40,6 +40,37 @@ library BytesLib {
         }
     }
 
+    function unpack(bytes memory list, uint256 chunkSize) internal pure returns (uint256[] memory items) {
+        uint256 shift;
+        unchecked {
+            shift = 256 - (chunkSize << 3);
+        }
+
+        assembly ("memory-safe") {
+            // Start `items` at the free memory pointer
+            items := mload(0x40)
+
+            let arrPtr := add(items, 32)
+            let oldPtr := add(list, 32)
+            let oldMemEnd := add(oldPtr, mload(list))
+
+            // prettier-ignore
+            for {} lt(oldPtr, oldMemEnd) { oldPtr := add(oldPtr, chunkSize) } {
+                // Load 32 bytes from `list`. Since chunks may overlap, `shr` to isolate the current one
+                let x := shr(shift, mload(oldPtr))
+
+                // Copy to `items`
+                mstore(arrPtr, x)
+                arrPtr := add(arrPtr, 32)
+            }
+
+            // Set `items` length
+            mstore(items, shr(5, sub(sub(arrPtr, items), 32)))
+            // Update free memory pointer
+            mstore(0x40, arrPtr)
+        }
+    }
+
     /// @dev Appends `item` onto `oldList`, a packed array where each element spans `chunkSize` bytes
     function append(
         bytes memory oldList,

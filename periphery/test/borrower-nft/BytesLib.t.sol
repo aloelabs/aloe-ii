@@ -89,6 +89,49 @@ contract BytesLibTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
+                                 UNPACK
+    //////////////////////////////////////////////////////////////*/
+
+    function test_unpackProper(uint256[] memory items, uint256 chunkSize) public {
+        chunkSize = bound(chunkSize, 1, 32);
+        uint256 max;
+        unchecked {
+            max = (1 << (chunkSize << 3)) - 1;
+        }
+        for (uint256 i; i < items.length; i++) {
+            items[i] %= max;
+        }
+
+        bytes memory packed = BytesLib.pack(items, chunkSize);
+        uint256[] memory recovered = BytesLib.unpack(packed, chunkSize);
+
+        assertEq(recovered.length, items.length, "length");
+        for (uint256 i; i < recovered.length; i++) {
+            assertEq(recovered[i], items[i]);
+        }
+    }
+
+    function test_unpackMessy(uint256[] memory items, uint256 chunkSize) public {
+        chunkSize = bound(chunkSize, 1, 31);
+
+        bytes memory packed = BytesLib.pack(items, chunkSize);
+        uint256[] memory recovered = BytesLib.unpack(packed, chunkSize);
+
+        uint256 max;
+        unchecked {
+            max = (1 << (chunkSize << 3));
+        }
+        for (uint256 i; i < items.length; i++) {
+            items[i] %= max;
+        }
+
+        assertEq(recovered.length, items.length, "length");
+        for (uint256 i; i < recovered.length; i++) {
+            assertEq(recovered[i], items[i]);
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
                              APPEND SINGLE
     //////////////////////////////////////////////////////////////*/
 
