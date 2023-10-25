@@ -134,7 +134,7 @@ abstract contract ERC721Z {
 
         // Move `tokenId` and update storage pointers. `from` must own `tokenId` for `remove` to succeed
         _pointers[from] = _pointers[from].read().remove(tokenId, _TOKEN_SIZE()).write();
-        _pointers[to] = _pointers[to].read().append(tokenId, _TOKEN_SIZE()).write();
+        _pointers[to] = _pointers[to].read().push(tokenId, _TOKEN_SIZE()).write();
 
         // Update `_owners` array
         uint256 i = _indexOf(tokenId);
@@ -212,7 +212,7 @@ abstract contract ERC721Z {
         }
 
         // Write new `tokenId`s (`attributes` array was overwritten with full `tokenId`s in the loop)
-        _pointers[to] = _pointers[to].read().append(attributes, _TOKEN_SIZE()).write();
+        _pointers[to] = _pointers[to].read().push(attributes, _TOKEN_SIZE()).write();
     }
 
     /*//////////////////////////////////////////////////////////////

@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {BytesLib} from "src/borrower-nft/BytesLib.sol";
+import {BytesLib, pack} from "src/borrower-nft/BytesLib.sol";
 
 contract BytesLibTest is Test {
     using BytesLib for bytes;
@@ -18,7 +18,7 @@ contract BytesLibTest is Test {
         chunkSize = bound(chunkSize, 0, 28);
 
         uint256[] memory items = new uint256[](0);
-        bytes memory newList = BytesLib.pack(items, chunkSize);
+        bytes memory newList = pack(items, chunkSize);
 
         assertEq(newList.length, 0);
     }
@@ -29,7 +29,7 @@ contract BytesLibTest is Test {
 
         uint256[] memory items = new uint256[](1);
         items[0] = a;
-        bytes memory newList = BytesLib.pack(items, chunkSize);
+        bytes memory newList = pack(items, chunkSize);
 
         assertEq(newList.length, chunkSize);
         uint256 shift = 256 - (chunkSize << 3);
@@ -44,7 +44,7 @@ contract BytesLibTest is Test {
         uint256[] memory items = new uint256[](2);
         items[0] = a;
         items[1] = b;
-        bytes memory newList = BytesLib.pack(items, chunkSize);
+        bytes memory newList = pack(items, chunkSize);
 
         assertEq(newList.length, chunkSize * 2);
         this._assertBytesMatchItems(newList, items, chunkSize, 0);
@@ -62,7 +62,7 @@ contract BytesLibTest is Test {
         items[1] = b;
         items[2] = c;
         items[3] = d;
-        bytes memory newList = BytesLib.pack(items, chunkSize);
+        bytes memory newList = pack(items, chunkSize);
 
         assertEq(newList.length, chunkSize * 4);
         this._assertBytesMatchItems(newList, items, chunkSize, 0);
@@ -76,15 +76,15 @@ contract BytesLibTest is Test {
         arr[3] = d;
 
         bytes memory x = abi.encodePacked(uint32(a), uint32(b), uint32(c), uint32(d));
-        bytes memory y = BytesLib.pack(arr, 32 / 8);
+        bytes memory y = pack(arr, 32 / 8);
         _assertBytesMatch(x, y);
 
         x = abi.encodePacked(uint128(a), uint128(b), uint128(c), uint128(d));
-        y = BytesLib.pack(arr, 128 / 8);
+        y = pack(arr, 128 / 8);
         _assertBytesMatch(x, y);
 
         x = abi.encodePacked(uint224(a), uint224(b), uint224(c), uint224(d));
-        y = BytesLib.pack(arr, 224 / 8);
+        y = pack(arr, 224 / 8);
         _assertBytesMatch(x, y);
     }
 
@@ -102,7 +102,7 @@ contract BytesLibTest is Test {
             items[i] %= max;
         }
 
-        bytes memory packed = BytesLib.pack(items, chunkSize);
+        bytes memory packed = pack(items, chunkSize);
         uint256[] memory recovered = BytesLib.unpack(packed, chunkSize);
 
         assertEq(recovered.length, items.length, "length");
@@ -114,7 +114,7 @@ contract BytesLibTest is Test {
     function test_unpackMessy(uint256[] memory items, uint256 chunkSize) public {
         chunkSize = bound(chunkSize, 1, 31);
 
-        bytes memory packed = BytesLib.pack(items, chunkSize);
+        bytes memory packed = pack(items, chunkSize);
         uint256[] memory recovered = BytesLib.unpack(packed, chunkSize);
 
         uint256 max;
@@ -136,22 +136,22 @@ contract BytesLibTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function test_appendSingle32(bytes memory data, uint32 a) public {
-        bytes memory newList = data.append(a, 32 / 8);
+        bytes memory newList = data.push(a, 32 / 8);
         _assertBytesMatch(newList, abi.encodePacked(data, a));
     }
 
     function test_appendSingle64(bytes memory data, uint64 a) public {
-        bytes memory newList = data.append(a, 64 / 8);
+        bytes memory newList = data.push(a, 64 / 8);
         _assertBytesMatch(newList, abi.encodePacked(data, a));
     }
 
     function test_appendSingle128(bytes memory data, uint128 a) public {
-        bytes memory newList = data.append(a, 128 / 8);
+        bytes memory newList = data.push(a, 128 / 8);
         _assertBytesMatch(newList, abi.encodePacked(data, a));
     }
 
     function test_appendSingle224(bytes memory data, uint224 a) public {
-        bytes memory newList = data.append(a, 224 / 8);
+        bytes memory newList = data.push(a, 224 / 8);
         _assertBytesMatch(newList, abi.encodePacked(data, a));
     }
 
@@ -162,7 +162,7 @@ contract BytesLibTest is Test {
     function test_appendList0(bytes memory data, uint256 chunkSize) public {
         chunkSize = bound(chunkSize, 0, 28);
         uint256[] memory arr = new uint256[](0);
-        _assertBytesMatch(data, data.append(arr, chunkSize));
+        _assertBytesMatch(data, data.push(arr, chunkSize));
     }
 
     function test_appendList1(bytes memory data, uint256 a, uint256 chunkSize) public {
@@ -171,7 +171,7 @@ contract BytesLibTest is Test {
 
         uint256[] memory arr = new uint256[](1);
         arr[0] = a;
-        bytes memory newList = data.append(arr, chunkSize);
+        bytes memory newList = data.push(arr, chunkSize);
 
         _assertBytesMatchUpTo(data, newList, data.length);
         this._assertBytesMatchItems(newList, arr, chunkSize, data.length);
@@ -185,7 +185,7 @@ contract BytesLibTest is Test {
         uint256[] memory arr = new uint256[](2);
         arr[0] = a;
         arr[1] = b;
-        bytes memory newList = data.append(arr, chunkSize);
+        bytes memory newList = data.push(arr, chunkSize);
 
         _assertBytesMatchUpTo(data, newList, data.length);
         this._assertBytesMatchItems(newList, arr, chunkSize, data.length);
@@ -203,7 +203,7 @@ contract BytesLibTest is Test {
         arr[1] = b;
         arr[2] = c;
         arr[3] = d;
-        bytes memory newList = data.append(arr, chunkSize);
+        bytes memory newList = data.push(arr, chunkSize);
 
         _assertBytesMatchUpTo(data, newList, data.length);
         this._assertBytesMatchItems(newList, arr, chunkSize, data.length);
@@ -222,8 +222,8 @@ contract BytesLibTest is Test {
         items[2] = c;
         items[3] = d;
 
-        bytes memory x = BytesLib.pack(items, chunkSize);
-        bytes memory y = bytes("").append(items, chunkSize);
+        bytes memory x = pack(items, chunkSize);
+        bytes memory y = bytes("").push(items, chunkSize);
         _assertBytesMatch(x, y);
     }
 
@@ -244,7 +244,7 @@ contract BytesLibTest is Test {
         bytes memory newList = data.filter(item, chunkSize);
         assertFalse(newList.includes(item, chunkSize));
 
-        data = data.append(item, chunkSize);
+        data = data.push(item, chunkSize);
         data = bytes.concat(data, data);
         assertTrue(data.includes(item, chunkSize));
 
@@ -372,7 +372,7 @@ contract BytesLibTest is Test {
     function test_at(uint256[] memory arr, uint256 chunkSize) public {
         chunkSize = bound(chunkSize, 1, 32);
 
-        bytes memory data = BytesLib.pack(arr, chunkSize);
+        bytes memory data = pack(arr, chunkSize);
 
         for (uint256 i; i < arr.length; i++) {
             uint256 expected = chunkSize == 32 ? arr[i] : (arr[i] % (1 << (chunkSize << 3)));
@@ -383,7 +383,7 @@ contract BytesLibTest is Test {
     function testFail_at_badIndex(uint256[] memory arr, uint256 chunkSize, uint128 i) public view {
         chunkSize = bound(chunkSize, 1, 32);
 
-        bytes memory data = BytesLib.pack(arr, chunkSize);
+        bytes memory data = pack(arr, chunkSize);
         data.at(arr.length + i, chunkSize);
     }
 
