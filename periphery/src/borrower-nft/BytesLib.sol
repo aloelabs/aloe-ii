@@ -1,6 +1,37 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
+function pack(uint256[] memory items, uint256 chunkSize) pure returns (bytes memory newList) {
+    uint256 shift;
+    unchecked {
+        shift = 256 - (chunkSize << 3);
+    }
+
+    assembly ("memory-safe") {
+        // Start `newList` at the free memory pointer
+        newList := mload(0x40)
+
+        let newPtr := add(newList, 32)
+        let arrPtr := add(items, 32)
+        let arrMemEnd := add(arrPtr, shl(5, mload(items)))
+
+        // prettier-ignore
+        for { } lt(arrPtr, arrMemEnd) { arrPtr := add(arrPtr, 32) } {
+            // Load 32 byte chunk from `items`, left shifting by N bits so that items get packed together
+            let x := shl(shift, mload(arrPtr))
+
+            // Copy to `newList`
+            mstore(newPtr, x)
+            newPtr := add(newPtr, chunkSize)
+        }
+
+        // Set `newList` length
+        mstore(newList, sub(sub(newPtr, newList), 32))
+        // Update free memory pointer
+        mstore(0x40, newPtr)
+    }
+}
+
 library BytesLib {
     error RemovalFailed();
 
@@ -253,36 +284,5 @@ library BytesLib {
             // Update free memory pointer
             mstore(0x40, arrPtr)
         }
-    }
-}
-
-function pack(uint256[] memory items, uint256 chunkSize) pure returns (bytes memory newList) {
-    uint256 shift;
-    unchecked {
-        shift = 256 - (chunkSize << 3);
-    }
-
-    assembly ("memory-safe") {
-        // Start `newList` at the free memory pointer
-        newList := mload(0x40)
-
-        let newPtr := add(newList, 32)
-        let arrPtr := add(items, 32)
-        let arrMemEnd := add(arrPtr, shl(5, mload(items)))
-
-        // prettier-ignore
-        for { } lt(arrPtr, arrMemEnd) { arrPtr := add(arrPtr, 32) } {
-            // Load 32 byte chunk from `items`, left shifting by N bits so that items get packed together
-            let x := shl(shift, mload(arrPtr))
-
-            // Copy to `newList`
-            mstore(newPtr, x)
-            newPtr := add(newPtr, chunkSize)
-        }
-
-        // Set `newList` length
-        mstore(newList, sub(sub(newPtr, newList), 32))
-        // Update free memory pointer
-        mstore(0x40, newPtr)
     }
 }
