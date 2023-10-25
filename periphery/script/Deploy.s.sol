@@ -29,8 +29,8 @@ contract DeployScript is Script {
     ];
 
     IBorrowerURISource[] uriSources = [
-        IBorrowerURISource(0x0000000000000000000000000000000000000000),
-        IBorrowerURISource(0x0000000000000000000000000000000000000000),
+        IBorrowerURISource(0x721b11a326c1F2d16D6e487cFA1a050c6b666D32),
+        IBorrowerURISource(0xDd0cE1e8Bd69c1855e4710788b264BDc4f86599C),
         IBorrowerURISource(0x0000000000000000000000000000000000000000)
     ];
 

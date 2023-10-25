@@ -98,7 +98,7 @@ contract BorrowerNFT is ERC721Z {
                 if (!authorized) require(msg.sender == getApproved[tokenId], "NOT_AUTHORIZED");
 
                 Borrower borrower = _borrowerOf(tokenId);
-                borrower.modify{value: antes[k] * 1e13}({
+                borrower.modify{value: uint256(antes[k]) * 1e13}({
                     callee: managers[k],
                     data: bytes.concat(bytes20(owner), datas[k]),
                     oracleSeed: 1 << 32
@@ -119,6 +119,14 @@ contract BorrowerNFT is ERC721Z {
                 require(success);
             }
         }
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                              CONVENIENCE
+    //////////////////////////////////////////////////////////////*/
+
+    function tokensOf(address owner) external view returns (uint256[] memory) {
+        return _pointers[owner].read().unpack(_TOKEN_SIZE());
     }
 
     function _borrowerOf(uint256 tokenId) private pure returns (Borrower borrower) {
