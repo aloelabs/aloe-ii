@@ -115,7 +115,7 @@ contract BorrowerNFT is ERC721Z {
         unchecked {
             uint256 count = data.length;
             for (uint256 i; i < count; i++) {
-                (bool success, ) = address(this).delegatecall(data[i]);
+                (bool success, ) = address(this).delegatecall(data[i]); // solhint-disable-line avoid-low-level-calls
                 require(success);
             }
         }
