@@ -9,7 +9,7 @@ cache_path = 'cache'
 
 via_ir = true
 optimizer = true
-optimizer_runs = 800
+optimizer_runs = 65536
 gas_reports = []
 
 auto_detect_remappings = false

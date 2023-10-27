@@ -52,6 +52,18 @@ contract BorrowerLens {
         healthB = liabilities > 0 ? (assets * 1e18) / liabilities : 1000e18;
     }
 
+    function isInUse(Borrower borrower) external view returns (bool, IUniswapV3Pool) {
+        IUniswapV3Pool pool = borrower.UNISWAP_POOL();
+
+        if (borrower.getUniswapPositions().length > 0) return (true, pool);
+        if (borrower.TOKEN0().balanceOf(address(borrower)) > 0) return (true, pool);
+        if (borrower.TOKEN1().balanceOf(address(borrower)) > 0) return (true, pool);
+        if (borrower.LENDER0().borrowBalanceStored(address(borrower)) > 0) return (true, pool);
+        if (borrower.LENDER1().borrowBalanceStored(address(borrower)) > 0) return (true, pool);
+
+        return (false, pool);
+    }
+
     function getUniswapFees(Borrower account) external view returns (bytes32[] memory keys, uint256[] memory fees) {
         IUniswapV3Pool pool = account.UNISWAP_POOL();
         Uniswap.FeeComputationCache memory c;
