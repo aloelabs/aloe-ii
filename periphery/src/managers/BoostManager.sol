@@ -92,8 +92,8 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
                     TickMath.getSqrtRatioAtTick(upper),
                     liquidity
                 );
-                amount0 = needs0 > amount0 ? needs0 - amount0 : 0;
-                amount1 = needs1 > amount1 ? needs1 - amount1 : 0;
+                amount0 = (needs0 + 1) > amount0 ? (needs0 + 1 - amount0) : 0;
+                amount1 = (needs1 + 1) > amount1 ? (needs1 + 1 - amount1) : 0;
             }
 
             borrower.borrow(amount0, amount1, msg.sender);
