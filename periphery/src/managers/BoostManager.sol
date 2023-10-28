@@ -76,7 +76,12 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
         uint128 liquidity;
         // Leverage factor
         uint24 boost;
-        (tokenId, lower, upper, liquidity, boost) = abi.decode(args, (uint256, int24, int24, uint128, uint24));
+        // Packed maxBorrow0 and maxBorrow1; slippage protection
+        uint224 maxBorrows;
+        (tokenId, lower, upper, liquidity, boost, maxBorrows) = abi.decode(
+            args,
+            (uint256, int24, int24, uint128, uint24, uint224)
+        );
 
         require(owner == UNISWAP_NFT.ownerOf(tokenId), "Aloe: owners must match to import");
 
@@ -96,6 +101,7 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
                 amount1 = (needs1 + 1) > amount1 ? (needs1 + 1 - amount1) : 0;
             }
 
+            require(amount0 < uint112(maxBorrows) && amount1 < (maxBorrows >> 112), "slippage");
             borrower.borrow(amount0, amount1, msg.sender);
             borrower.uniswapDeposit(lower, upper, liquidity);
         }
