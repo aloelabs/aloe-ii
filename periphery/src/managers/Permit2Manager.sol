@@ -68,6 +68,7 @@ contract Permit2Manager is IManager {
         (success, ) = msg.sender.call(dataBorrower); // solhint-disable-line avoid-low-level-calls
         if (!success) revert BorrowerCallFailed();
 
-        return 0;
+        // Tag Borrower with `Fuse2Borrower()` function selector so we can identify it on the frontend
+        return 0x83ee755b << 144;
     }
 }
