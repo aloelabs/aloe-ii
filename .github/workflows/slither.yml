@@ -22,10 +22,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Hide periphery
-        run: |
-          rm -rf periphery
-
       - name: Run Slither
         uses: crytic/slither-action@v0.3.0
         id: run-slither
@@ -33,6 +29,7 @@ jobs:
           target: 'core/'
           fail-on: none
           slither-args: --config-file core/slither.config.json
+          slither-version: '0.9.6'
           sarif: slither.results.sarif
 
       - name: Upload SARIF file
