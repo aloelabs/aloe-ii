@@ -17,17 +17,19 @@ import {VolatilityOracle} from "src/VolatilityOracle.sol";
 contract FatFactory is Factory {
     constructor(
         address governor,
-        address reserve,
+        address payable reserve,
         VolatilityOracle oracle,
         IRateModel defaultRateModel
     ) Factory(governor, reserve, oracle, new BorrowerDeployer(), defaultRateModel) {}
 }
 
 contract FactoryForLenderTests is FatFactory {
+    receive() external payable {}
+
     constructor(
         RateModel rateModel,
         ERC20 rewardsToken_
-    ) FatFactory(address(0), address(this), VolatilityOracle(address(0)), rateModel) {
+    ) FatFactory(address(0), payable(this), VolatilityOracle(address(0)), rateModel) {
         rewardsToken = rewardsToken_;
     }
 

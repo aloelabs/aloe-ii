@@ -23,6 +23,10 @@ uint256 constant BORROWS_SCALER = ONE << 72;
 /// > - MAX_RATE: (exp(maxAPR / secondsPerYear) - 1) * 1e12
 uint256 constant MAX_RATE = 706354;
 
+/// @dev The amount of ETH prospective couriers must pay in order to enroll and claim a `courierId`. Designed to
+/// prevent griefing, since there are only (2^32 - 1) `courierId`s available.
+uint256 constant COURIER_ENROLLMENT_FEE = 0.01 ether;
+
 /*//////////////////////////////////////////////////////////////
                         FACTORY DEFAULTS
 //////////////////////////////////////////////////////////////*/

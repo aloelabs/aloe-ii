@@ -6,6 +6,7 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {
+    COURIER_ENROLLMENT_FEE,
     DEFAULT_ANTE,
     DEFAULT_N_SIGMA,
     DEFAULT_MANIPULATION_THRESHOLD_DIVISOR,
@@ -91,6 +92,9 @@ contract Factory {
     /// @notice The only address that can propose new `MarketConfig`s and rewards programs
     address public immutable GOVERNOR;
 
+    /// @notice The address that receives courier enrollment fees. Will match `Lender`s' reserve address
+    address public immutable RESERVE;
+
     /// @notice The oracle to use for prices and implied volatility
     VolatilityOracle public immutable ORACLE;
 
@@ -138,12 +142,13 @@ contract Factory {
 
     constructor(
         address governor,
-        address reserve,
+        address payable reserve,
         VolatilityOracle oracle,
         BorrowerDeployer borrowerDeployer,
         IRateModel defaultRateModel
     ) {
         GOVERNOR = governor;
+        RESERVE = reserve;
         ORACLE = oracle;
         LENDER_IMPLEMENTATION = address(new Lender(reserve));
         _BORROWER_DEPLOYER = borrowerDeployer;
@@ -251,7 +256,7 @@ contract Factory {
      * @param cut The portion of interest the courier will receive. Should be in the range [0, 10000),
      * with 10000 being 100%.
      */
-    function enrollCourier(uint32 id, uint16 cut) external {
+    function enrollCourier(uint32 id, uint16 cut) external payable {
         // Requirements:
         // - `id != 0` because 0 is reserved as the no-courier case
         // - `cut != 0 && cut < 10_000` just means between 0 and 100%
@@ -263,6 +268,7 @@ contract Factory {
         isCourier[msg.sender] = true;
 
         emit EnrollCourier(id, msg.sender, cut);
+        SafeTransferLib.safeTransferETH(RESERVE, COURIER_ENROLLMENT_FEE);
     }
 
     /*//////////////////////////////////////////////////////////////

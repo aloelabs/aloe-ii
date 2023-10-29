@@ -41,7 +41,7 @@ contract FactoryTest is Test {
     function setUp() public {
         vm.createSelectFork(vm.rpcUrl("mainnet"), 15_348_451);
 
-        factory = new FatFactory(address(12345), address(0), new VolatilityOracle(), new RateModel());
+        factory = new FatFactory(address(12345), payable(0), new VolatilityOracle(), new RateModel());
         rewardsToken = new MockERC20("Mock Token", "MOCK", 18);
     }
 
@@ -97,9 +97,12 @@ contract FactoryTest is Test {
             cut = uint16(bound(cut, 1, 9999));
         }
 
+        vm.expectRevert(bytes("ETH_TRANSFER_FAILED"));
+        factory.enrollCourier(id, cut);
+
         vm.expectEmit(true, true, false, true, address(factory));
         emit EnrollCourier(id, address(this), cut);
-        factory.enrollCourier(id, cut);
+        factory.enrollCourier{value: 0.01 ether}(id, cut);
 
         assertTrue(factory.isCourier(address(this)));
         (address courier, uint16 cutRec) = factory.couriers(id);
@@ -116,8 +119,9 @@ contract FactoryTest is Test {
         lenders[1] = lender1;
 
         // Couriers cannot claim rewards
+        payable(address(6789)).transfer(0.01 ether);
         vm.prank(address(6789));
-        factory.enrollCourier(1, 5000);
+        factory.enrollCourier{value: 0.01 ether}(1, 5000);
         vm.prank(address(6789));
         vm.expectRevert(bytes(""));
         factory.claimRewards(lenders, address(6789));

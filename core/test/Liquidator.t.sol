@@ -29,7 +29,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         Factory factory = new FatFactory(
             address(0),
-            address(0),
+            payable(0),
             VolatilityOracle(address(new VolatilityOracleMock())),
             new RateModel()
         );

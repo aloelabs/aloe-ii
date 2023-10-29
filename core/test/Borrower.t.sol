@@ -52,7 +52,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
 
         VolatilityOracle oracle = new VolatilityOracle();
         RateModel rateModel = new RateModel();
-        factory = new FatFactory(address(0), address(0), oracle, rateModel);
+        factory = new FatFactory(address(0), payable(0), oracle, rateModel);
 
         factory.createMarket(pool);
         (lender0, lender1, impl) = factory.getMarket(pool);
