@@ -58,6 +58,8 @@ contract Lender is Ledger {
 
     /// @notice Sets the `rateModel` and `reserveFactor`. Only the `FACTORY` can call this.
     function setRateModelAndReserveFactor(IRateModel rateModel_, uint8 reserveFactor_) external {
+        this.accrueInterest();
+
         require(msg.sender == address(FACTORY) && reserveFactor_ > 0);
         rateModel = rateModel_;
         reserveFactor = reserveFactor_;
@@ -540,7 +542,7 @@ contract Lender is Ledger {
         uint256 newTotalSupply;
         (cache, inventory, newTotalSupply) = _previewInterest(cache); // Reverts if reentrancy guard is active
 
-        // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
+        // Update reserves (new `totalSupply` is only in memory, but `balances[RESERVE]` is updated in storage)
         if (newTotalSupply > cache.totalSupply) {
             cache.totalSupply = _mint(RESERVE, newTotalSupply - cache.totalSupply, 0, cache.totalSupply, 0);
         }
