@@ -525,8 +525,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
-        amount0 = LENDER0.borrowBalanceStored(address(this));
-        amount1 = LENDER1.borrowBalanceStored(address(this));
+        amount0 = LENDER0.borrowBalance(address(this));
+        amount1 = LENDER1.borrowBalance(address(this));
     }
 
     /*//////////////////////////////////////////////////////////////
