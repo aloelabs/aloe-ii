@@ -50,7 +50,7 @@ contract Borrower is IUniswapV3MintCallback {
     /**
      * @notice Most liquidations involve swapping one asset for another. To incentivize such swaps (even in
      * volatile markets) liquidators are rewarded with a 5% bonus. To avoid paying that bonus to liquidators,
-     * the account owner can listen for this event. Once it's emitted, they have 2 minutes to bring the
+     * the account owner can listen for this event. Once it's emitted, they have 5 minutes to bring the
      * account back to health. If they fail, the liquidation will proceed.
      * @dev Fortuitous price movements and/or direct `Lender.repay` can bring the account back to health and
      * nullify the immediate liquidation threat, but they will not clear the warning. This means that next
