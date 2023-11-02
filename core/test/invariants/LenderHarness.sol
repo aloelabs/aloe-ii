@@ -5,7 +5,7 @@ import "forge-std/Vm.sol";
 
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
-import {Factory} from "src/Factory.sol";
+import {Factory, COURIER_ENROLLMENT_FEE} from "src/Factory.sol";
 import "src/Lender.sol";
 
 contract FlashBorrower is IFlashBorrower {
@@ -57,12 +57,13 @@ contract LenderHarness {
     /// @notice Creates a new courier (referrer) with the given values
     /// @dev Does not bound inputs without first verifying that the unbounded ones revert
     function enrollCourier(uint32 id, uint16 cut) public {
+        vm.deal(msg.sender, 1 ether);
         Factory factory = LENDER.FACTORY();
         // Check that inputs are properly formatted
         if (id == 0 || cut == 0 || cut >= 10_000) {
             vm.prank(msg.sender);
             vm.expectRevert();
-            factory.enrollCourier(id, cut);
+            factory.enrollCourier{value: COURIER_ENROLLMENT_FEE}(id, cut);
         }
         if (id == 0) id = 1;
         cut = (cut % 9_999) + 1;
@@ -72,7 +73,7 @@ contract LenderHarness {
         if (currentCut != 0) {
             vm.prank(msg.sender);
             vm.expectRevert();
-            factory.enrollCourier(id, cut);
+            factory.enrollCourier{value: COURIER_ENROLLMENT_FEE}(id, cut);
 
             assert(alreadyEnrolledCourier[id]);
             return;
@@ -80,7 +81,7 @@ contract LenderHarness {
 
         // Actual action
         vm.prank(msg.sender);
-        factory.enrollCourier(id, cut);
+        factory.enrollCourier{value: COURIER_ENROLLMENT_FEE}(id, cut);
 
         // Assertions
         (address actualWallet, uint16 actualCut) = factory.couriers(id);

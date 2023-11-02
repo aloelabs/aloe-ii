@@ -5,6 +5,7 @@ import "forge-std/Test.sol";
 
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
+import {COURIER_ENROLLMENT_FEE} from "src/libraries/constants/Constants.sol";
 import "src/Lender.sol";
 import "src/RateModel.sol";
 
@@ -36,9 +37,9 @@ contract LenderReferralsTest is Test {
         vm.assume(id != 0);
 
         Factory factory = lender.FACTORY();
-        vm.prank(wallet);
+        hoax(wallet, 1 ether);
         vm.expectRevert(bytes(""));
-        factory.enrollCourier(id, 0);
+        factory.enrollCourier{value: COURIER_ENROLLMENT_FEE}(id, 0);
     }
 
     function test_cannotSetCutAbove10000(uint32 id, address wallet, uint16 cut) public {
@@ -46,18 +47,18 @@ contract LenderReferralsTest is Test {
         if (cut < 10_000) cut += 10_000;
 
         Factory factory = lender.FACTORY();
-        vm.prank(wallet);
+        hoax(wallet, 1 ether);
         vm.expectRevert(bytes(""));
-        factory.enrollCourier(id, cut);
+        factory.enrollCourier{value: COURIER_ENROLLMENT_FEE}(id, cut);
     }
 
     function test_cannotEnrollId0(address wallet, uint16 cut) public {
         vm.assume(cut != 0);
 
         Factory factory = lender.FACTORY();
-        vm.prank(wallet);
+        hoax(wallet, 1 ether);
         vm.expectRevert(bytes(""));
-        factory.enrollCourier(0, cut);
+        factory.enrollCourier{value: COURIER_ENROLLMENT_FEE}(0, cut);
     }
 
     function test_cannotEditCourierCut(uint32 id, address wallet, uint16 cutA, uint16 cutB) public {
@@ -70,11 +71,11 @@ contract LenderReferralsTest is Test {
 
         Factory factory = lender.FACTORY();
 
-        vm.prank(wallet);
-        factory.enrollCourier(id, cutA);
-        vm.prank(wallet);
+        hoax(wallet, 1 ether);
+        factory.enrollCourier{value: COURIER_ENROLLMENT_FEE}(id, cutA);
+        hoax(wallet, 1 ether);
         vm.expectRevert(bytes(""));
-        factory.enrollCourier(id, cutB);
+        factory.enrollCourier{value: COURIER_ENROLLMENT_FEE}(id, cutB);
     }
 
     function test_cannotEditCourierWallet(uint32 id, address walletA, address walletB, uint16 cut) public {
@@ -84,11 +85,11 @@ contract LenderReferralsTest is Test {
 
         Factory factory = lender.FACTORY();
 
-        vm.prank(walletA);
-        factory.enrollCourier(id, cut);
-        vm.prank(walletB);
+        hoax(walletA, 1 ether);
+        factory.enrollCourier{value: COURIER_ENROLLMENT_FEE}(id, cut);
+        hoax(walletB, 1 ether);
         vm.expectRevert(bytes(""));
-        factory.enrollCourier(id, cut);
+        factory.enrollCourier{value: COURIER_ENROLLMENT_FEE}(id, cut);
     }
 
     function test_canCreditCourier(uint32 id, address wallet, uint16 cut) public {
@@ -284,8 +285,8 @@ contract LenderReferralsTest is Test {
         vm.assume(cut != 0);
 
         Factory factory = lender.FACTORY();
-        vm.prank(wallet);
-        factory.enrollCourier(id, cut);
+        hoax(wallet, 1 ether);
+        factory.enrollCourier{value: COURIER_ENROLLMENT_FEE}(id, cut);
 
         return (id, wallet, cut);
     }

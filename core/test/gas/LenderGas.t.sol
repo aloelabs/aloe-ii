@@ -65,8 +65,8 @@ contract LenderGasTest is Test {
 
         // Setup courier#1
         Factory factory = lender.FACTORY();
-        vm.prank(address(12345));
-        factory.enrollCourier(1, 1000);
+        hoax(address(12345), 1 ether);
+        factory.enrollCourier{value: COURIER_ENROLLMENT_FEE}(1, 1000);
 
         // `alice` deposits 0.5 WETH, crediting courier#1
         asset.transferFrom(alice, address(lender), 0.5e18);
