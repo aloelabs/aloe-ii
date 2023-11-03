@@ -5,7 +5,8 @@ import "forge-std/Test.sol";
 
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 
-import {Volatility, Oracle, TickMath} from "src/libraries/Volatility.sol";
+import {TickMath} from "src/libraries/TickMath.sol";
+import {Volatility, Oracle, mulDiv96} from "src/libraries/Volatility.sol";
 
 contract VolatilityTest is Test {
     function setUp() public {}
@@ -35,7 +36,7 @@ contract VolatilityTest is Test {
             ),
             1 days
         );
-        assertEq(dailyIV, 20405953715); // 2.041%
+        assertEq(dailyIV, 20394487700); // 2.039%
 
         dailyIV = Volatility.estimate(
             metadata,
@@ -52,7 +53,7 @@ contract VolatilityTest is Test {
             ),
             1 hours
         );
-        assertEq(dailyIV, 4165347859); // 0.417%
+        assertEq(dailyIV, 4163007369); // 0.416%
 
         dailyIV = Volatility.estimate(
             metadata,
@@ -65,7 +66,7 @@ contract VolatilityTest is Test {
             ),
             1 days
         );
-        assertEq(dailyIV, 6970260375); // 0.697%
+        assertEq(dailyIV, 6966343817); // 0.696%
 
         dailyIV = Volatility.estimate(
             metadata,
@@ -141,14 +142,27 @@ contract VolatilityTest is Test {
 
     function test_spec_computeTickTvl() public {
         uint256 tickTvl;
-        tickTvl = Volatility.computeTickTvl(1, 19000, TickMath.getSqrtRatioAtTick(19000), 100000000000);
-        assertEq(tickTvl, 12926964);
-        tickTvl = Volatility.computeTickTvl(10, 19000, TickMath.getSqrtRatioAtTick(19000), 9763248618769789);
-        assertEq(tickTvl, 12618077941403);
-        tickTvl = Volatility.computeTickTvl(60, -19000, TickMath.getSqrtRatioAtTick(-19000), 100000000000);
-        assertEq(tickTvl, 115925394);
-        tickTvl = Volatility.computeTickTvl(60, -3000, TickMath.getSqrtRatioAtTick(-3000), 999999999);
-        assertEq(tickTvl, 2578145);
+        tickTvl = Volatility.computeTickTvl(1, TickMath.getSqrtRatioAtTick(19000), 100000000000);
+        assertEq(tickTvl, 12927934);
+        tickTvl = Volatility.computeTickTvl(10, TickMath.getSqrtRatioAtTick(19000), 9763248618769789);
+        assertEq(tickTvl, 12621863617134);
+        tickTvl = Volatility.computeTickTvl(60, TickMath.getSqrtRatioAtTick(-19000), 100000000000);
+        assertEq(tickTvl, 116027817);
+        tickTvl = Volatility.computeTickTvl(60, TickMath.getSqrtRatioAtTick(-3000), 999999999);
+        assertEq(tickTvl, 2582143);
+    }
+
+    function test_comparitive_computeTickTvl(int24 tick, uint128 liquidity) public {
+        tick = int24(bound(tick, TickMath.MIN_TICK, TickMath.MAX_TICK));
+        uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
+
+        int24[4] memory tickSpacings = [int24(1), 10, 60, 100];
+        for (uint256 i; i < 4; i++) {
+            uint256 a = Volatility.computeTickTvl(tickSpacings[i], sqrtPriceX96, liquidity);
+            uint256 b = _computeTickTvlOriginal(tickSpacings[i], tick, sqrtPriceX96, liquidity);
+            assertGe(a, b);
+            if (b > 1000) assertApproxEqRel(a, b, 0.005e18);
+        }
     }
 
     function test_fuzz_computeTickTvl(int24 currentTick, uint8 tickSpacing, uint128 tickLiquidity) public {
@@ -160,7 +174,7 @@ contract VolatilityTest is Test {
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(currentTick);
 
         // Ensure it doesn't revert
-        uint256 tickTvl = Volatility.computeTickTvl(_tickSpacing, currentTick, sqrtPriceX96, tickLiquidity);
+        uint256 tickTvl = Volatility.computeTickTvl(_tickSpacing, sqrtPriceX96, tickLiquidity);
 
         // Check that it's non-zero in cases where we don't expect truncation
         int24 lowerBound = TickMath.MIN_TICK / 2;
@@ -181,7 +195,7 @@ contract VolatilityTest is Test {
 
         uint160 sqrtPriceX96 = TickMath.getSqrtRatioAtTick(tick);
 
-        Volatility.computeTickTvl(tickSpacing, tick, sqrtPriceX96, liquidity);
+        Volatility.computeTickTvl(tickSpacing, sqrtPriceX96, liquidity);
     }
 
     function test_fuzz_computeRevenueGammaDoesNotRevertA(
@@ -307,5 +321,40 @@ contract VolatilityTest is Test {
         if (tick < TickMath.MIN_TICK + tickSpacing) return TickMath.MIN_TICK + tickSpacing;
         else if (tick > TickMath.MAX_TICK - tickSpacing) return TickMath.MAX_TICK - tickSpacing;
         else return tick;
+    }
+
+    function _computeTickTvlOriginal(
+        int24 tickSpacing,
+        int24 tick,
+        uint160 sqrtPriceX96,
+        uint128 liquidity
+    ) internal pure returns (uint256 tickTvl) {
+        unchecked {
+            tick = TickMath.floor(tick, tickSpacing);
+
+            tickTvl = _getValueOfLiquidity(
+                sqrtPriceX96,
+                TickMath.getSqrtRatioAtTick(tick),
+                TickMath.getSqrtRatioAtTick(tick + tickSpacing),
+                liquidity
+            );
+        }
+    }
+
+    function _getValueOfLiquidity(
+        uint160 sqrtRatioX96,
+        uint160 sqrtRatioAX96,
+        uint160 sqrtRatioBX96,
+        uint128 liquidity
+    ) private pure returns (uint256 value) {
+        assert(sqrtRatioAX96 <= sqrtRatioX96 && sqrtRatioX96 <= sqrtRatioBX96);
+
+        unchecked {
+            uint256 numerator = Math.mulDiv(uint256(liquidity) << 128, sqrtRatioX96, sqrtRatioBX96);
+
+            value =
+                Math.mulDiv(numerator, sqrtRatioBX96 - sqrtRatioX96, (1 << 224)) +
+                mulDiv96(liquidity, sqrtRatioX96 - sqrtRatioAX96);
+        }
     }
 }

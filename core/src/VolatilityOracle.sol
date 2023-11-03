@@ -43,6 +43,8 @@ contract VolatilityOracle {
     }
 
     function update(IUniswapV3Pool pool, uint40 seed) external returns (uint56, uint160, uint256) {
+        // TODO: require that sample for the current block hasn't been written to Uniswap observations,
+        // implying that nobody has added a bunch of liquidity to manipulate the sample
         unchecked {
             // Read `lastWrite` info from storage
             LastWrite memory lastWrite = lastWrites[pool];

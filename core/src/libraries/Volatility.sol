@@ -4,9 +4,8 @@ pragma solidity 0.8.17;
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 
-import {square, mulDiv96, mulDiv128, mulDiv224} from "./MulDiv.sol";
+import {square, mulDiv96, mulDiv128} from "./MulDiv.sol";
 import {Oracle} from "./Oracle.sol";
-import {TickMath} from "./TickMath.sol";
 
 /// @title Volatility
 /// @notice Provides functions that use Uniswap v3 to compute price volatility
@@ -48,7 +47,7 @@ library Volatility {
         FeeGrowthGlobals memory b,
         uint32 scale
     ) internal pure returns (uint256) {
-        uint256 tickTvl = computeTickTvl(metadata.tickSpacing, data.currentTick, data.sqrtPriceX96, data.tickLiquidity);
+        uint256 tickTvl = computeTickTvl(metadata.tickSpacing, data.sqrtPriceX96, data.tickLiquidity);
 
         // Return early to avoid division by 0
         if (data.secondsPerLiquidityX128 == 0 || b.timestamp - a.timestamp == 0 || tickTvl == 0) return 0;
@@ -125,51 +124,16 @@ library Volatility {
     /**
      * @notice Computes the value of liquidity available at the current tick, denominated in token1
      * @param tickSpacing The pool tick spacing (from pool.tickSpacing())
-     * @param tick The current tick (from pool.slot0())
      * @param sqrtPriceX96 The current price (from pool.slot0())
      * @param liquidity The liquidity depth at currentTick (from pool.liquidity())
      */
     function computeTickTvl(
         int24 tickSpacing,
-        int24 tick,
         uint160 sqrtPriceX96,
         uint128 liquidity
     ) internal pure returns (uint256 tickTvl) {
         unchecked {
-            tick = TickMath.floor(tick, tickSpacing);
-
-            tickTvl = _getValueOfLiquidity(
-                sqrtPriceX96,
-                TickMath.getSqrtRatioAtTick(tick),
-                TickMath.getSqrtRatioAtTick(tick + tickSpacing),
-                liquidity
-            );
-        }
-    }
-
-    /**
-     * @notice Computes the value of the liquidity in terms of token1
-     * @dev The return value can fit in uint193 if necessary
-     * @param sqrtRatioX96 A sqrt price representing the current pool prices
-     * @param sqrtRatioAX96 A sqrt price representing the lower tick boundary
-     * @param sqrtRatioBX96 A sqrt price representing the upper tick boundary
-     * @param liquidity The liquidity being valued
-     * @return value The total value of `liquidity`, in terms of token1
-     */
-    function _getValueOfLiquidity(
-        uint160 sqrtRatioX96,
-        uint160 sqrtRatioAX96,
-        uint160 sqrtRatioBX96,
-        uint128 liquidity
-    ) private pure returns (uint256 value) {
-        assert(sqrtRatioAX96 <= sqrtRatioX96 && sqrtRatioX96 <= sqrtRatioBX96);
-
-        unchecked {
-            uint256 numerator = Math.mulDiv(uint256(liquidity) << 128, sqrtRatioX96, sqrtRatioBX96);
-
-            value =
-                mulDiv224(numerator, sqrtRatioBX96 - sqrtRatioX96) +
-                mulDiv96(liquidity, sqrtRatioX96 - sqrtRatioAX96);
+            tickTvl = SoladyMath.rawDiv(mulDiv96(uint256(uint24(tickSpacing)) * liquidity, sqrtPriceX96), 20_000);
         }
     }
 }
