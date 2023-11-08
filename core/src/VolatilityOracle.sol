@@ -43,25 +43,19 @@ contract VolatilityOracle {
     }
 
     function update(IUniswapV3Pool pool, uint40 seed) external returns (uint56, uint160, uint256) {
-        // TODO: require that sample for the current block hasn't been written to Uniswap observations,
-        // implying that nobody has added a bunch of liquidity to manipulate the sample
         unchecked {
             // Read `lastWrite` info from storage
             LastWrite memory lastWrite = lastWrites[pool];
             require(lastWrite.time > 0);
 
             // We need to call `Oracle.consult` even if we're going to return early, so go ahead and do it
-            (Oracle.PoolData memory data, uint56 metric) = Oracle.consult(pool, seed);
+            (uint56 metric, uint160 sqrtMeanPriceX96) = Oracle.consult(pool, seed);
 
             // If fewer than `FEE_GROWTH_SAMPLE_PERIOD` seconds have elapsed, return early.
             // We still fetch the latest TWAP, but we do not sample feeGrowthGlobals or update IV.
             if (block.timestamp - lastWrite.time < FEE_GROWTH_SAMPLE_PERIOD) {
-                return (metric, data.sqrtMeanPriceX96, lastWrite.iv);
+                return (metric, sqrtMeanPriceX96, lastWrite.iv);
             }
-
-            // Populate remaining `PoolData` fields
-            data.oracleLookback = UNISWAP_AVG_WINDOW;
-            data.tickLiquidity = pool.liquidity();
 
             // Populate `FeeGrowthGlobals`
             Volatility.FeeGrowthGlobals[FEE_GROWTH_ARRAY_LENGTH] storage arr = feeGrowthGlobals[pool];
@@ -79,7 +73,7 @@ contract VolatilityOracle {
                 })
             ) {
                 // Estimate, then clamp so it lies within [previous - maxChange, previous + maxChange]
-                iv = Volatility.estimate(cachedMetadata[pool], data, a, b, IV_SCALE);
+                iv = Volatility.estimate(cachedMetadata[pool], sqrtMeanPriceX96, a, b, IV_SCALE);
 
                 if (iv > lastWrite.iv + IV_CHANGE_PER_UPDATE) iv = lastWrite.iv + IV_CHANGE_PER_UPDATE;
                 else if (iv + IV_CHANGE_PER_UPDATE < lastWrite.iv) iv = lastWrite.iv - IV_CHANGE_PER_UPDATE;
@@ -90,14 +84,14 @@ contract VolatilityOracle {
             arr[next] = b;
             lastWrites[pool] = LastWrite(next, uint32(block.timestamp), uint216(iv));
 
-            emit Update(pool, data.sqrtMeanPriceX96, iv);
-            return (metric, data.sqrtMeanPriceX96, iv);
+            emit Update(pool, sqrtMeanPriceX96, iv);
+            return (metric, sqrtMeanPriceX96, iv);
         }
     }
 
     function consult(IUniswapV3Pool pool, uint40 seed) external view returns (uint56, uint160, uint256) {
-        (Oracle.PoolData memory data, uint56 metric) = Oracle.consult(pool, seed);
-        return (metric, data.sqrtMeanPriceX96, lastWrites[pool].iv);
+        (uint56 metric, uint160 sqrtMeanPriceX96) = Oracle.consult(pool, seed);
+        return (metric, sqrtMeanPriceX96, lastWrites[pool].iv);
     }
 
     function _getPoolMetadata(IUniswapV3Pool pool) private view returns (Volatility.PoolMetadata memory metadata) {
