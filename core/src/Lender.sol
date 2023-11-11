@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
+import {ECDSA} from "solady/utils/ECDSA.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
@@ -354,38 +355,23 @@ contract Lender is Ledger {
         bytes32 r,
         bytes32 s
     ) external {
-        require(deadline >= block.timestamp, "Aloe: permit expired");
-
-        // Unchecked because the only math done is incrementing
-        // the owner's nonce which cannot realistically overflow.
+        // Unchecked because incrementing nonce cannot realistically overflow
         unchecked {
-            address recoveredAddress = ecrecover(
+            bytes32 digest = _hashTypedData(
                 keccak256(
-                    abi.encodePacked(
-                        "\x19\x01",
-                        DOMAIN_SEPARATOR(),
-                        keccak256(
-                            abi.encode(
-                                keccak256(
-                                    "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
-                                ),
-                                owner,
-                                spender,
-                                value,
-                                nonces[owner]++,
-                                deadline
-                            )
-                        )
+                    abi.encode(
+                        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
+                        owner,
+                        spender,
+                        value,
+                        nonces[owner]++,
+                        deadline
                     )
-                ),
-                v,
-                r,
-                s
+                )
             );
+            require(owner == ECDSA.recover(digest, v, r, s) && deadline >= block.timestamp, "Aloe: signature");
 
-            require(recoveredAddress != address(0) && recoveredAddress == owner, "Aloe: permit invalid");
-
-            allowance[recoveredAddress][spender] = value;
+            allowance[owner][spender] = value;
         }
 
         emit Approval(owner, spender, value);
@@ -556,5 +542,36 @@ contract Lender is Ledger {
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
         lastAccrualTime = uint32(block.timestamp); // Disables reentrancy guard if there was one
+    }
+
+    /**
+     * @dev Returns the hash of the fully encoded EIP-712 message for this domain, given `structHash` as defined in
+     * https://eips.ethereum.org/EIPS/eip-712#definition-of-hashstruct. The hash can be used together with
+     * {ECDSA-recover} to obtain the signer of a message.
+     *
+     * Modified from [Solady](https://github.com/Vectorized/solady/blob/main/src/utils/EIP712.sol#L124-L142)
+     * @custom:example ```solidity
+     *   bytes32 digest = _hashTypedData(keccak256(abi.encode(
+     *     keccak256("Mail(address to,string contents)"),
+     *     mailTo,
+     *     keccak256(bytes(mailContents))
+     *   )));
+     *   address signer = ECDSA.recover(digest, signature);
+     * ```
+     */
+    function _hashTypedData(bytes32 structHash) private view returns (bytes32 digest) {
+        // We will use `digest` to store the domain separator to save a bit of gas.
+        digest = DOMAIN_SEPARATOR();
+
+        assembly ("memory-safe") {
+            // Compute the digest
+            mstore(0x00, 0x1901000000000000) // Store "\x19\x01"
+            mstore(0x1a, digest) // Store the domain separator
+            mstore(0x3a, structHash) // Store the struct hash
+            digest := keccak256(0x18, 0x42)
+            // Restore the part of the free memory slot that was overwritten
+            // (assumes pointer is less than 2^48)
+            mstore(0x3a, 0)
+        }
     }
 }
