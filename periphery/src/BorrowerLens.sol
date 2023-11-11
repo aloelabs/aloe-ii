@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
+import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
@@ -10,12 +11,30 @@ import {LiquidityAmounts} from "aloe-ii-core/libraries/LiquidityAmounts.sol";
 import {square, mulDiv128, mulDiv128Up} from "aloe-ii-core/libraries/MulDiv.sol";
 import {TickMath} from "aloe-ii-core/libraries/TickMath.sol";
 import {Borrower} from "aloe-ii-core/Borrower.sol";
+import {Factory} from "aloe-ii-core/Factory.sol";
 
 import {Uniswap} from "./libraries/Uniswap.sol";
 
 contract BorrowerLens {
     using SoladyMath for uint256;
     using Uniswap for Uniswap.Position;
+
+    function predictBorrowerAddress(
+        IUniswapV3Pool pool,
+        address owner,
+        bytes12 salt,
+        address caller,
+        Factory factory
+    ) external view returns (address borrower) {
+        (, , Borrower implementation) = factory.getMarket(pool);
+
+        borrower = ClonesWithImmutableArgs.predictDeterministicAddress(
+            address(implementation),
+            bytes32(bytes.concat(bytes20(caller), salt)),
+            address(factory),
+            abi.encodePacked(owner)
+        );
+    }
 
     /// @dev Mirrors the logic in `BalanceSheet.isHealthy`, but returns numbers instead of a boolean
     function getHealth(
