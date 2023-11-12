@@ -7,7 +7,7 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {BORROWS_SCALER, ONE} from "./libraries/constants/Constants.sol";
-import {Q112} from "./libraries/constants/Q.sol";
+import {Q112, Q224} from "./libraries/constants/Q.sol";
 import {Rewards} from "./libraries/Rewards.sol";
 
 import {Ledger} from "./Ledger.sol";
@@ -110,18 +110,26 @@ contract Lender is Ledger {
      * supports the additional flow where you prepay `amount` instead of relying on approve/transferFrom.
      * @param amount The amount of underlying tokens to deposit
      * @param beneficiary The receiver of `shares`
-     * @param courierId The identifier of the referrer to credit for this deposit. 0 indicates none.
+     * @param courierId The identifier of the referrer to credit for `beneficiary`'s interest. 0 indicates none.
+     * // TODO: docs for new params
      * @return shares The number of shares (banknotes) minted to `beneficiary`
      */
-    function deposit(uint256 amount, address beneficiary, uint32 courierId) public returns (uint256 shares) {
+    function deposit(
+        uint256 amount,
+        address beneficiary,
+        uint32 courierId,
+        uint32 deadline,
+        bytes calldata signature
+    ) public returns (uint256 shares) {
         if (courierId != 0) {
+            // Callers are free to set their own courier, but they need permission to mess with others'
+            if (msg.sender != beneficiary) _permitCourier(beneficiary, courierId, deadline, signature);
+
             (address courier, uint16 cut) = FACTORY.couriers(courierId);
 
             require(
-                // Callers are free to set their own courier, but they need permission to mess with others'
-                (msg.sender == beneficiary || allowance[beneficiary][msg.sender] != 0) &&
-                    // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
-                    (beneficiary != RESERVE) &&
+                // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
+                (beneficiary != RESERVE) &&
                     // Payout logic can't handle self-reference, so don't let accounts credit themselves
                     (beneficiary != courier) &&
                     // Make sure `cut` has been set
@@ -156,12 +164,12 @@ contract Lender is Ledger {
     }
 
     function deposit(uint256 amount, address beneficiary) external returns (uint256 shares) {
-        shares = deposit(amount, beneficiary, 0);
+        shares = deposit(amount, beneficiary, 0, 0, msg.data);
     }
 
     function mint(uint256 shares, address beneficiary) external returns (uint256 amount) {
         amount = previewMint(shares);
-        deposit(amount, beneficiary, 0);
+        deposit(amount, beneficiary, 0, 0, msg.data);
     }
 
     /**
@@ -378,6 +386,31 @@ contract Lender is Ledger {
     }
 
     /*//////////////////////////////////////////////////////////////
+                               REFERRALS
+    //////////////////////////////////////////////////////////////*/
+
+    function _permitCourier(address account, uint32 id, uint32 deadline, bytes calldata signature) private {
+        // Unchecked because incrementing nonce cannot realistically overflow
+        unchecked {
+            bytes32 digest = _hashTypedData(
+                keccak256(
+                    abi.encode(
+                        keccak256("CreditCourier(address account,uint32 id,uint256 nonce,uint32 deadline)"),
+                        account,
+                        id,
+                        nonces[account]++,
+                        deadline
+                    )
+                )
+            );
+            require(
+                account == ECDSA.recoverCalldata(digest, signature) && deadline >= block.timestamp,
+                "Aloe: signature"
+            );
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
                                 HELPERS
     //////////////////////////////////////////////////////////////*/
 
@@ -436,20 +469,18 @@ contract Lender is Ledger {
             Rewards.updateUserState(s, a, to, data % Q112);
 
             // Only set courier if balance is 0. Otherwise previous courier may be cheated out of fees.
-            if (data % Q112 == 0) {
-                data = uint256(courierId) << 224;
+            if (data % Q112 == 0 || (data >> 224 == 0 && courierId != 0)) {
+                data %= Q224;
+                data += uint256(courierId) << 224;
                 emit CreditCourier(courierId, to);
             }
 
-            // Keep track of principle iff `to` has a courier
-            if (data >> 224 != 0) {
-                require(amount + ((data >> 112) % Q112) < Q112);
-                data += amount << 112;
-            }
+            // Since `totalSupply` fits in uint112, the user's balance will too. No need to check that. We do,
+            // however, need to check that their principle will fit.
+            require(amount + ((data >> 112) % Q112) < Q112);
 
-            // Keep track of balance regardless of courier.
-            // Since `totalSupply` fits in uint112, the user's balance will too. No need to check here.
-            balances[to] = data + shares;
+            // Update balance and principle
+            balances[to] = data + shares + (amount << 112);
         }
 
         emit Transfer(address(0), to, shares);
@@ -474,19 +505,18 @@ contract Lender is Ledger {
             // -------------------------------
             uint256 data = balances[from];
             uint256 balance = data % Q112;
+            uint256 principleAssets = (data >> 112) % Q112;
 
             // Get rewards accounting out of the way
             (Rewards.Storage storage s, uint144 a) = Rewards.load();
             Rewards.updatePoolState(s, a, newTotalSupply);
             Rewards.updateUserState(s, a, from, balance);
 
-            uint32 id = uint32(data >> 224);
-            if (id != 0) {
-                uint256 principleAssets = (data >> 112) % Q112;
+            if (data >> 224 != 0) {
                 uint256 principleShares = principleAssets.mulDivUp(totalSupply_, inventory);
 
                 if (balance > principleShares) {
-                    (address courier, uint16 cut) = FACTORY.couriers(id);
+                    (address courier, uint16 cut) = FACTORY.couriers(uint32(data >> 224));
 
                     // Compute total fee owed to courier. Take it out of balance so that
                     // comparison is correct later on (`shares <= balance`)
@@ -507,13 +537,13 @@ contract Lender is Ledger {
                     balances[courier] += fee;
                     emit Transfer(from, courier, fee);
                 }
-
-                // Update principle
-                data -= ((principleAssets * shares) / balance) << 112;
             }
 
+            // Prevent underflow
             require(shares <= balance);
-            balances[from] = data - shares;
+
+            // Update balance and principle
+            balances[from] = data - shares - (((principleAssets * shares) / balance) << 112);
         }
 
         emit Transfer(from, address(0), shares);

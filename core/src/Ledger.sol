@@ -173,7 +173,7 @@ contract Ledger {
         return uint32(balances[account] >> 224);
     }
 
-    /// @notice The lending principle of `account`. Only tracked if they have a courier.
+    /// @notice The lending principle of `account`
     function principleOf(address account) external view returns (uint256) {
         return (balances[account] >> 112) % Q112;
     }
