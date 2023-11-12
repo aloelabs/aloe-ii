@@ -1,13 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.17;
 
-import {ECDSA} from "solady/utils/ECDSA.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
 
 import {BORROWS_SCALER, ONE} from "./libraries/constants/Constants.sol";
-import {Q112, Q224} from "./libraries/constants/Q.sol";
+import {Q112} from "./libraries/constants/Q.sol";
 import {Rewards} from "./libraries/Rewards.sol";
 
 import {Ledger} from "./Ledger.sol";
@@ -110,26 +109,18 @@ contract Lender is Ledger {
      * supports the additional flow where you prepay `amount` instead of relying on approve/transferFrom.
      * @param amount The amount of underlying tokens to deposit
      * @param beneficiary The receiver of `shares`
-     * @param courierId The identifier of the referrer to credit for `beneficiary`'s interest. 0 indicates none.
-     * // TODO: docs for new params
+     * @param courierId The identifier of the referrer to credit for this deposit. 0 indicates none.
      * @return shares The number of shares (banknotes) minted to `beneficiary`
      */
-    function deposit(
-        uint256 amount,
-        address beneficiary,
-        uint32 courierId,
-        uint32 deadline,
-        bytes calldata signature
-    ) public returns (uint256 shares) {
+    function deposit(uint256 amount, address beneficiary, uint32 courierId) public returns (uint256 shares) {
         if (courierId != 0) {
-            // Callers are free to set their own courier, but they need permission to mess with others'
-            if (msg.sender != beneficiary) _permitCourier(beneficiary, courierId, deadline, signature);
-
             (address courier, uint16 cut) = FACTORY.couriers(courierId);
 
             require(
-                // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
-                (beneficiary != RESERVE) &&
+                // Callers are free to set their own courier, but they need permission to mess with others'
+                (msg.sender == beneficiary || allowance[beneficiary][msg.sender] != 0) &&
+                    // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
+                    (beneficiary != RESERVE) &&
                     // Payout logic can't handle self-reference, so don't let accounts credit themselves
                     (beneficiary != courier) &&
                     // Make sure `cut` has been set
@@ -164,12 +155,12 @@ contract Lender is Ledger {
     }
 
     function deposit(uint256 amount, address beneficiary) external returns (uint256 shares) {
-        shares = deposit(amount, beneficiary, 0, 0, msg.data);
+        shares = deposit(amount, beneficiary, 0);
     }
 
     function mint(uint256 shares, address beneficiary) external returns (uint256 amount) {
         amount = previewMint(shares);
-        deposit(amount, beneficiary, 0, 0, msg.data);
+        deposit(amount, beneficiary, 0);
     }
 
     /**
@@ -363,51 +354,41 @@ contract Lender is Ledger {
         bytes32 r,
         bytes32 s
     ) external {
-        // Unchecked because incrementing nonce cannot realistically overflow
-        unchecked {
-            bytes32 digest = _hashTypedData(
-                keccak256(
-                    abi.encode(
-                        keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"),
-                        owner,
-                        spender,
-                        value,
-                        nonces[owner]++,
-                        deadline
-                    )
-                )
-            );
-            require(owner == ECDSA.recover(digest, v, r, s) && deadline >= block.timestamp, "Aloe: signature");
+        require(deadline >= block.timestamp, "Aloe: permit expired");
 
-            allowance[owner][spender] = value;
+        // Unchecked because the only math done is incrementing
+        // the owner's nonce which cannot realistically overflow.
+        unchecked {
+            address recoveredAddress = ecrecover(
+                keccak256(
+                    abi.encodePacked(
+                        "\x19\x01",
+                        DOMAIN_SEPARATOR(),
+                        keccak256(
+                            abi.encode(
+                                keccak256(
+                                    "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+                                ),
+                                owner,
+                                spender,
+                                value,
+                                nonces[owner]++,
+                                deadline
+                            )
+                        )
+                    )
+                ),
+                v,
+                r,
+                s
+            );
+
+            require(recoveredAddress != address(0) && recoveredAddress == owner, "Aloe: permit invalid");
+
+            allowance[recoveredAddress][spender] = value;
         }
 
         emit Approval(owner, spender, value);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                               REFERRALS
-    //////////////////////////////////////////////////////////////*/
-
-    function _permitCourier(address account, uint32 id, uint32 deadline, bytes calldata signature) private {
-        // Unchecked because incrementing nonce cannot realistically overflow
-        unchecked {
-            bytes32 digest = _hashTypedData(
-                keccak256(
-                    abi.encode(
-                        keccak256("CreditCourier(address account,uint32 id,uint256 nonce,uint32 deadline)"),
-                        account,
-                        id,
-                        nonces[account]++,
-                        deadline
-                    )
-                )
-            );
-            require(
-                account == ECDSA.recoverCalldata(digest, signature) && deadline >= block.timestamp,
-                "Aloe: signature"
-            );
-        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -469,18 +450,20 @@ contract Lender is Ledger {
             Rewards.updateUserState(s, a, to, data % Q112);
 
             // Only set courier if balance is 0. Otherwise previous courier may be cheated out of fees.
-            if (data % Q112 == 0 || (data >> 224 == 0 && courierId != 0)) {
-                data %= Q224;
-                data += uint256(courierId) << 224;
+            if (data % Q112 == 0) {
+                data = uint256(courierId) << 224;
                 emit CreditCourier(courierId, to);
             }
 
-            // Since `totalSupply` fits in uint112, the user's balance will too. No need to check that. We do,
-            // however, need to check that their principle will fit.
-            require(amount + ((data >> 112) % Q112) < Q112);
+            // Keep track of principle iff `to` has a courier
+            if (data >> 224 != 0) {
+                require(amount + ((data >> 112) % Q112) < Q112);
+                data += amount << 112;
+            }
 
-            // Update balance and principle
-            balances[to] = data + shares + (amount << 112);
+            // Keep track of balance regardless of courier.
+            // Since `totalSupply` fits in uint112, the user's balance will too. No need to check here.
+            balances[to] = data + shares;
         }
 
         emit Transfer(address(0), to, shares);
@@ -505,18 +488,19 @@ contract Lender is Ledger {
             // -------------------------------
             uint256 data = balances[from];
             uint256 balance = data % Q112;
-            uint256 principleAssets = (data >> 112) % Q112;
 
             // Get rewards accounting out of the way
             (Rewards.Storage storage s, uint144 a) = Rewards.load();
             Rewards.updatePoolState(s, a, newTotalSupply);
             Rewards.updateUserState(s, a, from, balance);
 
-            if (data >> 224 != 0) {
+            uint32 id = uint32(data >> 224);
+            if (id != 0) {
+                uint256 principleAssets = (data >> 112) % Q112;
                 uint256 principleShares = principleAssets.mulDivUp(totalSupply_, inventory);
 
                 if (balance > principleShares) {
-                    (address courier, uint16 cut) = FACTORY.couriers(uint32(data >> 224));
+                    (address courier, uint16 cut) = FACTORY.couriers(id);
 
                     // Compute total fee owed to courier. Take it out of balance so that
                     // comparison is correct later on (`shares <= balance`)
@@ -537,13 +521,13 @@ contract Lender is Ledger {
                     balances[courier] += fee;
                     emit Transfer(from, courier, fee);
                 }
+
+                // Update principle
+                data -= ((principleAssets * shares) / balance) << 112;
             }
 
-            // Prevent underflow
             require(shares <= balance);
-
-            // Update balance and principle
-            balances[from] = data - shares - (((principleAssets * shares) / balance) << 112);
+            balances[from] = data - shares;
         }
 
         emit Transfer(from, address(0), shares);
@@ -572,36 +556,5 @@ contract Lender is Ledger {
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
         lastAccrualTime = uint32(block.timestamp); // Disables reentrancy guard if there was one
-    }
-
-    /**
-     * @dev Returns the hash of the fully encoded EIP-712 message for this domain, given `structHash` as defined in
-     * https://eips.ethereum.org/EIPS/eip-712#definition-of-hashstruct. The hash can be used together with
-     * {ECDSA-recover} to obtain the signer of a message.
-     *
-     * Modified from [Solady](https://github.com/Vectorized/solady/blob/main/src/utils/EIP712.sol#L124-L142)
-     * @custom:example ```solidity
-     *   bytes32 digest = _hashTypedData(keccak256(abi.encode(
-     *     keccak256("Mail(address to,string contents)"),
-     *     mailTo,
-     *     keccak256(bytes(mailContents))
-     *   )));
-     *   address signer = ECDSA.recover(digest, signature);
-     * ```
-     */
-    function _hashTypedData(bytes32 structHash) private view returns (bytes32 digest) {
-        // We will use `digest` to store the domain separator to save a bit of gas.
-        digest = DOMAIN_SEPARATOR();
-
-        assembly ("memory-safe") {
-            // Compute the digest
-            mstore(0x00, 0x1901000000000000) // Store "\x19\x01"
-            mstore(0x1a, digest) // Store the domain separator
-            mstore(0x3a, structHash) // Store the struct hash
-            digest := keccak256(0x18, 0x42)
-            // Restore the part of the free memory slot that was overwritten
-            // (assumes pointer is less than 2^48)
-            mstore(0x3a, 0)
-        }
     }
 }

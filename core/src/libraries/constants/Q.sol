@@ -32,5 +32,3 @@ uint256 constant Q112 = 1 << 112;
 uint256 constant Q120 = 1 << 120;
 
 uint256 constant Q128 = 1 << 128;
-
-uint256 constant Q224 = 1 << 224;
