@@ -25,19 +25,18 @@ library Oracle {
      * @return sqrtMeanPriceX96 sqrt(TWAP) over the past `UNISWAP_AVG_WINDOW` seconds
      */
     function consult(IUniswapV3Pool pool, uint40 seed) internal view returns (uint56 metric, uint160 sqrtMeanPriceX96) {
-        (, int24 currentTick, uint16 observationIndex, uint16 observationCardinality, , , ) = pool.slot0();
-
         unchecked {
             int56[] memory tickCumulatives = new int56[](3);
-            uint160[] memory secondsPerLiquidityCumulativeX128s = new uint160[](3);
 
             if ((seed >> 32) > 0) {
                 uint32[] memory secondsAgos = new uint32[](3);
                 secondsAgos[0] = UNISWAP_AVG_WINDOW * 2;
                 secondsAgos[1] = UNISWAP_AVG_WINDOW;
                 secondsAgos[2] = 0;
-                (tickCumulatives, secondsPerLiquidityCumulativeX128s) = pool.observe(secondsAgos);
+                (tickCumulatives, ) = pool.observe(secondsAgos);
             } else {
+                (, int24 currentTick, uint16 observationIndex, uint16 observationCardinality, , , ) = pool.slot0();
+
                 (tickCumulatives[0], ) = observe(
                     pool,
                     uint32(block.timestamp - UNISWAP_AVG_WINDOW * 2),
@@ -46,7 +45,7 @@ library Oracle {
                     observationIndex,
                     observationCardinality
                 );
-                (tickCumulatives[1], secondsPerLiquidityCumulativeX128s[1]) = observe(
+                (tickCumulatives[1], ) = observe(
                     pool,
                     uint32(block.timestamp - UNISWAP_AVG_WINDOW),
                     seed % Q16,
@@ -54,7 +53,7 @@ library Oracle {
                     observationIndex,
                     observationCardinality
                 );
-                (tickCumulatives[2], secondsPerLiquidityCumulativeX128s[2]) = observe(
+                (tickCumulatives[2], ) = observe(
                     pool,
                     uint32(block.timestamp),
                     observationIndex,

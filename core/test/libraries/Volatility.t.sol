@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 import {TickMath} from "src/libraries/TickMath.sol";
-import {Volatility, mulDiv96} from "src/libraries/Volatility.sol";
+import {Volatility} from "src/libraries/Volatility.sol";
 
 contract VolatilityTest is Test {
     function setUp() public {}
