@@ -109,18 +109,24 @@ contract Lender is Ledger {
      * supports the additional flow where you prepay `amount` instead of relying on approve/transferFrom.
      * @param amount The amount of underlying tokens to deposit
      * @param beneficiary The receiver of `shares`
-     * @param courierId The identifier of the referrer to credit for this deposit. 0 indicates none.
+     * @param courierId The ID of the courier (or 0, to indicate lack thereof) that will receive a cut of
+     * `beneficiary`'s future interest. Only takes effect when `balanceOf(beneficiary) == 0`. In
+     * all other cases, pass 0 to avoid wasting gas on courier-related checks.
      * @return shares The number of shares (banknotes) minted to `beneficiary`
      */
     function deposit(uint256 amount, address beneficiary, uint32 courierId) public returns (uint256 shares) {
         if (courierId != 0) {
+            // Callers are free to set their own courier, but they need permission to mess with others'
+            if (msg.sender != beneficiary) {
+                require(allowance[beneficiary][msg.sender] > 0, "Aloe: courier");
+                allowance[beneficiary][msg.sender] = 0;
+            }
+
             (address courier, uint16 cut) = FACTORY.couriers(courierId);
 
             require(
-                // Callers are free to set their own courier, but they need permission to mess with others'
-                (msg.sender == beneficiary || allowance[beneficiary][msg.sender] != 0) &&
-                    // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
-                    (beneficiary != RESERVE) &&
+                // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
+                (beneficiary != RESERVE) &&
                     // Payout logic can't handle self-reference, so don't let accounts credit themselves
                     (beneficiary != courier) &&
                     // Make sure `cut` has been set
