@@ -510,15 +510,12 @@ contract Lender is Ledger {
                     // Compute portion of fee to pay out during this burn.
                     fee = (fee * shares) / balance;
 
-                    // Send `fee` from `from` to `courier.wallet`.
+                    // Send `fee` from `from` to `courier`.
                     // NOTE: We skip principle update on courier, so if couriers credit
                     // each other, 100% of `fee` is treated as profit and will pass through
                     // to the next courier.
-                    // NOTE: We skip rewards update on the courier. This means accounting isn't
-                    // accurate for them, so they *should not* be allowed to claim rewards. This
-                    // slightly reduces the effective overall rewards rate.
                     data -= fee;
-                    balances[courier] += fee;
+                    Rewards.updateUserState(s, a, courier, (balances[courier] += fee) - fee);
                     emit Transfer(from, courier, fee);
                 }
 
