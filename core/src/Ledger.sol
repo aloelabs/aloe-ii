@@ -6,6 +6,7 @@ import {IERC165} from "openzeppelin-contracts/contracts/interfaces/IERC165.sol";
 import {IERC2612} from "openzeppelin-contracts/contracts/interfaces/IERC2612.sol";
 import {IERC4626} from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
 
@@ -353,14 +354,13 @@ contract Ledger {
                 dt: block.timestamp - cache.lastAccrualTime
             });
 
-            cache.borrowIndex = (cache.borrowIndex * accrualFactor) / ONE;
+            cache.borrowIndex = SoladyMath.min((cache.borrowIndex * accrualFactor) / ONE, type(uint72).max);
             cache.lastAccrualTime = 0; // 0 in storage means locked to reentrancy; 0 in `cache` means `borrowIndex` was updated
 
             uint256 newInventory = cache.lastBalance + (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
-            uint256 newTotalSupply = Math.mulDiv(
-                cache.totalSupply,
-                newInventory,
-                newInventory - (newInventory - oldInventory) / rf
+            uint256 newTotalSupply = SoladyMath.min(
+                Math.mulDiv(cache.totalSupply, newInventory, newInventory - (newInventory - oldInventory) / rf),
+                type(uint112).max
             );
             return (cache, newInventory, newTotalSupply);
         }
