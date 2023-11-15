@@ -16,24 +16,49 @@ contract Router {
         PERMIT2 = permit2;
     }
 
-    function depositWithPermit(
+    /**
+     * @notice Deposits `amount` of `lender.asset()` to `lender` using {`nonce`, `deadline`, `signature`} for Permit2,
+     * and gives `courierId` a cut of future interest earned by `msg.sender`. `v`, `r`, and `s` are used with
+     * `lender.permit` in order to (a) achieve 0 balance if necessary and (b) set the courier.
+     * @dev This innoculates `Lender` against a potential courier frontrunning attack by redeeming all shares (if any
+     * are present) before assigning the new `courierId`. `Lender` then clears the `permit`ed allowance in `deposit`,
+     * meaning this contract is left with no special permissions.
+     */
+    function depositWithPermit2(
         Lender lender,
         uint256 amount,
-        uint256 allowance,
+        uint256 nonce,
         uint256 deadline,
+        bytes calldata signature,
+        uint32 courierId,
         uint8 v,
         bytes32 r,
-        bytes32 s,
-        uint32 courierId,
-        uint8 vL,
-        bytes32 rL,
-        bytes32 sL
+        bytes32 s
     ) external returns (uint256 shares) {
-        lender.permit(msg.sender, address(this), 1, deadline, vL, rL, sL);
+        lender.permit(msg.sender, address(this), type(uint256).max, deadline, v, r, s);
 
-        ERC20 asset = lender.asset();
-        asset.permit(msg.sender, address(this), allowance, deadline, v, r, s);
-        asset.safeTransferFrom(msg.sender, address(lender), amount);
+        if (lender.balanceOf(msg.sender) > 0) {
+            lender.redeem(type(uint256).max, msg.sender, msg.sender);
+        }
+
+        // Transfer tokens from the caller to the lender.
+        PERMIT2.permitTransferFrom(
+            // The permit message.
+            IPermit2.PermitTransferFrom({
+                permitted: IPermit2.TokenPermissions({token: lender.asset(), amount: amount}),
+                nonce: nonce,
+                deadline: deadline
+            }),
+            // The transfer recipient and amount.
+            IPermit2.SignatureTransferDetails({to: address(lender), requestedAmount: amount}),
+            // The owner of the tokens, which must also be
+            // the signer of the message, otherwise this call
+            // will fail.
+            msg.sender,
+            // The packed signature that was the result of signing
+            // the EIP712 hash of `permit`.
+            signature
+        );
 
         shares = lender.deposit(amount, msg.sender, courierId);
     }

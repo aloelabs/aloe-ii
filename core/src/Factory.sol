@@ -239,6 +239,7 @@ contract Factory {
             }
         }
 
+        require(address(rewardsToken).code.length > 0);
         rewardsToken.safeTransfer(beneficiary, earned);
     }
 

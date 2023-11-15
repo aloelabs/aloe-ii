@@ -12,10 +12,6 @@ import {Rewards} from "./libraries/Rewards.sol";
 import {Ledger} from "./Ledger.sol";
 import {IRateModel} from "./RateModel.sol";
 
-interface IFlashBorrower {
-    function onFlashLoan(address initiator, uint256 amount, bytes calldata data) external;
-}
-
 /// @title Lender
 /// @author Aloe Labs, Inc.
 /// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
@@ -58,6 +54,8 @@ contract Lender is Ledger {
 
     /// @notice Sets the `rateModel` and `reserveFactor`. Only the `FACTORY` can call this.
     function setRateModelAndReserveFactor(IRateModel rateModel_, uint8 reserveFactor_) external {
+        this.accrueInterest();
+
         require(msg.sender == address(FACTORY) && reserveFactor_ > 0);
         rateModel = rateModel_;
         reserveFactor = reserveFactor_;
@@ -109,18 +107,24 @@ contract Lender is Ledger {
      * supports the additional flow where you prepay `amount` instead of relying on approve/transferFrom.
      * @param amount The amount of underlying tokens to deposit
      * @param beneficiary The receiver of `shares`
-     * @param courierId The identifier of the referrer to credit for this deposit. 0 indicates none.
+     * @param courierId The ID of the courier (or 0, to indicate lack thereof) that will receive a cut of
+     * `beneficiary`'s future interest. Only takes effect when `balanceOf(beneficiary) == 0`. In
+     * all other cases, pass 0 to avoid wasting gas on courier-related checks.
      * @return shares The number of shares (banknotes) minted to `beneficiary`
      */
     function deposit(uint256 amount, address beneficiary, uint32 courierId) public returns (uint256 shares) {
         if (courierId != 0) {
+            // Callers are free to set their own courier, but they need permission to mess with others'
+            if (msg.sender != beneficiary) {
+                require(allowance[beneficiary][msg.sender] > 0, "Aloe: courier");
+                allowance[beneficiary][msg.sender] = 0;
+            }
+
             (address courier, uint16 cut) = FACTORY.couriers(courierId);
 
             require(
-                // Callers are free to set their own courier, but they need permission to mess with others'
-                (msg.sender == beneficiary || allowance[beneficiary][msg.sender] != 0) &&
-                    // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
-                    (beneficiary != RESERVE) &&
+                // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
+                (beneficiary != RESERVE) &&
                     // Payout logic can't handle self-reference, so don't let accounts credit themselves
                     (beneficiary != courier) &&
                     // Make sure `cut` has been set
@@ -284,28 +288,6 @@ contract Lender is Ledger {
         require(cache.lastBalance <= asset().balanceOf(address(this)), "Aloe: insufficient pre-pay");
 
         emit Repay(msg.sender, beneficiary, amount, units);
-    }
-
-    /**
-     * @notice Gives `to` temporary control over `amount` of `asset` in the `IFlashBorrower.onFlashLoan` callback.
-     * Arbitrary `data` can be forwarded to the callback. Before returning, the `IFlashBorrower` must have sent
-     * at least `amount` back to this contract.
-     * @dev Reentrancy guard is critical here! Without it, one could use a flash loan to repay a normal loan.
-     */
-    function flash(uint256 amount, IFlashBorrower to, bytes calldata data) external {
-        // Guard against reentrancy
-        uint32 lastAccrualTime_ = lastAccrualTime;
-        require(lastAccrualTime_ != 0, "Aloe: locked");
-        lastAccrualTime = 0;
-
-        ERC20 asset_ = asset();
-
-        uint256 balance = asset_.balanceOf(address(this));
-        asset_.safeTransfer(address(to), amount);
-        to.onFlashLoan(msg.sender, amount, data);
-        require(balance <= asset_.balanceOf(address(this)), "Aloe: insufficient pre-pay");
-
-        lastAccrualTime = lastAccrualTime_;
     }
 
     function accrueInterest() external returns (uint72) {
@@ -540,7 +522,7 @@ contract Lender is Ledger {
         uint256 newTotalSupply;
         (cache, inventory, newTotalSupply) = _previewInterest(cache); // Reverts if reentrancy guard is active
 
-        // Update reserves (new `totalSupply` is only in memory, but `balanceOf` is updated in storage)
+        // Update reserves (new `totalSupply` is only in memory, but `balances[RESERVE]` is updated in storage)
         if (newTotalSupply > cache.totalSupply) {
             cache.totalSupply = _mint(RESERVE, newTotalSupply - cache.totalSupply, 0, cache.totalSupply, 0);
         }

@@ -36,6 +36,10 @@ library Oracle {
                 (tickCumulatives, ) = pool.observe(secondsAgos);
             } else {
                 (, int24 currentTick, uint16 observationIndex, uint16 observationCardinality, , , ) = pool.slot0();
+                {
+                    (, , , bool initialized) = pool.observations((observationIndex + 1) % observationCardinality);
+                    if (!initialized) observationCardinality = observationIndex + 1;
+                }
 
                 (tickCumulatives[0], ) = observe(
                     pool,
@@ -132,7 +136,14 @@ library Oracle {
      * this method more efficient than Uniswap's binary search.
      * @param tick The current tick (from `pool.slot0()`)
      * @param observationIndex The current observation index (from `pool.slot0()`)
-     * @param observationCardinality The current observation cardinality (from `pool.slot0()`)
+     * @param observationCardinality The current observation cardinality. Should be determined as follows:
+     * ```solidity
+     *   (, , uint16 observationIndex, uint16 observationCardinality, , , ) = pool.slot0();
+     *   (, , , bool initialized) = pool.observations((observationIndex + 1) % observationCardinality);
+     *   if (!initialized) observationCardinality = observationIndex + 1;
+     * ```
+     * NOTE: If you fail to account for the `!initialized` case, and `target` comes before the oldest observation,
+     * this may return incorrect data instead of reverting with "OLD".
      * @return The tick * time elapsed since `pool` was first initialized
      * @return The time elapsed / max(1, liquidity) since `pool` was first initialized
      */
@@ -154,7 +165,7 @@ library Oracle {
                 }
 
                 if (timeL < target && seed == observationIndex) {
-                    uint56 delta = uint56(target - timeL);
+                    uint56 delta = target - timeL;
                     uint128 liquidity = pool.liquidity();
                     return (
                         tickCumL + tick * int56(delta),
@@ -166,12 +177,12 @@ library Oracle {
                 (uint32 timeR, int56 tickCumR, uint160 liqCumR, ) = pool.observations(seed);
 
                 if (timeL < target && target < timeR) {
-                    uint56 delta = uint56(target - timeL);
-                    uint56 denom = uint56(timeR - timeL);
+                    uint56 delta = target - timeL;
+                    uint56 denom = timeR - timeL;
                     // Uniswap divides before multiplying, so we do too
                     return (
                         tickCumL + ((tickCumR - tickCumL) / int56(denom)) * int56(delta),
-                        liqCumL + uint160(((liqCumR - liqCumL) * delta) / denom)
+                        liqCumL + uint160((uint256(liqCumR - liqCumL) * delta) / denom)
                     );
                 }
 
