@@ -81,10 +81,10 @@ contract LenderTest is Test {
             prevIndex = currIndex;
         }
 
-        // 52 weeks per year, so at 53 weeks we expect failure
+        // 52 weeks per year, so at 53 weeks we expect it to hit max uint72
         vm.warp(1 weeks * 53);
-        vm.expectRevert();
         lender.accrueInterest();
+        assertEq(lender.borrowIndex(), type(uint72).max);
     }
 
     function test_accrueInterest(uint256 yieldPerSecond) public {
