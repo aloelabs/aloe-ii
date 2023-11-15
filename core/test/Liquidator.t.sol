@@ -487,6 +487,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.liquidate(this, bytes(""), 1, (1 << 32));
 
         skip(1);
+        borrow0 = lender0.borrowBalance(address(account));
 
         (prices, ) = account.getPrices(1 << 32);
 
