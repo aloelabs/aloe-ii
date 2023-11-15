@@ -12,10 +12,6 @@ import {Rewards} from "./libraries/Rewards.sol";
 import {Ledger} from "./Ledger.sol";
 import {IRateModel} from "./RateModel.sol";
 
-interface IFlashBorrower {
-    function onFlashLoan(address initiator, uint256 amount, bytes calldata data) external;
-}
-
 /// @title Lender
 /// @author Aloe Labs, Inc.
 /// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
@@ -286,28 +282,6 @@ contract Lender is Ledger {
         require(cache.lastBalance <= asset().balanceOf(address(this)), "Aloe: insufficient pre-pay");
 
         emit Repay(msg.sender, beneficiary, amount, units);
-    }
-
-    /**
-     * @notice Gives `to` temporary control over `amount` of `asset` in the `IFlashBorrower.onFlashLoan` callback.
-     * Arbitrary `data` can be forwarded to the callback. Before returning, the `IFlashBorrower` must have sent
-     * at least `amount` back to this contract.
-     * @dev Reentrancy guard is critical here! Without it, one could use a flash loan to repay a normal loan.
-     */
-    function flash(uint256 amount, IFlashBorrower to, bytes calldata data) external {
-        // Guard against reentrancy
-        uint32 lastAccrualTime_ = lastAccrualTime;
-        require(lastAccrualTime_ != 0, "Aloe: locked");
-        lastAccrualTime = 0;
-
-        ERC20 asset_ = asset();
-
-        uint256 balance = asset_.balanceOf(address(this));
-        asset_.safeTransfer(address(to), amount);
-        to.onFlashLoan(msg.sender, amount, data);
-        require(balance <= asset_.balanceOf(address(this)), "Aloe: insufficient pre-pay");
-
-        lastAccrualTime = lastAccrualTime_;
     }
 
     function accrueInterest() external returns (uint72) {
