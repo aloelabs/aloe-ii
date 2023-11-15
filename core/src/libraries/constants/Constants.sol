@@ -89,7 +89,7 @@ uint256 constant LIQUIDATION_INCENTIVE = 20;
 
 /// @dev The minimum time that must pass between `Borrower.warn` and `Borrower.liquidate` for any liquidation that
 /// involves the swap callbacks (`swap1For0` and `swap0For1`). There is no grace period for in-kind liquidations.
-uint256 constant LIQUIDATION_GRACE_PERIOD = 2 minutes;
+uint256 constant LIQUIDATION_GRACE_PERIOD = 5 minutes;
 
 /// @dev The minimum scaling factor by which `sqrtMeanPriceX96` is multiplied or divided to get probe prices
 uint256 constant PROBE_SQRT_SCALER_MIN = 1.026248453011e12;
