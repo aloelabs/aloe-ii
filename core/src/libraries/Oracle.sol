@@ -13,48 +13,29 @@ import {TickMath} from "./TickMath.sol";
 /// @author Aloe Labs, Inc.
 /// @author Modified from [Uniswap](https://github.com/Uniswap/v3-periphery/blob/main/contracts/libraries/OracleLibrary.sol)
 library Oracle {
-    struct PoolData {
-        // the current price (from pool.slot0())
-        uint160 sqrtPriceX96;
-        // the current tick (from pool.slot0())
-        int24 currentTick;
-        // the mean sqrt(price) over some period (OracleLibrary.consult() to get arithmeticMeanTick, then use TickMath)
-        uint160 sqrtMeanPriceX96;
-        // the mean liquidity over some period (OracleLibrary.consult())
-        uint160 secondsPerLiquidityX128;
-        // the number of seconds to look back when getting mean tick & mean liquidity
-        uint32 oracleLookback;
-        // the liquidity depth at currentTick (from pool.liquidity())
-        uint128 tickLiquidity;
-    }
-
     /**
      * @notice Calculates time-weighted means of tick and liquidity for a given Uniswap V3 pool
      * @param pool Address of the pool that we want to observe
      * @param seed The indices of `pool.observations` where we start our search for the 30-minute-old (lowest 16 bits)
      * and 60-minute-old (next 16 bits) observations. Determine these off-chain to make this method more efficient
      * than Uniswap's binary search. If any of the highest 8 bits are set, we fallback to onchain binary search.
-     * @return data An up-to-date `PoolData` struct containing all fields except `oracleLookback` and `tickLiquidity`
      * @return metric If the price was manipulated at any point in the past `UNISWAP_AVG_WINDOW` seconds, then at
      * some point in that period, this value will spike. It may still be high now, or (if the attacker is smart and
      * well-financed) it may have returned to nominal.
+     * @return sqrtMeanPriceX96 sqrt(TWAP) over the past `UNISWAP_AVG_WINDOW` seconds
      */
-    function consult(IUniswapV3Pool pool, uint40 seed) internal view returns (PoolData memory data, uint56 metric) {
-        uint16 observationIndex;
-        uint16 observationCardinality;
-        (data.sqrtPriceX96, data.currentTick, observationIndex, observationCardinality, , , ) = pool.slot0();
-
+    function consult(IUniswapV3Pool pool, uint40 seed) internal view returns (uint56 metric, uint160 sqrtMeanPriceX96) {
         unchecked {
             int56[] memory tickCumulatives = new int56[](3);
-            uint160[] memory secondsPerLiquidityCumulativeX128s = new uint160[](3);
 
             if ((seed >> 32) > 0) {
                 uint32[] memory secondsAgos = new uint32[](3);
                 secondsAgos[0] = UNISWAP_AVG_WINDOW * 2;
                 secondsAgos[1] = UNISWAP_AVG_WINDOW;
                 secondsAgos[2] = 0;
-                (tickCumulatives, secondsPerLiquidityCumulativeX128s) = pool.observe(secondsAgos);
+                (tickCumulatives, ) = pool.observe(secondsAgos);
             } else {
+                (, int24 currentTick, uint16 observationIndex, uint16 observationCardinality, , , ) = pool.slot0();
                 {
                     (, , , bool initialized) = pool.observations((observationIndex + 1) % observationCardinality);
                     if (!initialized) observationCardinality = observationIndex + 1;
@@ -64,31 +45,27 @@ library Oracle {
                     pool,
                     uint32(block.timestamp - UNISWAP_AVG_WINDOW * 2),
                     seed >> 16,
-                    data.currentTick,
+                    currentTick,
                     observationIndex,
                     observationCardinality
                 );
-                (tickCumulatives[1], secondsPerLiquidityCumulativeX128s[1]) = observe(
+                (tickCumulatives[1], ) = observe(
                     pool,
                     uint32(block.timestamp - UNISWAP_AVG_WINDOW),
                     seed % Q16,
-                    data.currentTick,
+                    currentTick,
                     observationIndex,
                     observationCardinality
                 );
-                (tickCumulatives[2], secondsPerLiquidityCumulativeX128s[2]) = observe(
+                (tickCumulatives[2], ) = observe(
                     pool,
                     uint32(block.timestamp),
                     observationIndex,
-                    data.currentTick,
+                    currentTick,
                     observationIndex,
                     observationCardinality
                 );
             }
-
-            data.secondsPerLiquidityX128 =
-                secondsPerLiquidityCumulativeX128s[2] -
-                secondsPerLiquidityCumulativeX128s[1];
 
             // Compute arithmetic mean tick over `UNISWAP_AVG_WINDOW`, always rounding down to -inf
             int256 delta = tickCumulatives[2] - tickCumulatives[1];
@@ -97,7 +74,7 @@ library Oracle {
                 // Equivalent: if (delta < 0 && (delta % UNISWAP_AVG_WINDOW != 0)) meanTick0ToW--;
                 meanTick0ToW := sub(meanTick0ToW, and(slt(delta, 0), iszero(iszero(smod(delta, UNISWAP_AVG_WINDOW)))))
             }
-            data.sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(int24(meanTick0ToW));
+            sqrtMeanPriceX96 = TickMath.getSqrtRatioAtTick(int24(meanTick0ToW));
 
             // Compute arithmetic mean tick over the interval [-2w, 0)
             int256 meanTick0To2W = (tickCumulatives[2] - tickCumulatives[0]) / int32(UNISWAP_AVG_WINDOW * 2);
