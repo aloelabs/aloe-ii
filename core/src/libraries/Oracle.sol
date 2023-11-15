@@ -55,6 +55,11 @@ library Oracle {
                 secondsAgos[2] = 0;
                 (tickCumulatives, secondsPerLiquidityCumulativeX128s) = pool.observe(secondsAgos);
             } else {
+                {
+                    (, , , bool initialized) = pool.observations((observationIndex + 1) % observationCardinality);
+                    if (!initialized) observationCardinality = observationIndex + 1;
+                }
+
                 (tickCumulatives[0], ) = observe(
                     pool,
                     uint32(block.timestamp - UNISWAP_AVG_WINDOW * 2),
@@ -154,7 +159,14 @@ library Oracle {
      * this method more efficient than Uniswap's binary search.
      * @param tick The current tick (from `pool.slot0()`)
      * @param observationIndex The current observation index (from `pool.slot0()`)
-     * @param observationCardinality The current observation cardinality (from `pool.slot0()`)
+     * @param observationCardinality The current observation cardinality. Should be determined as follows:
+     * ```solidity
+     *   (, , uint16 observationIndex, uint16 observationCardinality, , , ) = pool.slot0();
+     *   (, , , bool initialized) = pool.observations((observationIndex + 1) % observationCardinality);
+     *   if (!initialized) observationCardinality = observationIndex + 1;
+     * ```
+     * NOTE: If you fail to account for the `!initialized` case, and `target` comes before the oldest observation,
+     * this may return incorrect data instead of reverting with "OLD".
      * @return The tick * time elapsed since `pool` was first initialized
      * @return The time elapsed / max(1, liquidity) since `pool` was first initialized
      */
