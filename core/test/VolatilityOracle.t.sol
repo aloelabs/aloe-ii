@@ -211,7 +211,7 @@ contract VolatilityOracleTest is Test {
             (uint56 metric, uint160 sqrtPriceX96, uint256 iv) = oracle.update(pool, (1 << 32));
             totalGas += g - gasleft();
 
-            console2.log(block.timestamp, sqrtPriceX96, iv, metric);
+            console2.log(block.timestamp, metric, sqrtPriceX96, iv);
         }
 
         console2.log("avg gas to update oracle:", totalGas / 600);
