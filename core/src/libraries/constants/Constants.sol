@@ -74,7 +74,7 @@ uint8 constant CONSTRAINT_RESERVE_FACTOR_MIN = 4;
 uint8 constant CONSTRAINT_RESERVE_FACTOR_MAX = 20;
 
 /// @dev The maximum amount of Ether that `Borrower`s can be required to post before taking on debt
-uint216 constant CONSTRAINT_ANTE_MAX = 0.1 ether;
+uint216 constant CONSTRAINT_ANTE_MAX = 0.5 ether;
 
 /*//////////////////////////////////////////////////////////////
                             LIQUIDATION
