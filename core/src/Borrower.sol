@@ -170,6 +170,8 @@ contract Borrower is IUniswapV3MintCallback {
 
         slot0 = slot0_ | ((block.timestamp + LIQUIDATION_GRACE_PERIOD) << 208);
         emit Warn();
+
+        SafeTransferLib.safeTransferETH(msg.sender, address(this).balance >> 3);
     }
 
     /**
