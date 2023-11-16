@@ -103,7 +103,7 @@ contract LenderReferralsTest is Test {
 
     function test_canCreditCourierWithPermission(uint32 id, address wallet, uint16 cut, address account) public {
         (id, wallet, cut) = _enroll(id, wallet, cut);
-        vm.assume(wallet != account && account != lender.RESERVE());
+        vm.assume(wallet != account);
 
         vm.prank(account);
         lender.approve(address(this), 1);
@@ -146,7 +146,6 @@ contract LenderReferralsTest is Test {
         address account
     ) public {
         vm.assume(wallet != account);
-        vm.assume(account != lender.RESERVE());
         (id, wallet, cut) = _enroll(id, wallet, cut);
 
         vm.prank(account);
@@ -170,7 +169,7 @@ contract LenderReferralsTest is Test {
         (id, wallet, cut) = _enroll(id, wallet, cut);
         address to = caller;
 
-        if (to == wallet || to == lender.RESERVE()) {
+        if (to == wallet) {
             vm.prank(to);
             vm.expectRevert(bytes("Aloe: courier"));
             lender.deposit(amount, to, id);
@@ -220,7 +219,7 @@ contract LenderReferralsTest is Test {
 
         if (to == wallet || to == address(lender)) return;
 
-        if (to == wallet || to == lender.RESERVE()) {
+        if (to == wallet) {
             vm.prank(to);
             vm.expectRevert(bytes("Aloe: courier"));
             lender.deposit(amount, to, id);

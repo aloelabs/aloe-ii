@@ -33,9 +33,6 @@ contract LenderHarness {
 
     constructor(Lender lender) {
         LENDER = lender;
-
-        holders.push(lender.RESERVE());
-        alreadyHolder[lender.RESERVE()] = true;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -102,13 +99,9 @@ contract LenderHarness {
             LENDER.approve(msg.sender, 1);
         }
 
-        // Check for `RESERVE` involvement, courier existence and self-reference
+        // Check for courier existence and self-reference
         (address wallet, ) = LENDER.FACTORY().couriers(id);
-        if (
-            account == LENDER.RESERVE() ||
-            account == wallet ||
-            !alreadyEnrolledCourier[id]
-        ) {
+        if (account == wallet || !alreadyEnrolledCourier[id]) {
             vm.prank(msg.sender);
             vm.expectRevert(bytes("Aloe: courier"));
             LENDER.deposit(0, account, id);
@@ -151,17 +144,13 @@ contract LenderHarness {
 
         uint256 borrowIndex = LENDER.borrowIndex();
         uint256 totalSupply = LENDER.totalSupply();
-        uint256 reserves = LENDER.balanceOf(LENDER.RESERVE());
 
         vm.prank(msg.sender);
         LENDER.accrueInterest();
 
         require(LENDER.lastAccrualTime() == block.timestamp, "accrueInterest: bad time");
         require(LENDER.borrowIndex() >= borrowIndex, "accrueInterest: bad index");
-        require(
-            LENDER.totalSupply() - totalSupply == LENDER.balanceOf(LENDER.RESERVE()) - reserves,
-            "accrueInterest: bad mint"
-        );
+        require(LENDER.totalSupply() == totalSupply, "accrueInterest: bad mint");
     }
 
     /// @notice Deposits `amount` and sends new `shares` to `beneficiary`
@@ -188,7 +177,6 @@ contract LenderHarness {
         uint256 lastBalance = LENDER.lastBalance();
         uint256 totalSupply = LENDER.totalSupply();
         uint256 sharesBefore = LENDER.balanceOf(beneficiary);
-        uint256 reservesBefore = LENDER.balanceOf(LENDER.RESERVE());
 
         // Actual action
         // --> Pre-pay for the shares
@@ -205,18 +193,10 @@ contract LenderHarness {
             require(LENDER.deposit(amount, beneficiary) == shares, "deposit: incorrect preview");
         }
 
-        // Collect more data
-        uint256 newReserves = LENDER.totalSupply() - (totalSupply + shares); // implicit assertion!
-        uint256 reservesAfter = LENDER.balanceOf(LENDER.RESERVE());
-
         // Assertions
         require(LENDER.lastBalance() == lastBalance + amount, "deposit: lastBalance mismatch");
-        if (beneficiary != LENDER.RESERVE()) {
-            require(LENDER.balanceOf(beneficiary) == sharesBefore + shares, "deposit: mint issue");
-            require(reservesAfter == reservesBefore + newReserves, "deposit: reserves issue");
-        } else {
-            require(reservesAfter == reservesBefore + newReserves + shares, "deposit: mint to RESERVE issue");
-        }
+        require(LENDER.totalSupply() == totalSupply + shares, "deposit: totalSupply mismatch");
+        require(LENDER.balanceOf(beneficiary) == sharesBefore + shares, "deposit: mint issue");
 
         // {HARNESS BOOKKEEPING} Keep holders up-to-date
         if (!alreadyHolder[beneficiary]) {
@@ -252,7 +232,6 @@ contract LenderHarness {
         uint256 lastBalance = LENDER.lastBalance();
         uint256 totalSupply = LENDER.totalSupply();
         uint256 sharesBefore = LENDER.balanceOf(owner);
-        uint256 reservesBefore = LENDER.balanceOf(LENDER.RESERVE());
         uint256 assetsBefore = LENDER.asset().balanceOf(recipient);
         uint32 courierId = LENDER.courierOf(owner);
         (address courier, ) = LENDER.FACTORY().couriers(courierId);
@@ -271,28 +250,18 @@ contract LenderHarness {
         }
 
         // Collect more data
-        uint256 newReserves = LENDER.totalSupply() - (totalSupply - shares); // implicit assertion!
-        uint256 reservesAfter = LENDER.balanceOf(LENDER.RESERVE());
         uint256 fee = courierId == 0 ? 0 : LENDER.balanceOf(courier) - courierSharesBefore;
-        if (courier == LENDER.RESERVE()) fee -= newReserves;
 
         // Assertions
         require(LENDER.principleOf(owner) <= principleBefore, "redeem: principle issue");
         require(LENDER.lastBalance() == lastBalance - amount, "redeem: lastBalance mismatch");
+        require(LENDER.totalSupply() == totalSupply - shares, "deposit: totalSupply mismatch");
+        require(LENDER.balanceOf(owner) == sharesBefore - shares - fee, "redeem: burn issue");
+
         if (recipient != address(LENDER)) {
             require(LENDER.asset().balanceOf(recipient) == assetsBefore + amount, "redeem: transfer issue");
         } else {
             require(LENDER.asset().balanceOf(recipient) == assetsBefore, "redeem: bad self reference");
-        }
-        if (owner != LENDER.RESERVE()) {
-            require(LENDER.balanceOf(owner) == sharesBefore - shares - fee, "redeem: burn issue");
-            if (courier != LENDER.RESERVE()) {
-                require(reservesAfter == reservesBefore + newReserves, "redeem: reserves issue");
-            } else {
-                require(reservesAfter == reservesBefore + newReserves + fee, "redeem: reserves issue as courier");
-            }
-        } else {
-            require(reservesAfter == reservesBefore + newReserves - shares - fee, "redeem: burn from RESERVE issue");
         }
     }
 
@@ -492,27 +461,8 @@ contract LenderHarness {
                              SPECIAL CASES
     //////////////////////////////////////////////////////////////*/
 
-    function enrollReserveAsCourier(uint32 i, uint16 cut) external {
-        vm.prank(LENDER.RESERVE());
-        this.enrollCourier(i, cut);
-    }
-
-    function creditCourierForReserve(uint16 i) external {
-        uint256 count = courierIds.length;
-        if (count == 0) return;
-        else creditCourier(courierIds[i % count], LENDER.RESERVE());
-    }
-
-    function depositToReserves(uint112 amount) external returns (uint256 shares) {
-        shares = deposit(amount, LENDER.RESERVE());
-    }
-
     function depositWithLenderAsSharesReceiver(uint112 amount) external returns (uint256 shares) {
         shares = deposit(amount, address(LENDER));
-    }
-
-    function redeemFromReserves(uint112 shares, address recipient) external returns (uint256 amount) {
-        amount = redeem(shares, recipient, LENDER.RESERVE());
     }
 
     function redeemWithLenderAsAssetReceiver(uint112 shares, address owner) external returns (uint256 amount) {

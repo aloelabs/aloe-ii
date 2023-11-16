@@ -9,7 +9,6 @@ import {RateModel} from "src/RateModel.sol";
 import {VolatilityOracle} from "src/VolatilityOracle.sol";
 
 address constant GOVERNOR = 0x2bf8eA41aF0695D482C4aa23d4f8aD7E9023b890;
-address constant RESERVE = 0xAd236E154cbC33cFDB6CD7A4BA04679d9fb74A8C;
 
 // Derived using https://github.com/0age/create2crunch/
 bytes32 constant saltA = 0x0000000000000000000000000000000000000000aeeec55d74c86000021e5622;
@@ -29,7 +28,7 @@ contract DeployScript is Script {
 
         bytes32 ichFactory = hashInitCode(
             type(Factory).creationCode,
-            abi.encode(GOVERNOR, RESERVE, addrVolatilityOracle, addrBorrowerDeployer, addrRateModel)
+            abi.encode(GOVERNOR, addrVolatilityOracle, addrBorrowerDeployer, addrRateModel)
         );
         address addrFactory = computeCreate2Address(saltD, ichFactory);
 
@@ -52,7 +51,6 @@ contract DeployScript is Script {
         BorrowerDeployer borrowerDeployer = new BorrowerDeployer{salt: saltC}();
         Factory factory = new Factory{salt: saltD}({
             governor: GOVERNOR,
-            reserve: RESERVE,
             oracle: oracle,
             borrowerDeployer: borrowerDeployer,
             defaultRateModel: rateModel
