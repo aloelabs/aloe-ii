@@ -20,23 +20,24 @@ import {Volatility} from "./libraries/Volatility.sol";
 /// @author Aloe Labs, Inc.
 /// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract VolatilityOracle {
-    event Update(IUniswapV3Pool indexed pool, uint160 sqrtMeanPriceX96, uint256 iv);
+    event Update(IUniswapV3Pool indexed pool, uint160 sqrtMeanPriceX96, uint104 iv);
 
     struct LastWrite {
         uint8 index;
-        uint32 time;
-        uint216 iv;
+        uint40 time;
+        uint104 oldIV;
+        uint104 newIV;
     }
 
     /// @dev The maximum amount by which (reported) implied volatility can increase with a single `update`
     /// call. If updates happen as frequently as possible (every `FEE_GROWTH_SAMPLE_PERIOD`), this cap is no different
     /// from `IV_CHANGE_PER_SECOND_POS` alone.
-    uint256 private constant _IV_CHANGE_PER_UPDATE_POS = IV_CHANGE_PER_SECOND_POS * FEE_GROWTH_SAMPLE_PERIOD;
+    uint104 private constant _IV_CHANGE_PER_UPDATE_POS = uint104(IV_CHANGE_PER_SECOND_POS * FEE_GROWTH_SAMPLE_PERIOD);
 
     /// @dev The maximum amount by which (reported) implied volatility can decrease with a single `update`
     /// call. If updates happen as frequently as possible (every `FEE_GROWTH_SAMPLE_PERIOD`), this cap is no different
     /// from `IV_CHANGE_PER_SECOND_NEG` alone.
-    uint256 private constant _IV_CHANGE_PER_UPDATE_NEG = IV_CHANGE_PER_SECOND_NEG * FEE_GROWTH_SAMPLE_PERIOD;
+    uint104 private constant _IV_CHANGE_PER_UPDATE_NEG = uint104(IV_CHANGE_PER_SECOND_NEG * FEE_GROWTH_SAMPLE_PERIOD);
 
     mapping(IUniswapV3Pool => Volatility.PoolMetadata) public cachedMetadata;
 
@@ -49,7 +50,7 @@ contract VolatilityOracle {
 
         if (lastWrites[pool].time == 0) {
             feeGrowthGlobals[pool][0] = _getFeeGrowthGlobalsNow(pool);
-            lastWrites[pool] = LastWrite({index: 0, time: uint32(block.timestamp), iv: IV_COLD_START});
+            lastWrites[pool] = LastWrite(0, uint32(block.timestamp), IV_COLD_START, IV_COLD_START);
         }
     }
 
@@ -65,7 +66,7 @@ contract VolatilityOracle {
             // If fewer than `FEE_GROWTH_SAMPLE_PERIOD` seconds have elapsed, return early.
             // We still fetch the latest TWAP, but we do not sample feeGrowthGlobals or update IV.
             if (block.timestamp - lastWrite.time < FEE_GROWTH_SAMPLE_PERIOD) {
-                return (metric, sqrtMeanPriceX96, lastWrite.iv);
+                return (metric, sqrtMeanPriceX96, _interpolateIV(lastWrite));
             }
 
             // Populate `FeeGrowthGlobals`
@@ -73,9 +74,12 @@ contract VolatilityOracle {
             Volatility.FeeGrowthGlobals memory a = _getFeeGrowthGlobalsOld(arr, lastWrite.index);
             Volatility.FeeGrowthGlobals memory b = _getFeeGrowthGlobalsNow(pool);
 
-            // Default to using the existing IV
-            uint256 iv = lastWrite.iv;
-            // Only update IV if the feeGrowthGlobals samples are approximately `FEE_GROWTH_AVG_WINDOW` hours apart
+            // Bring `lastWrite` forward so it's essentially "currentWrite"
+            lastWrite.index = uint8((lastWrite.index + 1) % FEE_GROWTH_ARRAY_LENGTH);
+            lastWrite.time = uint32(block.timestamp);
+            lastWrite.oldIV = lastWrite.newIV;
+            // lastWrite.newIV is updated below, iff feeGrowthGlobals samples are ≈`FEE_GROWTH_AVG_WINDOW` hours apart
+
             if (
                 _isInInterval({
                     min: FEE_GROWTH_AVG_WINDOW - FEE_GROWTH_SAMPLE_PERIOD / 2,
@@ -84,25 +88,43 @@ contract VolatilityOracle {
                 })
             ) {
                 // Estimate, then clamp so it lies within [previous - maxChange, previous + maxChange]
-                iv = Volatility.estimate(cachedMetadata[pool], sqrtMeanPriceX96, a, b, IV_SCALE);
+                lastWrite.newIV = uint104(Volatility.estimate(cachedMetadata[pool], sqrtMeanPriceX96, a, b, IV_SCALE));
 
-                if (iv > lastWrite.iv + _IV_CHANGE_PER_UPDATE_POS) iv = lastWrite.iv + _IV_CHANGE_PER_UPDATE_POS;
-                else if (iv + _IV_CHANGE_PER_UPDATE_NEG < lastWrite.iv) iv = lastWrite.iv - _IV_CHANGE_PER_UPDATE_NEG;
+                if (lastWrite.newIV > lastWrite.oldIV + _IV_CHANGE_PER_UPDATE_POS) {
+                    lastWrite.newIV = lastWrite.oldIV + _IV_CHANGE_PER_UPDATE_POS;
+                } else if (lastWrite.newIV + _IV_CHANGE_PER_UPDATE_NEG < lastWrite.oldIV) {
+                    lastWrite.newIV = lastWrite.oldIV - _IV_CHANGE_PER_UPDATE_NEG;
+                }
+
+                emit Update(pool, sqrtMeanPriceX96, lastWrite.newIV);
             }
 
             // Store the new feeGrowthGlobals sample and update `lastWrites`
-            uint8 next = uint8((lastWrite.index + 1) % FEE_GROWTH_ARRAY_LENGTH);
-            arr[next] = b;
-            lastWrites[pool] = LastWrite(next, uint32(block.timestamp), uint216(iv));
+            arr[lastWrite.index] = b;
+            lastWrites[pool] = lastWrite;
 
-            emit Update(pool, sqrtMeanPriceX96, iv);
-            return (metric, sqrtMeanPriceX96, iv);
+            // `_interpolateIV` would just return `lastWrite.oldIV` because `deltaT` would be 0
+            return (metric, sqrtMeanPriceX96, lastWrite.oldIV);
         }
     }
 
     function consult(IUniswapV3Pool pool, uint40 seed) external view returns (uint56, uint160, uint256) {
         (uint56 metric, uint160 sqrtMeanPriceX96) = Oracle.consult(pool, seed);
-        return (metric, sqrtMeanPriceX96, lastWrites[pool].iv);
+        return (metric, sqrtMeanPriceX96, _interpolateIV(lastWrites[pool]));
+    }
+
+    function _interpolateIV(LastWrite memory lastWrite) private view returns (uint256) {
+        unchecked {
+            uint256 deltaT = block.timestamp - lastWrite.time;
+            if (deltaT >= FEE_GROWTH_SAMPLE_PERIOD) return lastWrite.newIV;
+
+            return
+                uint256(
+                    int104(lastWrite.oldIV) +
+                        ((int104(lastWrite.newIV) - int104(lastWrite.oldIV)) * int256(deltaT)) /
+                        int256(FEE_GROWTH_SAMPLE_PERIOD)
+                );
+        }
     }
 
     function _getPoolMetadata(IUniswapV3Pool pool) private view returns (Volatility.PoolMetadata memory metadata) {
