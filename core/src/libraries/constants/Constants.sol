@@ -139,7 +139,7 @@ uint256 constant IV_CHANGE_PER_UPDATE = IV_CHANGE_PER_SECOND * FEE_GROWTH_SAMPLE
 /// @dev To estimate volume, we need 2 samples. One is always at the current block, the other is from
 /// `FEE_GROWTH_AVG_WINDOW` seconds ago, +/- `FEE_GROWTH_SAMPLE_PERIOD / 2`. Larger values make the resulting volume
 /// estimate more robust, but may cause the oracle to miss brief spikes in activity.
-uint256 constant FEE_GROWTH_AVG_WINDOW = 6 hours;
+uint256 constant FEE_GROWTH_AVG_WINDOW = 24 hours;
 
 /// @dev The length of the circular buffer that stores feeGrowthGlobals samples.
 /// Must be in interval
