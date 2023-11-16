@@ -125,16 +125,15 @@ uint32 constant IV_SCALE = 24 hours;
 /// side of making this too large (resulting in low LTV).
 uint128 constant IV_COLD_START = 0.127921282726e12;
 
-/// @dev The maximum rate at which (reported) implied volatility can change. Raw samples in `VolatilityOracle.update`
+/// @dev The maximum rate at which (reported) implied volatility can increase. Raw samples in `VolatilityOracle.update`
 /// are clamped (before being stored) so as not to exceed this rate.
 /// Expressed in 1e12 percentage points at `IV_SCALE` **per second**, e.g. {462962, 24 hours} means daily IV can
 /// change by 0.0000463 percentage points per second → 4 percentage points per day.
-uint256 constant IV_CHANGE_PER_SECOND = 462962;
+uint256 constant IV_CHANGE_PER_SECOND_POS = 462962;
 
-/// @dev The maximum amount by which (reported) implied volatility can change with a single `VolatilityOracle.update`
-/// call. If updates happen as frequently as possible (every `FEE_GROWTH_SAMPLE_PERIOD`), this cap is no different
-/// from `IV_CHANGE_PER_SECOND` alone.
-uint256 constant IV_CHANGE_PER_UPDATE = IV_CHANGE_PER_SECOND * FEE_GROWTH_SAMPLE_PERIOD;
+/// @dev The maximum rate at which (reported) implied volatility can *decrease*. Otherwise the same as
+/// `IV_CHANGE_PER_SECOND_POS` above.
+uint256 constant IV_CHANGE_PER_SECOND_NEG = 115740;
 
 /// @dev To estimate volume, we need 2 samples. One is always at the current block, the other is from
 /// `FEE_GROWTH_AVG_WINDOW` seconds ago, +/- `FEE_GROWTH_SAMPLE_PERIOD / 2`. Larger values make the resulting volume

@@ -183,9 +183,8 @@ contract VolatilityOracleTest is Test {
             assertEqDecimal(ivStored, ivWritten, 12);
             assertEq(newIndex, (currentIndex + 1) % FEE_GROWTH_ARRAY_LENGTH);
 
-            uint256 maxChange = IV_CHANGE_PER_UPDATE;
-            assertLe(ivWritten, currentIV + maxChange);
-            assertGe(ivWritten + maxChange, currentIV);
+            assertLe(ivWritten, currentIV + IV_CHANGE_PER_SECOND_POS * FEE_GROWTH_SAMPLE_PERIOD);
+            assertGe(ivWritten + IV_CHANGE_PER_SECOND_NEG * FEE_GROWTH_SAMPLE_PERIOD, currentIV);
 
             currentIndex = newIndex;
             currentTime = newTime;

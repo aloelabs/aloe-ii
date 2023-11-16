@@ -6,7 +6,8 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {
     IV_SCALE,
     IV_COLD_START,
-    IV_CHANGE_PER_UPDATE,
+    IV_CHANGE_PER_SECOND_POS,
+    IV_CHANGE_PER_SECOND_NEG,
     UNISWAP_AVG_WINDOW,
     FEE_GROWTH_AVG_WINDOW,
     FEE_GROWTH_ARRAY_LENGTH,
@@ -26,6 +27,16 @@ contract VolatilityOracle {
         uint32 time;
         uint216 iv;
     }
+
+    /// @dev The maximum amount by which (reported) implied volatility can increase with a single `update`
+    /// call. If updates happen as frequently as possible (every `FEE_GROWTH_SAMPLE_PERIOD`), this cap is no different
+    /// from `IV_CHANGE_PER_SECOND_POS` alone.
+    uint256 private constant _IV_CHANGE_PER_UPDATE_POS = IV_CHANGE_PER_SECOND_POS * FEE_GROWTH_SAMPLE_PERIOD;
+
+    /// @dev The maximum amount by which (reported) implied volatility can decrease with a single `update`
+    /// call. If updates happen as frequently as possible (every `FEE_GROWTH_SAMPLE_PERIOD`), this cap is no different
+    /// from `IV_CHANGE_PER_SECOND_NEG` alone.
+    uint256 private constant _IV_CHANGE_PER_UPDATE_NEG = IV_CHANGE_PER_SECOND_NEG * FEE_GROWTH_SAMPLE_PERIOD;
 
     mapping(IUniswapV3Pool => Volatility.PoolMetadata) public cachedMetadata;
 
@@ -75,8 +86,8 @@ contract VolatilityOracle {
                 // Estimate, then clamp so it lies within [previous - maxChange, previous + maxChange]
                 iv = Volatility.estimate(cachedMetadata[pool], sqrtMeanPriceX96, a, b, IV_SCALE);
 
-                if (iv > lastWrite.iv + IV_CHANGE_PER_UPDATE) iv = lastWrite.iv + IV_CHANGE_PER_UPDATE;
-                else if (iv + IV_CHANGE_PER_UPDATE < lastWrite.iv) iv = lastWrite.iv - IV_CHANGE_PER_UPDATE;
+                if (iv > lastWrite.iv + _IV_CHANGE_PER_UPDATE_POS) iv = lastWrite.iv + _IV_CHANGE_PER_UPDATE_POS;
+                else if (iv + _IV_CHANGE_PER_UPDATE_NEG < lastWrite.iv) iv = lastWrite.iv - _IV_CHANGE_PER_UPDATE_NEG;
             }
 
             // Store the new feeGrowthGlobals sample and update `lastWrites`
