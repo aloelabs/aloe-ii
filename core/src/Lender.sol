@@ -129,7 +129,8 @@ contract Lender is Ledger {
         }
 
         // Accrue interest
-        (Cache memory cache, uint256 inventory) = _previewInterest(_getCache());
+        Cache memory cache = _previewInterest(_getCache());
+        uint256 inventory = _inventory(cache);
 
         // Convert `amount` to `shares`
         shares = _convertToShares(amount, inventory, cache.totalSupply, /* roundUp: */ false);
@@ -182,7 +183,8 @@ contract Lender is Ledger {
         }
 
         // Accrue interest
-        (Cache memory cache, uint256 inventory) = _previewInterest(_getCache());
+        Cache memory cache = _previewInterest(_getCache());
+        uint256 inventory = _inventory(cache);
 
         // Convert `shares` to `amount`
         amount = _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ false);
@@ -217,7 +219,7 @@ contract Lender is Ledger {
         require(b != 0, "Aloe: not a borrower");
 
         // Accrue interest
-        (Cache memory cache, ) = _previewInterest(_getCache());
+        Cache memory cache = _previewInterest(_getCache());
 
         unchecked {
             // Convert `amount` to `units`
@@ -257,7 +259,7 @@ contract Lender is Ledger {
         uint256 b = borrows[beneficiary];
 
         // Accrue interest
-        (Cache memory cache, ) = _previewInterest(_getCache());
+        Cache memory cache = _previewInterest(_getCache());
 
         unchecked {
             // Convert `amount` to `units`
@@ -286,7 +288,7 @@ contract Lender is Ledger {
     }
 
     function accrueInterest() external returns (uint72) {
-        (Cache memory cache, ) = _previewInterest(_getCache());
+        Cache memory cache = _previewInterest(_getCache());
         _save(cache, /* didChangeBorrowBase: */ false);
         return uint72(cache.borrowIndex);
     }

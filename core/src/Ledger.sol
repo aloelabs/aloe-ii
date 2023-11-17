@@ -138,15 +138,11 @@ contract Ledger {
      * @return The sum of all banknote balances
      */
     function stats() external view returns (uint72, uint256, uint256, uint256) {
-        (Cache memory cache, uint256 inventory) = _previewInterest(_getCache());
+        Cache memory cache = _previewInterest(_getCache());
+        uint256 inventory = _inventory(cache);
 
         unchecked {
-            return (
-                uint72(cache.borrowIndex),
-                inventory,
-                (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER,
-                cache.totalSupply
-            );
+            return (uint72(cache.borrowIndex), inventory, inventory - cache.lastBalance, cache.totalSupply);
         }
     }
 
@@ -184,7 +180,8 @@ contract Ledger {
      * @dev Because of the fees, ∑underlyingBalances != totalAssets
      */
     function underlyingBalance(address account) external view returns (uint256) {
-        (Cache memory cache, uint256 inventory) = _previewInterest(_getCache());
+        Cache memory cache = _previewInterest(_getCache());
+        uint256 inventory = _inventory(cache);
         return
             _convertToAssets(
                 _nominalShares(account, inventory, cache.totalSupply),
@@ -200,12 +197,15 @@ contract Ledger {
      * @dev An underestimate; more gas efficient than `underlyingBalance`
      */
     function underlyingBalanceStored(address account) external view returns (uint256) {
-        unchecked {
-            uint256 inventory = lastBalance + (uint256(borrowBase) * borrowIndex) / BORROWS_SCALER;
-            uint256 totalSupply_ = totalSupply;
-
-            return _convertToAssets(_nominalShares(account, inventory, totalSupply_), inventory, totalSupply_, false);
-        }
+        Cache memory cache = _getCache();
+        uint256 inventory = _inventory(cache);
+        return
+            _convertToAssets(
+                _nominalShares(account, inventory, cache.totalSupply),
+                inventory,
+                cache.totalSupply,
+                false
+            );
     }
 
     /**
@@ -215,7 +215,7 @@ contract Ledger {
     function borrowBalance(address account) external view returns (uint256) {
         uint256 b = borrows[account];
 
-        (Cache memory cache, ) = _previewInterest(_getCache());
+        Cache memory cache = _previewInterest(_getCache());
         unchecked {
             return b > 1 ? ((b - 1) * cache.borrowIndex).unsafeDivUp(BORROWS_SCALER) : 0;
         }
@@ -236,18 +236,17 @@ contract Ledger {
 
     /// @notice The total amount of `asset` under management
     function totalAssets() external view returns (uint256) {
-        (, uint256 inventory) = _previewInterest(_getCache());
-        return inventory;
+        return _inventory(_previewInterest(_getCache()));
     }
 
     function convertToShares(uint256 assets) public view returns (uint256) {
-        (Cache memory cache, uint256 inventory) = _previewInterest(_getCache());
-        return _convertToShares(assets, inventory, cache.totalSupply, /* roundUp: */ false);
+        Cache memory cache = _previewInterest(_getCache());
+        return _convertToShares(assets, _inventory(cache), cache.totalSupply, /* roundUp: */ false);
     }
 
     function convertToAssets(uint256 shares) public view returns (uint256) {
-        (Cache memory cache, uint256 inventory) = _previewInterest(_getCache());
-        return _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ false);
+        Cache memory cache = _previewInterest(_getCache());
+        return _convertToAssets(shares, _inventory(cache), cache.totalSupply, /* roundUp: */ false);
     }
 
     function previewDeposit(uint256 assets) public view returns (uint256) {
@@ -255,8 +254,8 @@ contract Ledger {
     }
 
     function previewMint(uint256 shares) public view returns (uint256) {
-        (Cache memory cache, uint256 inventory) = _previewInterest(_getCache());
-        return _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ true);
+        Cache memory cache = _previewInterest(_getCache());
+        return _convertToAssets(shares, _inventory(cache), cache.totalSupply, /* roundUp: */ true);
     }
 
     function previewRedeem(uint256 shares) public view returns (uint256) {
@@ -264,8 +263,8 @@ contract Ledger {
     }
 
     function previewWithdraw(uint256 assets) public view returns (uint256) {
-        (Cache memory cache, uint256 inventory) = _previewInterest(_getCache());
-        return _convertToShares(assets, inventory, cache.totalSupply, /* roundUp: */ true);
+        Cache memory cache = _previewInterest(_getCache());
+        return _convertToShares(assets, _inventory(cache), cache.totalSupply, /* roundUp: */ true);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -303,7 +302,8 @@ contract Ledger {
      * @return The maximum number of Vault shares that can be redeemed
      */
     function maxRedeem(address owner) public view returns (uint256) {
-        (Cache memory cache, uint256 inventory) = _previewInterest(_getCache());
+        Cache memory cache = _previewInterest(_getCache());
+        uint256 inventory = _inventory(cache);
 
         uint256 a = _nominalShares(owner, inventory, cache.totalSupply);
         uint256 b = _convertToShares(cache.lastBalance, inventory, cache.totalSupply, false);
@@ -329,25 +329,22 @@ contract Ledger {
      * @dev Accrues interest up to the current `block.timestamp`. Updates and returns `cache`, but doesn't write
      * anything to storage.
      */
-    function _previewInterest(Cache memory cache) internal view returns (Cache memory, uint256) {
+    function _previewInterest(Cache memory cache) internal view returns (Cache memory) {
         unchecked {
-            uint256 oldBorrows = (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
-            uint256 oldInventory = cache.lastBalance + oldBorrows;
-
-            if (cache.lastAccrualTime == block.timestamp || oldBorrows == 0) {
-                return (cache, oldInventory);
+            if (cache.lastAccrualTime == block.timestamp || cache.borrowBase == 0) {
+                return cache;
             }
 
+            uint256 oldBorrows = (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
             uint256 accrualFactor = rateModel.getAccrualFactor({
-                utilization: (1e18 * oldBorrows) / oldInventory,
+                utilization: (1e18 * oldBorrows) / (cache.lastBalance + oldBorrows),
                 dt: block.timestamp - cache.lastAccrualTime
             });
 
             cache.borrowIndex = SoladyMath.min((cache.borrowIndex * accrualFactor) / ONE, type(uint72).max);
             cache.lastAccrualTime = 0; // 0 indicates `borrowIndex` was updated
 
-            uint256 newInventory = cache.lastBalance + (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
-            return (cache, newInventory);
+            return cache;
         }
     }
 
@@ -393,6 +390,12 @@ contract Ledger {
                     balance -= fee;
                 }
             }
+        }
+    }
+
+    function _inventory(Cache memory cache) internal pure returns (uint256) {
+        unchecked {
+            return cache.lastBalance + (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
         }
     }
 
