@@ -38,6 +38,8 @@ contract Lender is Ledger {
 
     event Repay(address indexed caller, address indexed beneficiary, uint256 amount, uint256 units);
 
+    event Erase(address indexed caller, uint256 units);
+
     event AccrueInterest(uint72 borrowIndex);
 
     event CreditCourier(uint32 indexed id, address indexed account);
@@ -217,13 +219,13 @@ contract Lender is Ledger {
 
     /// @notice Sends `amount` of `asset` to `recipient` and increases `msg.sender`'s debt by `units`
     function borrow(uint256 amount, address recipient) external returns (uint256 units) {
-        uint256 b = borrows[msg.sender];
-        require(b != 0, "Aloe: not a borrower");
-
         // Accrue interest
         Cache memory cache = _load();
 
         unchecked {
+            uint256 b = borrows[msg.sender];
+            require(b != 0, "Aloe: not a borrower");
+
             // Convert `amount` to `units`
             units = (amount * BORROWS_SCALER) / cache.borrowIndex;
 
@@ -258,12 +260,12 @@ contract Lender is Ledger {
      * ```
      */
     function repay(uint256 amount, address beneficiary) external returns (uint256 units) {
-        uint256 b = borrows[beneficiary];
-
         // Accrue interest
         Cache memory cache = _load();
 
         unchecked {
+            uint256 b = borrows[beneficiary];
+
             // Convert `amount` to `units`
             units = (amount * BORROWS_SCALER) / cache.borrowIndex;
             if (!(units < b)) {
@@ -287,6 +289,28 @@ contract Lender is Ledger {
         require(cache.lastBalance <= asset().balanceOf(address(this)), "Aloe: insufficient pre-pay");
 
         emit Repay(msg.sender, beneficiary, amount, units);
+    }
+
+    function erase() external returns (uint256 units) {
+        // Accrue interest
+        Cache memory cache = _load();
+
+        unchecked {
+            uint256 b = borrows[msg.sender];
+            require(b > 1, "Aloe: cannot erase");
+
+            // Maximize `units`
+            units = b - 1;
+
+            // Track borrows
+            borrows[msg.sender] = 1;
+            cache.borrowBase -= units;
+        }
+
+        // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
+        _save(cache, /* didChangeBorrowBase: */ true);
+
+        emit Erase(msg.sender, units);
     }
 
     function accrueInterest() external returns (uint72) {
