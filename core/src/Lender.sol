@@ -38,6 +38,8 @@ contract Lender is Ledger {
 
     event Repay(address indexed caller, address indexed beneficiary, uint256 amount, uint256 units);
 
+    event AccrueInterest(uint72 borrowIndex);
+
     event CreditCourier(uint32 indexed id, address indexed account);
 
     /*//////////////////////////////////////////////////////////////
@@ -129,7 +131,7 @@ contract Lender is Ledger {
         }
 
         // Accrue interest
-        Cache memory cache = _previewInterest(_getCache());
+        Cache memory cache = _load();
         uint256 inventory = _inventory(cache);
 
         // Convert `amount` to `shares`
@@ -183,7 +185,7 @@ contract Lender is Ledger {
         }
 
         // Accrue interest
-        Cache memory cache = _previewInterest(_getCache());
+        Cache memory cache = _load();
         uint256 inventory = _inventory(cache);
 
         // Convert `shares` to `amount`
@@ -219,7 +221,7 @@ contract Lender is Ledger {
         require(b != 0, "Aloe: not a borrower");
 
         // Accrue interest
-        Cache memory cache = _previewInterest(_getCache());
+        Cache memory cache = _load();
 
         unchecked {
             // Convert `amount` to `units`
@@ -259,7 +261,7 @@ contract Lender is Ledger {
         uint256 b = borrows[beneficiary];
 
         // Accrue interest
-        Cache memory cache = _previewInterest(_getCache());
+        Cache memory cache = _load();
 
         unchecked {
             // Convert `amount` to `units`
@@ -288,7 +290,7 @@ contract Lender is Ledger {
     }
 
     function accrueInterest() external returns (uint72) {
-        Cache memory cache = _previewInterest(_getCache());
+        Cache memory cache = _load();
         _save(cache, /* didChangeBorrowBase: */ false);
         return uint72(cache.borrowIndex);
     }
@@ -509,6 +511,11 @@ contract Lender is Ledger {
         emit Transfer(from, address(0), shares);
     }
 
+    function _load() private returns (Cache memory cache) {
+        cache = _previewInterest(_getCache());
+        if (cache.lastAccrualTime == 0) emit AccrueInterest(uint72(cache.borrowIndex));
+    }
+
     function _save(Cache memory cache, bool didChangeBorrowBase) private {
         // `cache.lastAccrualTime == 0` implies that `cache.borrowIndex` was updated
         if (cache.lastAccrualTime == 0 || didChangeBorrowBase) {
@@ -518,6 +525,6 @@ contract Lender is Ledger {
 
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
-        lastAccrualTime = uint32(block.timestamp); // Disables reentrancy guard if there was one
+        lastAccrualTime = uint32(block.timestamp);
     }
 }
