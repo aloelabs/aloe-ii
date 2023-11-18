@@ -282,8 +282,9 @@ contract Borrower is IUniswapV3MintCallback {
             _repay(repayable0, repayable1);
             slot0 = (slot0_ & SLOT0_MASK_POSITIONS) | SLOT0_DIRT;
 
-            payable(callee).transfer(address(this).balance / strain);
             emit Liquidate(repayable0, repayable1, incentive1, priceX128);
+
+            SafeTransferLib.safeTransferETH(payable(callee), address(this).balance / strain);
         }
     }
 
@@ -433,7 +434,7 @@ contract Borrower is IUniswapV3MintCallback {
      */
     function withdrawAnte(address payable recipient) external onlyInModifyCallback {
         // WARNING: External call to user-specified address
-        recipient.transfer(address(this).balance);
+        SafeTransferLib.safeTransferETH(recipient, address(this).balance);
     }
 
     /**
