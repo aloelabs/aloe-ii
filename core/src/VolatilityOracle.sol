@@ -6,8 +6,9 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {
     IV_SCALE,
     IV_COLD_START,
-    IV_CHANGE_PER_SECOND_POS,
-    IV_CHANGE_PER_SECOND_NEG,
+    IV_CHANGE_PER_UPDATE,
+    IV_EMA_GAIN_POS,
+    IV_EMA_GAIN_NEG,
     UNISWAP_AVG_WINDOW,
     FEE_GROWTH_AVG_WINDOW,
     FEE_GROWTH_ARRAY_LENGTH,
@@ -28,16 +29,6 @@ contract VolatilityOracle {
         uint104 oldIV;
         uint104 newIV;
     }
-
-    /// @dev The maximum amount by which (reported) implied volatility can increase with a single `update`
-    /// call. If updates happen as frequently as possible (every `FEE_GROWTH_SAMPLE_PERIOD`), this cap is no different
-    /// from `IV_CHANGE_PER_SECOND_POS` alone.
-    uint104 private constant _IV_CHANGE_PER_UPDATE_POS = uint104(IV_CHANGE_PER_SECOND_POS * FEE_GROWTH_SAMPLE_PERIOD);
-
-    /// @dev The maximum amount by which (reported) implied volatility can decrease with a single `update`
-    /// call. If updates happen as frequently as possible (every `FEE_GROWTH_SAMPLE_PERIOD`), this cap is no different
-    /// from `IV_CHANGE_PER_SECOND_NEG` alone.
-    uint104 private constant _IV_CHANGE_PER_UPDATE_NEG = uint104(IV_CHANGE_PER_SECOND_NEG * FEE_GROWTH_SAMPLE_PERIOD);
 
     mapping(IUniswapV3Pool => Volatility.PoolMetadata) public cachedMetadata;
 
@@ -87,24 +78,26 @@ contract VolatilityOracle {
                     max: FEE_GROWTH_AVG_WINDOW + FEE_GROWTH_SAMPLE_PERIOD / 2
                 })
             ) {
-                // Estimate, then clamp so it lies within [previous - maxChange, previous + maxChange]
-                lastWrite.newIV = uint104(Volatility.estimate(cachedMetadata[pool], sqrtMeanPriceX96, a, b, IV_SCALE));
+                // Update exponential moving average with a new IV estimate
+                lastWrite.newIV = _ema(
+                    int256(uint256(lastWrite.oldIV)),
+                    int256(Volatility.estimate(cachedMetadata[pool], sqrtMeanPriceX96, a, b, IV_SCALE))
+                );
 
-                if (lastWrite.newIV > lastWrite.oldIV + _IV_CHANGE_PER_UPDATE_POS) {
-                    lastWrite.newIV = lastWrite.oldIV + _IV_CHANGE_PER_UPDATE_POS;
-                } else if (lastWrite.newIV + _IV_CHANGE_PER_UPDATE_NEG < lastWrite.oldIV) {
-                    lastWrite.newIV = lastWrite.oldIV - _IV_CHANGE_PER_UPDATE_NEG;
+                // Clamp `newIV` so it lies within [previous - maxChange, previous + maxChange]
+                if (lastWrite.newIV > lastWrite.oldIV + IV_CHANGE_PER_UPDATE) {
+                    lastWrite.newIV = lastWrite.oldIV + IV_CHANGE_PER_UPDATE;
+                } else if (lastWrite.newIV + IV_CHANGE_PER_UPDATE < lastWrite.oldIV) {
+                    lastWrite.newIV = lastWrite.oldIV - IV_CHANGE_PER_UPDATE;
                 }
-
-                emit Update(pool, sqrtMeanPriceX96, lastWrite.newIV);
             }
 
             // Store the new feeGrowthGlobals sample and update `lastWrites`
             arr[lastWrite.index] = b;
             lastWrites[pool] = lastWrite;
 
-            // `_interpolateIV` would just return `lastWrite.oldIV` because `deltaT` would be 0
-            return (metric, sqrtMeanPriceX96, lastWrite.oldIV);
+            emit Update(pool, sqrtMeanPriceX96, lastWrite.newIV);
+            return (metric, sqrtMeanPriceX96, lastWrite.oldIV); // `lastWrite.oldIV == _interpolateIV(lastWrite)` here
         }
     }
 
@@ -113,17 +106,21 @@ contract VolatilityOracle {
         return (metric, sqrtMeanPriceX96, _interpolateIV(lastWrites[pool]));
     }
 
+    function _ema(int256 oldIV, int256 estimate) private pure returns (uint104) {
+        unchecked {
+            int256 gain = estimate > oldIV ? IV_EMA_GAIN_POS : IV_EMA_GAIN_NEG;
+            return uint104(uint256(oldIV + (estimate - oldIV) / gain));
+        }
+    }
+
     function _interpolateIV(LastWrite memory lastWrite) private view returns (uint256) {
         unchecked {
-            uint256 deltaT = block.timestamp - lastWrite.time;
-            if (deltaT >= FEE_GROWTH_SAMPLE_PERIOD) return lastWrite.newIV;
+            int256 deltaT = int256(block.timestamp - lastWrite.time);
+            if (deltaT >= int256(FEE_GROWTH_SAMPLE_PERIOD)) return lastWrite.newIV;
 
-            return
-                uint256(
-                    int104(lastWrite.oldIV) +
-                        ((int104(lastWrite.newIV) - int104(lastWrite.oldIV)) * int256(deltaT)) /
-                        int256(FEE_GROWTH_SAMPLE_PERIOD)
-                );
+            int256 oldIV = int256(uint256(lastWrite.oldIV));
+            int256 newIV = int256(uint256(lastWrite.newIV));
+            return uint256(oldIV + ((newIV - oldIV) * deltaT) / int256(FEE_GROWTH_SAMPLE_PERIOD));
         }
     }
 
