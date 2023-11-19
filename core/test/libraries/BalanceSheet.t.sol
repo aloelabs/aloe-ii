@@ -32,18 +32,19 @@ contract LibraryWrapper {
 contract BalanceSheetTest is Test {
     function setUp() public {}
 
+    // TODO: test that if it has 5% available at probe prices, it has 5% available at the current price
+    // (math works out but nice to fuzz as well)
+
     function test_fuzz_alwaysHealthyWhenLiabilitiesAre0(
-        uint128 fixed0,
-        uint128 fixed1,
-        uint128 fluid1A,
-        uint128 fluid1B,
-        uint128 fluid0C,
-        uint128 fluid1C,
+        uint256 amount0AtA,
+        uint256 amount1AtA,
+        uint256 amount0AtB,
+        uint256 amount1AtB,
         uint160 a,
         uint160 b,
         uint160 c
     ) public {
-        Assets memory assets = Assets(fixed0, fixed1, fluid1A, fluid1B, fluid0C, fluid1C);
+        Assets memory assets = Assets(amount0AtA, amount1AtA, amount0AtB, amount1AtB);
         Prices memory prices = Prices(a, b, c);
 
         LibraryWrapper wrapper = new LibraryWrapper();

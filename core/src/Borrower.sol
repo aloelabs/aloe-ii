@@ -202,7 +202,6 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 priceX128;
         uint256 liabilities0;
         uint256 liabilities1;
-        uint256 incentive1;
         {
             // Fetch prices from oracle
             (Prices memory prices, ) = getPrices(oracleSeed);
@@ -211,14 +210,6 @@ contract Borrower is IUniswapV3MintCallback {
             Assets memory assets = _getAssets(slot0_, prices, true);
             // Fetch liabilities from lenders
             (liabilities0, liabilities1) = _getLiabilities();
-            // Calculate liquidation incentive
-            incentive1 = BalanceSheet.computeLiquidationIncentive(
-                assets.fixed0 + assets.fluid0C, // total assets0 at `prices.c` (the TWAP)
-                assets.fixed1 + assets.fluid1C, // total assets1 at `prices.c` (the TWAP)
-                liabilities0,
-                liabilities1,
-                priceX128
-            );
             // Ensure only unhealthy accounts can be liquidated
             require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
         }
@@ -229,6 +220,8 @@ contract Borrower is IUniswapV3MintCallback {
         // precise inventory, and we take care not to increase `incentive1`.
 
         unchecked {
+            uint256 incentive1 = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+
             // Figure out what portion of liabilities can be repaid using existing assets
             uint256 repayable0 = Math.min(liabilities0, TOKEN0.balanceOf(address(this)));
             uint256 repayable1 = Math.min(liabilities1, TOKEN1.balanceOf(address(this)));
@@ -254,6 +247,8 @@ contract Borrower is IUniswapV3MintCallback {
             if (shouldSwap) {
                 uint256 unleashTime = (slot0_ & SLOT0_MASK_UNLEASH) >> 208;
                 require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
+
+                incentive1 = incentive1 * 5 / 100; // TODO: based on `unleashTime`
 
                 incentive1 /= strain;
                 if (liabilities0 > 0) {
@@ -490,8 +485,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function _getAssets(uint256 slot0_, Prices memory prices, bool withdraw) private returns (Assets memory assets) {
-        assets.fixed0 = TOKEN0.balanceOf(address(this));
-        assets.fixed1 = TOKEN1.balanceOf(address(this));
+        assets.amount0AtA = assets.amount0AtB = TOKEN0.balanceOf(address(this));
+        assets.amount1AtA = assets.amount1AtB = TOKEN1.balanceOf(address(this));
 
         int24[] memory positions = extract(slot0_);
         uint256 count = positions.length;
@@ -509,14 +504,15 @@ contract Borrower is IUniswapV3MintCallback {
                 uint160 L = TickMath.getSqrtRatioAtTick(l);
                 uint160 U = TickMath.getSqrtRatioAtTick(u);
 
-                // Compute the value of `liquidity` (in terms of token1) at both probe prices
-                assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(prices.a, L, U, liquidity);
-                assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(prices.b, L, U, liquidity);
-
-                // Compute what amounts underlie `liquidity` at the current TWAP
-                (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.c, L, U, liquidity);
-                assets.fluid0C += amount0;
-                assets.fluid1C += amount1;
+                uint256 amount0;
+                uint256 amount1;
+                // Compute what amounts underlie `liquidity` at both probe prices
+                (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.a, L, U, liquidity);
+                assets.amount0AtA += amount0;
+                assets.amount1AtA += amount1;
+                (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.b, L, U, liquidity);
+                assets.amount0AtB += amount0;
+                assets.amount1AtB += amount1;
 
                 if (!withdraw) continue;
 
