@@ -277,7 +277,7 @@ contract Borrower is IUniswapV3MintCallback {
             }
 
             if (
-                BalanceSheet.isHealthy(prices, Assets(assets0, assets1, assets0, assets1), liabilities0, liabilities1)
+                BalanceSheet.isHealthy(prices, assets0, assets1, liabilities0, liabilities1)
             ) {
                 slot0 = (slot0_ & SLOT0_MASK_FREE) | SLOT0_DIRT;
                 payable(callee).transfer((address(this).balance * closeFactor) / 10000);

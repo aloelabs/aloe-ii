@@ -57,6 +57,40 @@ library BalanceSheet {
         return true;
     }
 
+    function isHealthy(
+        Prices memory prices,
+        uint256 assets0,
+        uint256 assets1,
+        uint256 liabilities0,
+        uint256 liabilities1
+    ) internal pure returns (bool) {
+        unchecked {
+            // The optimizer eliminates the conditional in `divUp`; don't worry about gas golfing that
+            liabilities0 +=
+                liabilities0.divUp(MAX_LEVERAGE) +
+                liabilities0.zeroFloorSub(assets0).divUp(LIQUIDATION_INCENTIVE);
+            liabilities1 +=
+                liabilities1.divUp(MAX_LEVERAGE) +
+                liabilities1.zeroFloorSub(assets1).divUp(LIQUIDATION_INCENTIVE);
+        }
+
+        uint256 priceX128;
+        uint256 assets;
+        uint256 liabilities;
+
+        priceX128 = square(prices.a);
+        assets = assets1 + mulDiv128(assets0, priceX128);
+        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+        if (liabilities > assets) return false;
+
+        priceX128 = square(prices.b);
+        assets = assets1 + mulDiv128(assets0, priceX128);
+        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+        if (liabilities > assets) return false;
+
+        return true;
+    }
+
     function _isSolvent(
         uint160 sqrtPriceX96,
         uint256 assets0,
