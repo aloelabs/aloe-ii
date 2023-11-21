@@ -170,7 +170,7 @@ contract Borrower is IUniswapV3MintCallback {
             require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
         }
 
-        slot0 = slot0_ | ((block.timestamp + LIQUIDATION_GRACE_PERIOD) << 208);
+        slot0 = slot0_ | (block.timestamp << 208);
         emit Warn();
 
         SafeTransferLib.safeTransferETH(msg.sender, address(this).balance >> 3);
@@ -257,7 +257,7 @@ contract Borrower is IUniswapV3MintCallback {
 
             if (shouldSwap) {
                 uint256 unleashTime = (slot0_ & SLOT0_MASK_AUCTION) >> 208;
-                require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
+                require(unleashTime != 0 && unleashTime + LIQUIDATION_GRACE_PERIOD < block.timestamp, "Aloe: grace");
 
                 incentive1 = (incentive1 * closeFactor) / 10000;
                 if (liabilities0 > 0) {
