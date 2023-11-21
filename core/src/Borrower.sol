@@ -78,6 +78,7 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     uint256 private constant SLOT0_MASK_POSITIONS = 0x000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffff;
+    uint256 private constant SLOT0_MASK_USERSPACE = 0x000000000000ffffffffffffffff000000000000000000000000000000000000; // prettier-ignore
     uint256 private constant SLOT0_MASK_AUCTION   = 0x00ffffffffff0000000000000000000000000000000000000000000000000000; // prettier-ignore
     uint256 private constant SLOT0_MASK_STATE     = 0x7f00000000000000000000000000000000000000000000000000000000000000; // prettier-ignore
     uint256 private constant SLOT0_DIRT           = 0x8000000000000000000000000000000000000000000000000000000000000000; // prettier-ignore
@@ -283,11 +284,24 @@ contract Borrower is IUniswapV3MintCallback {
             }
 
             _repay(repayable0, repayable1);
-            slot0 = (slot0_ & SLOT0_MASK_POSITIONS) | SLOT0_DIRT;
 
             emit Liquidate(repayable0, repayable1, incentive1, priceX128);
 
-            SafeTransferLib.safeTransferETH(payable(callee), (address(this).balance * closeFactor) / 10000);
+            {
+                // Fetch prices from oracle
+                (Prices memory prices, ) = getPrices(oracleSeed);
+                priceX128 = square(prices.c);
+                // Withdraw Uniswap positions while tallying assets
+                Assets memory assets = _getAssets(slot0_, prices, true);
+                // Fetch liabilities from lenders
+                (liabilities0, liabilities1) = _getLiabilities();
+                if (BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1)) {
+                    slot0 = (slot0_ & SLOT0_MASK_USERSPACE) | SLOT0_DIRT;
+                    SafeTransferLib.safeTransferETH(payable(callee), (address(this).balance * closeFactor) / 10000);
+                } else {
+                    slot0 = (slot0_ & (SLOT0_MASK_AUCTION | SLOT0_MASK_USERSPACE)) | SLOT0_DIRT;
+                }
+            }
         }
     }
 
