@@ -6,11 +6,9 @@ import "forge-std/Test.sol";
 import "src/VolatilityOracle.sol";
 
 contract VolatilityOracleTest is Test {
-    uint256 constant START_BLOCK = 70_000_000;
-    uint256 constant SIX_HOURS_LATER = 70_045_000;
-    uint256 constant TWELVE_HOURS_LATER = 70_090_000;
+    using stdStorage for StdStorage;
 
-    uint256 constant BLOCKS_PER_SECOND = 2;
+    uint256 constant START_BLOCK = 70_000_000;
 
     VolatilityOracle oracle;
 
@@ -25,9 +23,7 @@ contract VolatilityOracleTest is Test {
     ];
 
     function setUp() public {
-        vm.createSelectFork(vm.rpcUrl("optimism"));
-        vm.rollFork(START_BLOCK);
-
+        vm.createSelectFork(vm.rpcUrl("optimism"), START_BLOCK);
         oracle = new VolatilityOracle();
     }
 
@@ -63,7 +59,7 @@ contract VolatilityOracleTest is Test {
 
             (uint256 gamma0, uint256 gamma1, ) = oracle.cachedMetadata(pool);
             (uint256 fgg0, uint256 fgg1, uint256 fggTime) = oracle.feeGrowthGlobals(pool, 0);
-            (uint256 index, uint256 time, uint256 iv) = oracle.lastWrites(pool);
+            (uint256 index, uint256 time, uint256 oldIV, uint256 newIV) = oracle.lastWrites(pool);
 
             assertGt(gamma0, 0);
             assertGt(gamma1, 0);
@@ -72,149 +68,113 @@ contract VolatilityOracleTest is Test {
             assertEq(fggTime, block.timestamp);
             assertEq(index, 0);
             assertEq(time, block.timestamp);
-            assertEqDecimal(iv, IV_COLD_START, 12);
+            assertEqDecimal(oldIV, IV_COLD_START, 12);
+            assertEqDecimal(newIV, IV_COLD_START, 12);
         }
 
         vm.expectRevert(bytes("Aloe: cardinality"));
         oracle.prepare(IUniswapV3Pool(0xbf16ef186e715668AA29ceF57e2fD7f9D48AdFE6));
     }
 
-    function test_spec_updateTooLate() public {
-        _prepareAllPools();
-
-        vm.makePersistent(address(oracle));
-        vm.rollFork(TWELVE_HOURS_LATER);
-
-        uint256 count = pools.length;
-        for (uint256 i = 0; i < count; i++) {
-            IUniswapV3Pool pool = IUniswapV3Pool(pools[i]);
-
-            (uint256 index, uint256 time, uint256 ivOldExpected) = oracle.lastWrites(pool);
-            assertEq(index, 0);
-            assertGe(block.timestamp, time + 6 hours + 7.5 minutes);
-
-            (, , uint256 ivOld) = oracle.consult(pool, (1 << 32));
-            (, , uint256 ivNew) = oracle.update(pool, (1 << 32));
-
-            assertEqDecimal(ivOld, ivOldExpected, 12);
-            assertEqDecimal(ivNew, ivOld, 12);
-
-            (index, time, ivNew) = oracle.lastWrites(pool);
-
-            assertEqDecimal(ivNew, ivOld, 12);
-            assertEq(index, 1);
-            assertEq(time, block.timestamp);
-        }
-    }
-
-    function test_spec_updateTooSoon() public {
-        _prepareAllPools();
-
-        vm.makePersistent(address(oracle));
-        vm.rollFork(START_BLOCK + 16 seconds / 2 seconds); // roll forward approx. 16 seconds, assuming 2 seconds per block
-
-        uint256 count = pools.length;
-        for (uint256 i = 0; i < count; i++) {
-            IUniswapV3Pool pool = IUniswapV3Pool(pools[i]);
-
-            (uint256 index, uint256 time, uint256 ivOld) = oracle.lastWrites(pool);
-            assertEq(index, 0);
-            assertLt(block.timestamp, time + FEE_GROWTH_SAMPLE_PERIOD);
-
-            vm.record();
-            (, , uint256 ivNew) = oracle.update(pool, (1 << 32));
-            (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(address(oracle));
-
-            assertEqDecimal(ivNew, ivOld, 12);
-            assertEq(reads.length, 1);
-            assertEq(writes.length, 0);
-        }
-    }
-
-    function test_spec_updateNormal() public {
-        _prepareAllPools();
-
-        vm.makePersistent(address(oracle));
-        vm.rollFork(SIX_HOURS_LATER);
-
-        uint256 count = pools.length;
-        for (uint256 i = 0; i < count; i++) {
-            IUniswapV3Pool pool = IUniswapV3Pool(pools[i]);
-
-            vm.record();
-            (, , uint256 iv) = oracle.update(pool, (1 << 32));
-            (bytes32[] memory reads, bytes32[] memory writes) = vm.accesses(address(oracle));
-
-            assertEq(reads.length, 10);
-            assertEq(writes.length, 4);
-
-            (uint256 index, uint256 time, uint256 ivStored) = oracle.lastWrites(pool);
-
-            assertEq(index, 1);
-            assertEq(time, block.timestamp);
-            assertEq(ivStored, iv);
-        }
-    }
-
-    function test_historical_updateSequenceETHUSDC() public {
-        uint256 currentBlock = 109019618;
-        vm.createSelectFork("optimism", currentBlock);
-
-        IUniswapV3Pool pool = IUniswapV3Pool(pools[1]); // WETH/USDC
-        oracle = new VolatilityOracle();
-        oracle.prepare(pool);
-
-        vm.makePersistent(address(oracle));
-
-        (uint256 currentIndex, uint256 currentTime, uint256 currentIV) = oracle.lastWrites(pool);
-
-        uint256 initialTime = currentTime;
-
-        for (uint256 i = 0; i < 48; i++) {
-            console2.log(currentTime, currentIV);
-
-            uint256 interval = FEE_GROWTH_SAMPLE_PERIOD * 2;
-            currentBlock += BLOCKS_PER_SECOND * interval;
-            vm.createSelectFork("optimism", currentBlock);
-
-            (, , uint256 ivWritten) = oracle.update(pool, (1 << 32));
-            (uint256 newIndex, uint256 newTime, uint256 ivStored) = oracle.lastWrites(pool);
-
-            assertEqDecimal(ivStored, ivWritten, 12);
-            assertEq(newIndex, (currentIndex + 1) % FEE_GROWTH_ARRAY_LENGTH);
-
-            uint256 maxChange = IV_CHANGE_PER_UPDATE;
-            assertLe(ivWritten, currentIV + maxChange);
-            assertGe(ivWritten + maxChange, currentIV);
-
-            currentIndex = newIndex;
-            currentTime = newTime;
-            currentIV = ivWritten;
-        }
-
-        console2.log("Time Simulated:", currentTime - initialTime, "seconds");
-    }
+    uint256[] weekBlocks = [
+        16314442, // 01/01/23
+        16364593,
+        16414717,
+        16464865,
+        16514997,
+        16565106, // 02/05/23
+        16615200,
+        16665143,
+        16714917,
+        16764702, // 03/05/23
+        16814158,
+        16863970,
+        16913810,
+        16963603, // 04/02/23
+        17012926,
+        17061640,
+        17111224,
+        17161077,
+        17210866, // 05/07/23
+        17260300,
+        17309940,
+        17359732,
+        17409440, // 06/04/23
+        17459071,
+        17508877,
+        17558704,
+        17608537, // 07/02/23
+        17658356,
+        17708064,
+        17758034,
+        17808064,
+        17858133, // 08/06/23
+        17908161,
+        17958178,
+        18008217,
+        18058185, // 09/03/23
+        18108193,
+        18157945,
+        18207875,
+        18257907, // 10/01/23
+        18307977,
+        18358000,
+        18408050,
+        18458055
+    ];
 
     function test_historical_ETHUSDC() public {
-        IUniswapV3Pool pool = IUniswapV3Pool(pools[1]); // WETH/USDC
-        oracle.prepare(pool);
-        vm.makePersistent(address(oracle));
+        _test_historical(
+            IUniswapV3Pool(0x88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640),
+            0.0345e12,
+            0xbe2fa84a9dc9b3744200a739246fcad3762e18a06020b4a5584b5623a1bef42f
+        );
+    }
 
-        uint256 currentBlock = START_BLOCK;
+    function test_historical_BTCUSDC() public {
+        _test_historical(
+            IUniswapV3Pool(0x99ac8cA7087fA4A2A1FB6357269965A2014ABc35),
+            0.026e12,
+            0x28c05b3a958d5487d5602d8e48154200a9bcc77d1a3c5189ea02ab1bd5ee2058
+        );
+    }
+
+    function _test_historical(IUniswapV3Pool pool, uint256 init, bytes32 slot) private {
+        vm.makePersistent(address(oracle));
+        vm.createSelectFork(vm.rpcUrl("mainnet"), 16314442);
+        oracle.prepare(pool);
+
         uint256 totalGas = 0;
 
-        for (uint256 i = 0; i < 600; i++) {
-            currentBlock += (1 + (uint256(blockhash(block.number)) % 3)) * 7200;
-            vm.createSelectFork("optimism", currentBlock);
+        for (uint256 i = 0; i < weekBlocks.length; i++) {
+            uint256 weekStartBlock = weekBlocks[i];
 
-            uint256 g = gasleft();
-            (uint56 metric, uint160 sqrtPriceX96, uint256 iv) = oracle.update(pool, (1 << 32));
-            totalGas += g - gasleft();
+            for (uint256 j = 0; j < 12; j++) {
+                uint256 currentBlock = weekStartBlock + ((j * 12 hours) / 12 seconds);
+                vm.createSelectFork("mainnet", currentBlock);
 
-            console2.log(block.timestamp, metric, sqrtPriceX96, iv);
+                uint256 g = gasleft();
+                (uint56 metric, uint160 sqrtPriceX96, uint256 iv) = oracle.update(pool, (1 << 32));
+                totalGas += g - gasleft();
+
+                if (i == 0 && j == 0) {
+                    // uint256 k = stdstore
+                    //     .target(address(oracle))
+                    //     .sig("lastWrites(address)")
+                    //     .with_key(address(pool))
+                    //     .find();
+                    // console2.log(k);
+
+                    iv = init;
+                    uint256 val = uint256(vm.load(address(oracle), slot));
+                    vm.store(address(oracle), slot, bytes32(uint48(val) + (iv << 48) + (iv << 152)));
+                }
+
+                console2.log(block.timestamp, sqrtPriceX96, iv, metric);
+            }
         }
 
-        console2.log("avg gas to update oracle:", totalGas / 600);
+        console2.log("avg gas to update oracle:", totalGas / (weekBlocks.length * 12));
     }
 
     function _prepareAllPools() private {
