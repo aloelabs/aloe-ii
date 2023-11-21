@@ -129,9 +129,6 @@ contract Factory {
     /// @notice Returns the `Courier` for any given ID
     mapping(uint32 => Courier) public couriers;
 
-    /// @notice Returns whether the given address has enrolled as a courier
-    mapping(address => bool) public isCourier;
-
     /*//////////////////////////////////////////////////////////////
                               CONSTRUCTOR
     //////////////////////////////////////////////////////////////*/
@@ -226,10 +223,6 @@ contract Factory {
     //////////////////////////////////////////////////////////////*/
 
     function claimRewards(Lender[] calldata lenders, address beneficiary) external returns (uint256 earned) {
-        // Couriers cannot claim rewards because the accounting isn't quite correct for them. Specifically, we
-        // save gas by omitting a `Rewards.updateUserState` call for the courier in `Lender._burn`
-        require(!isCourier[msg.sender]);
-
         unchecked {
             uint256 count = lenders.length;
             for (uint256 i = 0; i < count; i++) {
@@ -261,8 +254,6 @@ contract Factory {
         require(couriers[id].cut == 0);
 
         couriers[id] = Courier(msg.sender, cut);
-        isCourier[msg.sender] = true;
-
         emit EnrollCourier(id, msg.sender, cut);
     }
 
