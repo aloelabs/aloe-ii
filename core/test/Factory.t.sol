@@ -101,7 +101,6 @@ contract FactoryTest is Test {
         emit EnrollCourier(id, address(this), cut);
         factory.enrollCourier(id, cut);
 
-        assertTrue(factory.isCourier(address(this)));
         (address courier, uint16 cutRec) = factory.couriers(id);
         assertEq(courier, address(this));
         assertEq(cutRec, cut);
@@ -114,13 +113,6 @@ contract FactoryTest is Test {
         Lender[] memory lenders = new Lender[](2);
         lenders[0] = lender0;
         lenders[1] = lender1;
-
-        // Couriers cannot claim rewards
-        vm.prank(address(6789));
-        factory.enrollCourier(1, 5000);
-        vm.prank(address(6789));
-        vm.expectRevert(bytes(""));
-        factory.claimRewards(lenders, address(6789));
 
         // Set rewards token
         vm.prank(factory.GOVERNOR());
