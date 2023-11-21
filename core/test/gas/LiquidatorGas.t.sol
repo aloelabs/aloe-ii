@@ -3,7 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {DEFAULT_ANTE, DEFAULT_N_SIGMA} from "src/libraries/constants/Constants.sol";
+import {DEFAULT_ANTE, DEFAULT_N_SIGMA, LIQUIDATION_GRACE_PERIOD} from "src/libraries/constants/Constants.sol";
 import {zip} from "src/libraries/Positions.sol";
 
 import "src/Borrower.sol";
@@ -165,14 +165,14 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         setInterest(lender1, 10100);
 
         account.warn(oracleSeed);
-        skip(LIQUIDATION_GRACE_PERIOD + 1 seconds);
+        skip(LIQUIDATION_GRACE_PERIOD + 5 minutes);
         lender0.accrueInterest();
         lender1.accrueInterest();
 
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(this, bytes(""), 1, oracleSeed);
+        account.liquidate(this, bytes(""), 10000, oracleSeed);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);

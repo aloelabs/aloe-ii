@@ -3,7 +3,14 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {DEFAULT_ANTE, DEFAULT_N_SIGMA, LIQUIDATION_INCENTIVE} from "src/libraries/constants/Constants.sol";
+import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
+
+import {
+    DEFAULT_ANTE,
+    DEFAULT_N_SIGMA,
+    LIQUIDATION_INCENTIVE,
+    LIQUIDATION_GRACE_PERIOD
+} from "src/libraries/constants/Constants.sol";
 import {Q96} from "src/libraries/constants/Q.sol";
 import {zip} from "src/libraries/Positions.sol";
 
@@ -98,7 +105,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     }
 
     function test_spec_repayDAI() public {
-        uint256 strain = 1;
+        uint16 strain = 1;
         // give the account 1 DAI (plus a little due to liabilities rounding up)
         deal(address(asset0), address(account), 1e18 + 1750);
 
@@ -126,7 +133,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     }
 
     function test_spec_repayETH() public {
-        uint256 strain = 1;
+        uint16 strain = 1;
         // give the account 0.1 ETH
         deal(address(asset1), address(account), 0.1e18);
 
@@ -154,7 +161,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     }
 
     function test_spec_repayDAIAndETH() public {
-        uint256 strain = 1;
+        uint16 strain = 1;
         // give the account 1 DAI and 0.1 ETH
         deal(address(asset0), address(account), 1e18);
         deal(address(asset1), address(account), 0.1e18 + 1);
@@ -189,7 +196,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     }
 
     function test_spec_repayDAIAndETHWithUniswapPosition() public {
-        uint256 strain = 1;
+        uint16 strain = 1;
         // give the account 1 DAI and 0.1 ETH
         deal(address(asset0), address(account), 1.1e18);
         deal(address(asset1), address(account), 0.1e18);
@@ -369,7 +376,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     }
 
     function test_spec_priceTriggerRepayDAIUsingSwap() public {
-        uint256 strain = 1;
+        uint16 strain = 1;
 
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 borrow0 = 1000e18;
@@ -432,7 +439,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     }
 
     function test_spec_warnDoesProtect() public {
-        uint256 strain = 1;
+        uint16 strain = 1;
 
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 borrow0 = 1000e18;

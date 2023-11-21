@@ -6,6 +6,7 @@ import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.so
 import {
     MAX_LEVERAGE,
     LIQUIDATION_INCENTIVE,
+    LIQUIDATION_GRACE_PERIOD,
     PROBE_SQRT_SCALER_MIN,
     PROBE_SQRT_SCALER_MAX,
     LTV_NUMERATOR
@@ -51,12 +52,12 @@ library BalanceSheet {
         uint256 liabilities0,
         uint256 liabilities1
     ) internal pure returns (bool) {
-        if (!_isHealthy(prices.a, assets.amount0AtA, assets.amount1AtA, liabilities0, liabilities1)) return false;
-        if (!_isHealthy(prices.b, assets.amount0AtB, assets.amount1AtB, liabilities0, liabilities1)) return false;
+        if (!_isSolvent(prices.a, assets.amount0AtA, assets.amount1AtA, liabilities0, liabilities1)) return false;
+        if (!_isSolvent(prices.b, assets.amount0AtB, assets.amount1AtB, liabilities0, liabilities1)) return false;
         return true;
     }
 
-    function _isHealthy(
+    function _isSolvent(
         uint160 sqrtPriceX96,
         uint256 assets0,
         uint256 assets1,
@@ -115,36 +116,33 @@ library BalanceSheet {
     /**
      * @notice Computes the liquidation incentive that would be paid out if a liquidator closes the account
      * using a swap with `strain = 1`
-     * @param assets0 The amount of `TOKEN0` held/controlled by the `Borrower` at the current TWAP
-     * @param assets1 The amount of `TOKEN1` held/controlled by the `Borrower` at the current TWAP
      * @param liabilities0 The amount of `TOKEN0` that the `Borrower` owes to `LENDER0`
      * @param liabilities1 The amount of `TOKEN1` that the `Borrower` owes to `LENDER1`
      * @param meanPriceX128 The current TWAP
+     * // TODO:
      * @return incentive1 The incentive to pay out, denominated in `TOKEN1`
      */
     function computeLiquidationIncentive(
-        uint256 assets0,
-        uint256 assets1,
         uint256 liabilities0,
         uint256 liabilities1,
-        uint256 meanPriceX128
-    ) internal pure returns (uint256 incentive1) {
-        unchecked {
-            if (liabilities0 > assets0) {
-                // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
-                uint256 shortfall = liabilities0 - assets0;
-                // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
-                // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                incentive1 += mulDiv128(shortfall, meanPriceX128) / LIQUIDATION_INCENTIVE;
-            }
+        uint256 meanPriceX128,
+        uint256 auctionTime,
+        uint16 closeFactor
+    ) internal view returns (uint256 incentive1) {
+        assembly ("memory-safe") {
+            // Equivalent: `if (auctionTime != 0) auctionTime = block.timestamp - auctionTime;`
+            auctionTime := mul(gt(auctionTime, 0), sub(timestamp(), auctionTime))
+        }
+        require(auctionTime > LIQUIDATION_GRACE_PERIOD, "Aloe: grace");
 
-            if (liabilities1 > assets1) {
-                // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
-                uint256 shortfall = liabilities1 - assets1;
-                // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
-                // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                incentive1 += shortfall / LIQUIDATION_INCENTIVE;
+        unchecked {
+            incentive1 = 0.08e8 * (auctionTime - LIQUIDATION_GRACE_PERIOD);
+            if (auctionTime > 3 * LIQUIDATION_GRACE_PERIOD) {
+                incentive1 -= 0.07354386e8 * (auctionTime - 3 * LIQUIDATION_GRACE_PERIOD);
             }
+            incentive1 =
+                (incentive1 * (liabilities1 + mulDiv128Up(liabilities0, meanPriceX128)) * closeFactor) /
+                (1e8 * 10 minutes * 10_000);
         }
     }
 

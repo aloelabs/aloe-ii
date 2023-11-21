@@ -2,12 +2,11 @@
 pragma solidity 0.8.17;
 
 import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
-import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
 import {Q128} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
@@ -45,6 +44,7 @@ interface IManager {
 /// @author Aloe Labs, Inc.
 /// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract Borrower is IUniswapV3MintCallback {
+    using SoladyMath for uint256;
     using SafeTransferLib for ERC20;
 
     /**
@@ -56,7 +56,7 @@ contract Borrower is IUniswapV3MintCallback {
      * nullify the immediate liquidation threat, but they will not clear the warning. This means that next
      * time the account is unhealthy, liquidators might skip `warn` and `liquidate` right away. To clear the
      * warning and return to a "clean" state, make sure to call `modify` -- even if the callback is a no-op.
-     * @dev The deadline for regaining health (avoiding liquidation) is given by `slot0.unleashLiquidationTime`.
+     * @dev The deadline for regaining health (avoiding liquidation) is given by `slot0.unleashLiquidationTime`. TODO:
      * If this value is 0, the account is in the aforementioned "clean" state.
      */
     event Warn();
@@ -68,7 +68,7 @@ contract Borrower is IUniswapV3MintCallback {
      * @param incentive1 The value of the swap bonus given to the liquidator, expressed in terms of `TOKEN1`
      * @param priceX128 The price at which the liquidation took place
      */
-    event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX128);
+    event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX128); // TODO:
 
     enum State {
         Ready,
@@ -77,7 +77,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     uint256 private constant SLOT0_MASK_POSITIONS = 0x000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffff;
-    uint256 private constant SLOT0_MASK_UNLEASH   = 0x00ffffffffff0000000000000000000000000000000000000000000000000000; // prettier-ignore
+    uint256 private constant SLOT0_MASK_FREE      = 0x000000000000ffffffffffffffff000000000000000000000000000000000000; // prettier-ignore
+    uint256 private constant SLOT0_MASK_AUCTION   = 0x00ffffffffff0000000000000000000000000000000000000000000000000000; // prettier-ignore
     uint256 private constant SLOT0_MASK_STATE     = 0x7f00000000000000000000000000000000000000000000000000000000000000; // prettier-ignore
     uint256 private constant SLOT0_DIRT           = 0x8000000000000000000000000000000000000000000000000000000000000000; // prettier-ignore
 
@@ -106,8 +107,8 @@ contract Borrower is IUniswapV3MintCallback {
      * @notice The `Borrower`'s only mutable storage. Lowest 144 bits store the lower/upper bounds of up to 3 Uniswap
      * positions, encoded by `Positions.zip`. Next 64 bits are unused within the `Borrower` and available to users as
      * "free" storage － no additional sstore's. These 208 bits (144 + 64) are passed to `IManager.callback`, and get
-     * updated when the callback returns a non-zero value. The next 40 bits are either 0 or `unleashLiquidationTime`,
-     * as explained in the `Warn` event docs. The highest 8 bits represent the current `State` enum, plus 128. We add
+     * updated when the callback returns a non-zero value. The next 40 bits are either 0 or the auction time, as
+     * explained in the `Warn` event docs. The highest 8 bits represent the current `State` enum, plus 128. We add
      * 128 (i.e. set the highest bit to 1) so that the slot is always non-zero, even in the absence of Uniswap
      * positions － this saves gas.
      */
@@ -154,8 +155,8 @@ contract Borrower is IUniswapV3MintCallback {
      */
     function warn(uint40 oracleSeed) external {
         uint256 slot0_ = slot0;
-        // Essentially `slot0.state == State.Ready && slot0.unleashLiquidationTime == 0`
-        require(slot0_ & (SLOT0_MASK_STATE | SLOT0_MASK_UNLEASH) == 0);
+        // Essentially `slot0.state == State.Ready && slot0.auctionTime == 0`
+        require(slot0_ & (SLOT0_MASK_STATE | SLOT0_MASK_AUCTION) == 0);
 
         {
             // Fetch prices from oracle
@@ -168,7 +169,7 @@ contract Borrower is IUniswapV3MintCallback {
             require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
         }
 
-        slot0 = slot0_ | ((block.timestamp + LIQUIDATION_GRACE_PERIOD) << 208);
+        slot0 = slot0_ | (block.timestamp << 208);
         emit Warn();
 
         SafeTransferLib.safeTransferETH(msg.sender, address(this).balance >> 3);
@@ -185,27 +186,28 @@ contract Borrower is IUniswapV3MintCallback {
      * callback arguments were denominated in the same asset, the first argument would be 5% larger.
      * @param callee A smart contract capable of swapping `TOKEN0` for `TOKEN1` and vice versa
      * @param data Encoded parameters that get forwarded to `callee` callbacks
-     * @param strain Almost always set to `1` to pay off all debt and receive maximum reward. If
+     * @param closeFactor Almost always set to `1` to pay off all debt and receive maximum reward. If
      * liquidity is thin and swap price impact would be too large, you can use higher values to
      * reduce swap size and make it easier for `callee` to do its job. `2` would be half swap size,
-     * `3` one third, and so on.
+     * `3` one third, and so on. TODO:
      * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
      * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
      */
-    function liquidate(ILiquidator callee, bytes calldata data, uint256 strain, uint40 oracleSeed) external {
+    function liquidate(ILiquidator callee, bytes calldata data, uint16 closeFactor, uint40 oracleSeed) external {
+        require(0 < closeFactor && closeFactor <= 10000, "Aloe: close");
+
         uint256 slot0_ = slot0;
         // Essentially `slot0.state == State.Ready`
         require(slot0_ & SLOT0_MASK_STATE == 0);
         slot0 = slot0_ | (uint256(State.Locked) << 248);
 
-        uint256 priceX128;
+        Prices memory prices;
         uint256 liabilities0;
         uint256 liabilities1;
         {
             // Fetch prices from oracle
-            (Prices memory prices, ) = getPrices(oracleSeed);
-            priceX128 = square(prices.c);
+            (prices, ) = getPrices(oracleSeed);
             // Withdraw Uniswap positions while tallying assets
             Assets memory assets = _getAssets(slot0_, prices, true);
             // Fetch liabilities from lenders
@@ -214,71 +216,74 @@ contract Borrower is IUniswapV3MintCallback {
             require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
         }
 
-        // NOTE: The health check values assets at the TWAP and is difficult to manipulate. However,
-        // the instantaneous price does impact what tokens we receive when burning Uniswap positions.
-        // As such, additional calls to `TOKEN0.balanceOf` and `TOKEN1.balanceOf` are required for
-        // precise inventory, and we take care not to increase `incentive1`.
-
         unchecked {
-            uint256 incentive1 = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+            uint256 assets0 = TOKEN0.balanceOf(address(this));
+            uint256 assets1 = TOKEN1.balanceOf(address(this));
 
-            // Figure out what portion of liabilities can be repaid using existing assets
-            uint256 repayable0 = Math.min(liabilities0, TOKEN0.balanceOf(address(this)));
-            uint256 repayable1 = Math.min(liabilities1, TOKEN1.balanceOf(address(this)));
-
-            // See what remains (similar to "shortfall" in BalanceSheet)
-            liabilities0 -= repayable0;
-            liabilities1 -= repayable1;
+            uint256 x = liabilities0.zeroFloorSub(assets0);
+            uint256 y = liabilities1.zeroFloorSub(assets1);
 
             // Decide whether to swap or not
             bool shouldSwap;
             assembly ("memory-safe") {
                 // If both are zero or neither is zero, there's nothing more to do
-                shouldSwap := xor(gt(liabilities0, 0), gt(liabilities1, 0))
-                // Divide by `strain` and check again. This second check can generate false positives in cases
+                shouldSwap := xor(gt(x, 0), gt(y, 0))
+                // Apply `closeFactor` and check again. This second check can generate false positives in cases
                 // where one division (not both) floors to 0, which is why we `and()` with the check above.
-                liabilities0 := div(liabilities0, strain)
-                liabilities1 := div(liabilities1, strain)
-                shouldSwap := and(shouldSwap, xor(gt(liabilities0, 0), gt(liabilities1, 0)))
-                // If not swapping, set `incentive1 = 0`
-                incentive1 := mul(shouldSwap, incentive1)
+                x := div(mul(x, closeFactor), 10000)
+                y := div(mul(y, closeFactor), 10000)
+                shouldSwap := and(shouldSwap, xor(gt(x, 0), gt(y, 0)))
             }
 
             if (shouldSwap) {
-                uint256 unleashTime = (slot0_ & SLOT0_MASK_UNLEASH) >> 208;
-                require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
+                uint256 priceX128 = square(prices.c);
+                uint256 incentive1 = BalanceSheet.computeLiquidationIncentive(
+                    liabilities0,
+                    liabilities1,
+                    priceX128,
+                    (slot0_ & SLOT0_MASK_AUCTION) >> 208,
+                    closeFactor
+                );
 
-                incentive1 = incentive1 * 5 / 100; // TODO: based on `unleashTime`
-
-                incentive1 /= strain;
-                if (liabilities0 > 0) {
-                    // NOTE: This value is not constrained to `TOKEN1.balanceOf(address(this))`, so liquidators
-                    // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
-                    // be an issue unless the borrower has already started accruing bad debt.
-                    uint256 available1 = mulDiv128(liabilities0, priceX128) + incentive1;
+                if (x > 0) {
+                    uint256 available1 = mulDiv128(x, priceX128) + incentive1;
+                    available1 = SoladyMath.min(available1, assets1);
 
                     TOKEN1.safeTransfer(address(callee), available1);
-                    callee.swap1For0(data, available1, liabilities0);
+                    callee.swap1For0(data, available1, x);
 
-                    repayable0 += liabilities0;
+                    assets0 += x;
+                    assets1 -= available1;
                 } else {
-                    // NOTE: This value is not constrained to `TOKEN0.balanceOf(address(this))`, so liquidators
-                    // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
-                    // be an issue unless the borrower has already started accruing bad debt.
-                    uint256 available0 = Math.mulDiv(liabilities1 + incentive1, Q128, priceX128);
+                    uint256 available0 = (y + incentive1).fullMulDiv(Q128, priceX128);
+                    available0 = SoladyMath.min(available0, assets0);
 
                     TOKEN0.safeTransfer(address(callee), available0);
-                    callee.swap0For1(data, available0, liabilities1);
+                    callee.swap0For1(data, available0, y);
 
-                    repayable1 += liabilities1;
+                    assets1 += y;
+                    assets0 -= available0;
                 }
             }
 
-            _repay(repayable0, repayable1);
-            slot0 = (slot0_ & SLOT0_MASK_POSITIONS) | SLOT0_DIRT;
+            {
+                uint256 repay0 = SoladyMath.min(assets0, liabilities0);
+                uint256 repay1 = SoladyMath.min(assets1, liabilities1);
+                _repay(repay0, repay1);
+                assets0 -= repay0;
+                assets1 -= repay1;
+                liabilities0 -= repay0;
+                liabilities1 -= repay1;
+            }
 
-            payable(callee).transfer(address(this).balance / strain);
-            emit Liquidate(repayable0, repayable1, incentive1, priceX128);
+            if (
+                BalanceSheet.isHealthy(prices, Assets(assets0, assets1, assets0, assets1), liabilities0, liabilities1)
+            ) {
+                slot0 = (slot0_ & SLOT0_MASK_FREE) | SLOT0_DIRT;
+                payable(callee).transfer((address(this).balance * closeFactor) / 10000);
+            } else {
+                slot0 = (slot0_ & (SLOT0_MASK_AUCTION | SLOT0_MASK_FREE)) | SLOT0_DIRT;
+            }
         }
     }
 
