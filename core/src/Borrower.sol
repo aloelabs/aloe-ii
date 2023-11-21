@@ -78,7 +78,7 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     uint256 private constant SLOT0_MASK_POSITIONS = 0x000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffff;
-    uint256 private constant SLOT0_MASK_UNLEASH   = 0x00ffffffffff0000000000000000000000000000000000000000000000000000; // prettier-ignore
+    uint256 private constant SLOT0_MASK_AUCTION   = 0x00ffffffffff0000000000000000000000000000000000000000000000000000; // prettier-ignore
     uint256 private constant SLOT0_MASK_STATE     = 0x7f00000000000000000000000000000000000000000000000000000000000000; // prettier-ignore
     uint256 private constant SLOT0_DIRT           = 0x8000000000000000000000000000000000000000000000000000000000000000; // prettier-ignore
 
@@ -156,7 +156,7 @@ contract Borrower is IUniswapV3MintCallback {
     function warn(uint40 oracleSeed) external {
         uint256 slot0_ = slot0;
         // Essentially `slot0.state == State.Ready && slot0.unleashLiquidationTime == 0`
-        require(slot0_ & (SLOT0_MASK_STATE | SLOT0_MASK_UNLEASH) == 0);
+        require(slot0_ & (SLOT0_MASK_STATE | SLOT0_MASK_AUCTION) == 0);
 
         {
             // Fetch prices from oracle
@@ -253,7 +253,7 @@ contract Borrower is IUniswapV3MintCallback {
             }
 
             if (shouldSwap) {
-                uint256 unleashTime = (slot0_ & SLOT0_MASK_UNLEASH) >> 208;
+                uint256 unleashTime = (slot0_ & SLOT0_MASK_AUCTION) >> 208;
                 require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
 
                 incentive1 /= strain;
