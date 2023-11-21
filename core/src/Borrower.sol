@@ -186,7 +186,7 @@ contract Borrower is IUniswapV3MintCallback {
      * callback arguments were denominated in the same asset, the first argument would be 5% larger.
      * @param callee A smart contract capable of swapping `TOKEN0` for `TOKEN1` and vice versa
      * @param data Encoded parameters that get forwarded to `callee` callbacks
-     * @param strain Almost always set to `1` to pay off all debt and receive maximum reward. If
+     * @param closeFactor Almost always set to `1` to pay off all debt and receive maximum reward. If
      * liquidity is thin and swap price impact would be too large, you can use higher values to
      * reduce swap size and make it easier for `callee` to do its job. `2` would be half swap size,
      * `3` one third, and so on.
@@ -194,7 +194,9 @@ contract Borrower is IUniswapV3MintCallback {
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
      * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
      */
-    function liquidate(ILiquidator callee, bytes calldata data, uint256 strain, uint40 oracleSeed) external {
+    function liquidate(ILiquidator callee, bytes calldata data, uint16 closeFactor, uint40 oracleSeed) external {
+        require(0 < closeFactor && closeFactor <= 10000, "Aloe: close");
+
         uint256 slot0_ = slot0;
         // Essentially `slot0.state == State.Ready`
         require(slot0_ & SLOT0_MASK_STATE == 0);
@@ -243,10 +245,10 @@ contract Borrower is IUniswapV3MintCallback {
             assembly ("memory-safe") {
                 // If both are zero or neither is zero, there's nothing more to do
                 shouldSwap := xor(gt(liabilities0, 0), gt(liabilities1, 0))
-                // Divide by `strain` and check again. This second check can generate false positives in cases
+                // Apply `closeFactor` and check again. This second check can generate false positives in cases
                 // where one division (not both) floors to 0, which is why we `and()` with the check above.
-                liabilities0 := div(liabilities0, strain)
-                liabilities1 := div(liabilities1, strain)
+                liabilities0 := div(mul(liabilities0, closeFactor), 10000)
+                liabilities1 := div(mul(liabilities1, closeFactor), 10000)
                 shouldSwap := and(shouldSwap, xor(gt(liabilities0, 0), gt(liabilities1, 0)))
                 // If not swapping, set `incentive1 = 0`
                 incentive1 := mul(shouldSwap, incentive1)
@@ -256,7 +258,7 @@ contract Borrower is IUniswapV3MintCallback {
                 uint256 unleashTime = (slot0_ & SLOT0_MASK_AUCTION) >> 208;
                 require(0 < unleashTime && unleashTime < block.timestamp, "Aloe: grace");
 
-                incentive1 /= strain;
+                incentive1 = (incentive1 * closeFactor) / 10000;
                 if (liabilities0 > 0) {
                     // NOTE: This value is not constrained to `TOKEN1.balanceOf(address(this))`, so liquidators
                     // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
@@ -285,7 +287,7 @@ contract Borrower is IUniswapV3MintCallback {
 
             emit Liquidate(repayable0, repayable1, incentive1, priceX128);
 
-            SafeTransferLib.safeTransferETH(payable(callee), address(this).balance / strain);
+            SafeTransferLib.safeTransferETH(payable(callee), (address(this).balance * closeFactor) / 10000);
         }
     }
 
