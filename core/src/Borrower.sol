@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
@@ -211,10 +212,10 @@ contract Borrower is IUniswapV3MintCallback {
             Assets memory assets = _getAssets(slot0_, prices, true);
             // Fetch liabilities from lenders
             (liabilities0, liabilities1) = _getLiabilities();
-            // Calculate liquidation incentive
+            // Calculate liquidation incentive, TODO: this isn't really right at the moment
             incentive1 = BalanceSheet.computeLiquidationIncentive(
-                assets.fixed0 + assets.fluid0C, // total assets0 at `prices.c` (the TWAP)
-                assets.fixed1 + assets.fluid1C, // total assets1 at `prices.c` (the TWAP)
+                SoladyMath.min(assets.a.amount0, assets.b.amount0),
+                SoladyMath.min(assets.a.amount1, assets.b.amount1),
                 liabilities0,
                 liabilities1,
                 priceX128
@@ -491,8 +492,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function _getAssets(uint256 slot0_, Prices memory prices, bool withdraw) private returns (Assets memory assets) {
-        assets.fixed0 = TOKEN0.balanceOf(address(this));
-        assets.fixed1 = TOKEN1.balanceOf(address(this));
+        assets.a.amount0 = assets.b.amount0 = TOKEN0.balanceOf(address(this));
+        assets.a.amount1 = assets.b.amount1 = TOKEN1.balanceOf(address(this));
 
         int24[] memory positions = extract(slot0_);
         uint256 count = positions.length;
@@ -510,14 +511,15 @@ contract Borrower is IUniswapV3MintCallback {
                 uint160 L = TickMath.getSqrtRatioAtTick(l);
                 uint160 U = TickMath.getSqrtRatioAtTick(u);
 
-                // Compute the value of `liquidity` (in terms of token1) at both probe prices
-                assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(prices.a, L, U, liquidity);
-                assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(prices.b, L, U, liquidity);
-
-                // Compute what amounts underlie `liquidity` at the current TWAP
-                (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.c, L, U, liquidity);
-                assets.fluid0C += amount0;
-                assets.fluid1C += amount1;
+                uint256 amount0;
+                uint256 amount1;
+                // Compute what amounts underlie `liquidity` at both probe prices
+                (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.a, L, U, liquidity);
+                assets.a.amount0 += amount0;
+                assets.a.amount1 += amount1;
+                (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.b, L, U, liquidity);
+                assets.b.amount0 += amount0;
+                assets.b.amount1 += amount1;
 
                 if (!withdraw) continue;
 

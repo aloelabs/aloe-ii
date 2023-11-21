@@ -14,19 +14,18 @@ import {exp1e12} from "./Exp.sol";
 import {square, mulDiv128, mulDiv128Up} from "./MulDiv.sol";
 import {TickMath} from "./TickMath.sol";
 
+struct Balance {
+    // An amount of `TOKEN0`
+    uint256 amount0;
+    // An amount of `TOKEN1`
+    uint256 amount1;
+}
+
 struct Assets {
-    // The `Borrower`'s balance of `TOKEN0`, i.e. `TOKEN0.balanceOf(borrower)`
-    uint256 fixed0;
-    // The `Borrower`'s balance of `TOKEN1`, i.e. `TOKEN1.balanceOf(borrower)`
-    uint256 fixed1;
-    // The value of the `Borrower`'s Uniswap liquidity, evaluated at `Prices.a`, denominated in `TOKEN1`
-    uint256 fluid1A;
-    // The value of the `Borrower`'s Uniswap liquidity, evaluated at `Prices.b`, denominated in `TOKEN1`
-    uint256 fluid1B;
-    // The amount of `TOKEN0` underlying the `Borrower`'s Uniswap liquidity, evaluated at `Prices.c`
-    uint256 fluid0C;
-    // The amount of `TOKEN1` underlying the `Borrower`'s Uniswap liquidity, evaluated at `Prices.c`
-    uint256 fluid1C;
+    // The `Borrower`'s balances at `Prices.a` (including underlying amounts of Uniswap positions)
+    Balance a;
+    // The `Borrower`'s balances at `Prices.b` (including underlying amounts of Uniswap positions)
+    Balance b;
 }
 
 struct Prices {
@@ -47,7 +46,19 @@ library BalanceSheet {
     /// @dev Checks whether a `Borrower` is healthy given the probe prices and its current assets and liabilities
     function isHealthy(
         Prices memory prices,
-        Assets memory mem,
+        Assets memory assets,
+        uint256 liabilities0,
+        uint256 liabilities1
+    ) internal pure returns (bool) {
+        if (!isSolvent(prices.a, assets.a.amount0, assets.a.amount1, liabilities0, liabilities1)) return false;
+        if (!isSolvent(prices.b, assets.b.amount0, assets.b.amount1, liabilities0, liabilities1)) return false;
+        return true;
+    }
+
+    function isSolvent(
+        uint160 sqrtPriceX96,
+        uint256 assets0,
+        uint256 assets1,
         uint256 liabilities0,
         uint256 liabilities1
     ) internal pure returns (bool) {
@@ -55,28 +66,16 @@ library BalanceSheet {
             // The optimizer eliminates the conditional in `divUp`; don't worry about gas golfing that
             liabilities0 +=
                 liabilities0.divUp(MAX_LEVERAGE) +
-                liabilities0.zeroFloorSub(mem.fixed0 + mem.fluid0C).divUp(LIQUIDATION_INCENTIVE);
+                liabilities0.zeroFloorSub(assets0).divUp(LIQUIDATION_INCENTIVE);
             liabilities1 +=
                 liabilities1.divUp(MAX_LEVERAGE) +
-                liabilities1.zeroFloorSub(mem.fixed1 + mem.fluid1C).divUp(LIQUIDATION_INCENTIVE);
+                liabilities1.zeroFloorSub(assets1).divUp(LIQUIDATION_INCENTIVE);
         }
 
-        // combine
-        uint256 priceX128;
-        uint256 liabilities;
-        uint256 assets;
-
-        priceX128 = square(prices.a);
-        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
-        assets = mem.fluid1A + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
-        if (liabilities > assets) return false;
-
-        priceX128 = square(prices.b);
-        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
-        assets = mem.fluid1B + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
-        if (liabilities > assets) return false;
-
-        return true;
+        uint256 priceX128 = square(sqrtPriceX96);
+        uint256 assets = assets1 + mulDiv128(assets0, priceX128);
+        uint256 liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+        return assets >= liabilities;
     }
 
     /**
