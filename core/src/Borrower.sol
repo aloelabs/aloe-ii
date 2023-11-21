@@ -8,7 +8,6 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {LIQUIDATION_GRACE_PERIOD} from "./libraries/constants/Constants.sol";
 import {Q128} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
@@ -214,30 +213,25 @@ contract Borrower is IUniswapV3MintCallback {
             require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
         }
 
-        // NOTE: The health check values assets at the TWAP and is difficult to manipulate. However,
-        // the instantaneous price does impact what tokens we receive when burning Uniswap positions.
-        // As such, additional calls to `TOKEN0.balanceOf` and `TOKEN1.balanceOf` are required for
-        // precise inventory, and we take care not to increase `incentive1`.
-
         unchecked {
-            // Figure out what portion of liabilities can be repaid using existing assets
-            uint256 repayable0 = Math.min(liabilities0, TOKEN0.balanceOf(address(this)));
-            uint256 repayable1 = Math.min(liabilities1, TOKEN1.balanceOf(address(this)));
+            // Get precise inventory now that we've burned Uniswap positions
+            uint256 assets0 = TOKEN0.balanceOf(address(this));
+            uint256 assets1 = TOKEN1.balanceOf(address(this));
 
-            // See what remains (similar to "shortfall" in BalanceSheet)
-            liabilities0 -= repayable0;
-            liabilities1 -= repayable1;
+            // See what we need to acquire through swaps
+            uint256 in0 = liabilities0.zeroFloorSub(assets0);
+            uint256 in1 = liabilities1.zeroFloorSub(assets1);
 
             // Decide whether to swap or not
             bool shouldSwap;
             assembly ("memory-safe") {
                 // If both are zero or neither is zero, there's nothing more to do
-                shouldSwap := xor(gt(liabilities0, 0), gt(liabilities1, 0))
+                shouldSwap := xor(gt(in0, 0), gt(in1, 0))
                 // Apply `closeFactor` and check again. This second check can generate false positives in cases
                 // where one division (not both) floors to 0, which is why we `and()` with the check above.
-                liabilities0 := div(mul(liabilities0, closeFactor), 10000)
-                liabilities1 := div(mul(liabilities1, closeFactor), 10000)
-                shouldSwap := and(shouldSwap, xor(gt(liabilities0, 0), gt(liabilities1, 0)))
+                in0 := div(mul(in0, closeFactor), 10000)
+                in1 := div(mul(in1, closeFactor), 10000)
+                shouldSwap := and(shouldSwap, xor(gt(in0, 0), gt(in1, 0)))
             }
 
             if (shouldSwap) {
@@ -250,42 +244,51 @@ contract Borrower is IUniswapV3MintCallback {
                     closeFactor
                 );
 
-                if (liabilities0 > 0) {
+                if (in0 > 0) {
                     // NOTE: This value is not constrained to `TOKEN1.balanceOf(address(this))`, so liquidators
                     // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
                     // be an issue unless the borrower has already started accruing bad debt.
-                    uint256 available1 = mulDiv128(liabilities0, priceX128) + incentive1;
+                    uint256 out1 = mulDiv128(in0, priceX128) + incentive1;
 
-                    TOKEN1.safeTransfer(address(callee), available1);
-                    callee.swap1For0(data, available1, liabilities0);
+                    TOKEN1.safeTransfer(address(callee), out1);
+                    callee.swap1For0(data, out1, in0);
 
-                    repayable0 += liabilities0;
+                    assets1 -= out1;
+                    assets0 += in0;
                 } else {
                     // NOTE: This value is not constrained to `TOKEN0.balanceOf(address(this))`, so liquidators
                     // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
                     // be an issue unless the borrower has already started accruing bad debt.
-                    uint256 available0 = Math.mulDiv(liabilities1 + incentive1, Q128, priceX128);
+                    uint256 out0 = Math.mulDiv(in1 + incentive1, Q128, priceX128);
 
-                    TOKEN0.safeTransfer(address(callee), available0);
-                    callee.swap0For1(data, available0, liabilities1);
+                    TOKEN0.safeTransfer(address(callee), out0);
+                    callee.swap0For1(data, out0, in1);
 
-                    repayable1 += liabilities1;
+                    assets0 -= out0;
+                    assets1 += in1;
                 }
             }
 
-            _repay(repayable0, repayable1);
-
             {
-                // Withdraw Uniswap positions while tallying assets
-                Assets memory assets = _getAssets(slot0_, prices, true);
-                // Fetch liabilities from lenders
-                (liabilities0, liabilities1) = _getLiabilities();
-                if (BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1)) {
-                    slot0 = (slot0_ & SLOT0_MASK_USERSPACE) | SLOT0_DIRT;
-                    SafeTransferLib.safeTransferETH(payable(callee), (address(this).balance * closeFactor) / 10000);
-                } else {
-                    slot0 = (slot0_ & (SLOT0_MASK_AUCTION | SLOT0_MASK_USERSPACE)) | SLOT0_DIRT;
-                }
+                uint256 repay0 = SoladyMath.min(assets0, liabilities0);
+                uint256 repay1 = SoladyMath.min(assets1, liabilities1);
+                _repay(repay0, repay1);
+                assets0 -= repay0;
+                assets1 -= repay1;
+                liabilities0 -= repay0;
+                liabilities1 -= repay1;
+            }
+
+            Assets memory assets;
+            assets.a.amount0 = assets0;
+            assets.a.amount1 = assets1;
+            assets.b.amount0 = assets0;
+            assets.b.amount1 = assets1;
+            if (BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1)) {
+                slot0 = (slot0_ & SLOT0_MASK_USERSPACE) | SLOT0_DIRT;
+                SafeTransferLib.safeTransferETH(payable(callee), (address(this).balance * closeFactor) / 10000);
+            } else {
+                slot0 = (slot0_ & (SLOT0_MASK_AUCTION | SLOT0_MASK_USERSPACE)) | SLOT0_DIRT;
             }
         }
     }
