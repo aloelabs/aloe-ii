@@ -69,7 +69,7 @@ contract Borrower is IUniswapV3MintCallback {
      * @param incentive1 The value of the swap bonus given to the liquidator, expressed in terms of `TOKEN1`
      * @param priceX128 The price at which the liquidation took place
      */
-    event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX128);
+    event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX128); // TODO:
 
     enum State {
         Ready,
@@ -203,26 +203,13 @@ contract Borrower is IUniswapV3MintCallback {
         require(slot0_ & SLOT0_MASK_STATE == 0);
         slot0 = slot0_ | (uint256(State.Locked) << 248);
 
-        uint256 priceX128;
-        uint256 liabilities0;
-        uint256 liabilities1;
-        uint256 incentive1;
+        // Fetch prices from oracle
+        (Prices memory prices, ) = getPrices(oracleSeed);
+        // Fetch liabilities from lenders
+        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         {
-            // Fetch prices from oracle
-            (Prices memory prices, ) = getPrices(oracleSeed);
-            priceX128 = square(prices.c);
             // Withdraw Uniswap positions while tallying assets
             Assets memory assets = _getAssets(slot0_, prices, true);
-            // Fetch liabilities from lenders
-            (liabilities0, liabilities1) = _getLiabilities();
-            // Calculate liquidation incentive, TODO: this isn't really right at the moment
-            incentive1 = BalanceSheet.computeLiquidationIncentive(
-                SoladyMath.min(assets.a.amount0, assets.b.amount0),
-                SoladyMath.min(assets.a.amount1, assets.b.amount1),
-                liabilities0,
-                liabilities1,
-                priceX128
-            );
             // Ensure only unhealthy accounts can be liquidated
             require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
         }
@@ -251,15 +238,18 @@ contract Borrower is IUniswapV3MintCallback {
                 liabilities0 := div(mul(liabilities0, closeFactor), 10000)
                 liabilities1 := div(mul(liabilities1, closeFactor), 10000)
                 shouldSwap := and(shouldSwap, xor(gt(liabilities0, 0), gt(liabilities1, 0)))
-                // If not swapping, set `incentive1 = 0`
-                incentive1 := mul(shouldSwap, incentive1)
             }
 
             if (shouldSwap) {
-                uint256 unleashTime = (slot0_ & SLOT0_MASK_AUCTION) >> 208;
-                require(unleashTime != 0 && unleashTime + LIQUIDATION_GRACE_PERIOD < block.timestamp, "Aloe: grace");
+                uint256 priceX128 = square(prices.c);
+                uint256 incentive1 = BalanceSheet.computeLiquidationIncentive(
+                    liabilities0,
+                    liabilities1,
+                    priceX128,
+                    (slot0_ & SLOT0_MASK_AUCTION) >> 208,
+                    closeFactor
+                );
 
-                incentive1 = (incentive1 * closeFactor) / 10000;
                 if (liabilities0 > 0) {
                     // NOTE: This value is not constrained to `TOKEN1.balanceOf(address(this))`, so liquidators
                     // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
@@ -285,12 +275,7 @@ contract Borrower is IUniswapV3MintCallback {
 
             _repay(repayable0, repayable1);
 
-            emit Liquidate(repayable0, repayable1, incentive1, priceX128);
-
             {
-                // Fetch prices from oracle
-                (Prices memory prices, ) = getPrices(oracleSeed);
-                priceX128 = square(prices.c);
                 // Withdraw Uniswap positions while tallying assets
                 Assets memory assets = _getAssets(slot0_, prices, true);
                 // Fetch liabilities from lenders
