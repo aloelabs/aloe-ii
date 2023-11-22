@@ -15,18 +15,15 @@ import {exp1e12} from "./Exp.sol";
 import {square, mulDiv128, mulDiv128Up} from "./MulDiv.sol";
 import {TickMath} from "./TickMath.sol";
 
-struct Balance {
-    // An amount of `TOKEN0`
-    uint256 amount0;
-    // An amount of `TOKEN1`
-    uint256 amount1;
-}
-
 struct Assets {
-    // The `Borrower`'s balances at `Prices.a` (including underlying amounts of Uniswap positions)
-    Balance a;
-    // The `Borrower`'s balances at `Prices.b` (including underlying amounts of Uniswap positions)
-    Balance b;
+    // `TOKEN0.balanceOf(borrower)`, plus the amount of `TOKEN0` underlying its Uniswap liquidity at `Prices.a`
+    uint256 amount0AtA;
+    // `TOKEN1.balanceOf(borrower)`, plus the amount of `TOKEN1` underlying its Uniswap liquidity at `Prices.a`
+    uint256 amount1AtA;
+    // `TOKEN0.balanceOf(borrower)`, plus the amount of `TOKEN0` underlying its Uniswap liquidity at `Prices.b`
+    uint256 amount0AtB;
+    // `TOKEN1.balanceOf(borrower)`, plus the amount of `TOKEN1` underlying its Uniswap liquidity at `Prices.b`
+    uint256 amount1AtB;
 }
 
 struct Prices {
@@ -44,15 +41,56 @@ struct Prices {
 library BalanceSheet {
     using SoladyMath for uint256;
 
-    /// @dev Checks whether a `Borrower` is healthy given the probe prices and its current assets and liabilities
+    /**
+     * @dev Checks whether a `Borrower` is healthy given the probe prices and its current assets and liabilities.
+     * Should be used when `assets` at `prices.a` differ from those at `prices.b` (due to Uniswap positions).
+     */
     function isHealthy(
         Prices memory prices,
         Assets memory assets,
         uint256 liabilities0,
         uint256 liabilities1
     ) internal pure returns (bool) {
-        if (!isSolvent(prices.a, assets.a.amount0, assets.a.amount1, liabilities0, liabilities1)) return false;
-        if (!isSolvent(prices.b, assets.b.amount0, assets.b.amount1, liabilities0, liabilities1)) return false;
+        if (!isSolvent(prices.a, assets.amount0AtA, assets.amount1AtA, liabilities0, liabilities1)) return false;
+        if (!isSolvent(prices.b, assets.amount0AtB, assets.amount1AtB, liabilities0, liabilities1)) return false;
+        return true;
+    }
+
+    /**
+     * @dev Checks whether a `Borrower` is healthy given the probe prices and its current assets and liabilities.
+     * Can be used when `assets` at `prices.a` are the same as those at `prices.b` (no Uniswap positions).
+     */
+    function isHealthy(
+        Prices memory prices,
+        uint256 assets0,
+        uint256 assets1,
+        uint256 liabilities0,
+        uint256 liabilities1
+    ) internal pure returns (bool) {
+        unchecked {
+            // The optimizer eliminates the conditional in `divUp`; don't worry about gas golfing that
+            liabilities0 +=
+                liabilities0.divUp(MAX_LEVERAGE) +
+                liabilities0.zeroFloorSub(assets0).divUp(LIQUIDATION_INCENTIVE);
+            liabilities1 +=
+                liabilities1.divUp(MAX_LEVERAGE) +
+                liabilities1.zeroFloorSub(assets1).divUp(LIQUIDATION_INCENTIVE);
+        }
+
+        uint256 priceX128;
+        uint256 liabilities;
+        uint256 assets;
+
+        priceX128 = square(prices.a);
+        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+        assets = assets1 + mulDiv128(assets0, priceX128);
+        if (liabilities > assets) return false;
+
+        priceX128 = square(prices.b);
+        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+        assets = assets1 + mulDiv128(assets0, priceX128);
+        if (liabilities > assets) return false;
+
         return true;
     }
 
@@ -74,8 +112,8 @@ library BalanceSheet {
         }
 
         uint256 priceX128 = square(sqrtPriceX96);
-        uint256 assets = assets1 + mulDiv128(assets0, priceX128);
         uint256 liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+        uint256 assets = assets1 + mulDiv128(assets0, priceX128);
         return assets >= liabilities;
     }
 
@@ -113,12 +151,13 @@ library BalanceSheet {
     }
 
     /**
-     * @notice Computes the liquidation incentive that would be paid out if a liquidator closes the account
-     * using a swap with `strain = 1`
+     * @notice Computes a liquidation incentive that increases as the auction progresses. Reverts if called
+     * during the `LIQUIDATION_GRACE_PERIOD`.
      * @param liabilities0 The amount of `TOKEN0` that the `Borrower` owes to `LENDER0`
      * @param liabilities1 The amount of `TOKEN1` that the `Borrower` owes to `LENDER1`
      * @param meanPriceX128 The current TWAP
-     * // TODO:
+     * @param auctionTime The `block.timestamp` when `Borrower.warn` was called
+     * @param closeFactor The fraction of shortfall being closed via a swap, expressed in basis points
      * @return incentive1 The incentive to pay out, denominated in `TOKEN1`
      */
     function computeLiquidationIncentive(

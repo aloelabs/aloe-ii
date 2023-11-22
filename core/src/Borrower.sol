@@ -2,7 +2,6 @@
 pragma solidity 0.8.17;
 
 import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
-import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
@@ -50,26 +49,20 @@ contract Borrower is IUniswapV3MintCallback {
 
     /**
      * @notice Most liquidations involve swapping one asset for another. To incentivize such swaps (even in
-     * volatile markets) liquidators are rewarded with a 5% bonus. To avoid paying that bonus to liquidators,
+     * volatile markets) liquidators are rewarded with a bonus. To avoid paying that bonus to liquidators,
      * the account owner can listen for this event. Once it's emitted, they have 5 minutes to bring the
      * account back to health. If they fail, the liquidation will proceed.
      * @dev Fortuitous price movements and/or direct `Lender.repay` can bring the account back to health and
      * nullify the immediate liquidation threat, but they will not clear the warning. This means that next
      * time the account is unhealthy, liquidators might skip `warn` and `liquidate` right away. To clear the
      * warning and return to a "clean" state, make sure to call `modify` -- even if the callback is a no-op.
-     * @dev The deadline for regaining health (avoiding liquidation) is given by `slot0.unleashLiquidationTime`.
+     * @dev The deadline for regaining health is given by `slot0.auctionTime + LIQUIDATION_GRACE_PERIOD`.
      * If this value is 0, the account is in the aforementioned "clean" state.
      */
     event Warn();
 
-    /**
-     * @notice Emitted when the account gets `liquidate`d
-     * @param repay0 The amount of `TOKEN0` that was repaid
-     * @param repay1 The amount of `TOKEN1` that was repaid
-     * @param incentive1 The value of the swap bonus given to the liquidator, expressed in terms of `TOKEN1`
-     * @param priceX128 The price at which the liquidation took place
-     */
-    event Liquidate(uint256 repay0, uint256 repay1, uint256 incentive1, uint256 priceX128); // TODO:
+    /// @notice Emitted when the account gets `liquidate`d
+    event Liquidate();
 
     enum State {
         Ready,
@@ -108,8 +101,8 @@ contract Borrower is IUniswapV3MintCallback {
      * @notice The `Borrower`'s only mutable storage. Lowest 144 bits store the lower/upper bounds of up to 3 Uniswap
      * positions, encoded by `Positions.zip`. Next 64 bits are unused within the `Borrower` and available to users as
      * "free" storage － no additional sstore's. These 208 bits (144 + 64) are passed to `IManager.callback`, and get
-     * updated when the callback returns a non-zero value. The next 40 bits are either 0 or `unleashLiquidationTime`,
-     * as explained in the `Warn` event docs. The highest 8 bits represent the current `State` enum, plus 128. We add
+     * updated when the callback returns a non-zero value. The next 40 bits are either 0 or the auction time, as
+     * explained in the `Warn` event docs. The highest 8 bits represent the current `State` enum, plus 128. We add
      * 128 (i.e. set the highest bit to 1) so that the slot is always non-zero, even in the absence of Uniswap
      * positions － this saves gas.
      */
@@ -149,14 +142,14 @@ contract Borrower is IUniswapV3MintCallback {
 
     /**
      * @notice Warns the borrower that they're about to be liquidated. NOTE: Liquidators are only
-     * forced to call this in cases where the 5% swap bonus is up for grabs.
+     * forced to call this in cases where a swap bonus is up for grabs.
      * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
      * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
      */
     function warn(uint40 oracleSeed) external {
         uint256 slot0_ = slot0;
-        // Essentially `slot0.state == State.Ready && slot0.unleashLiquidationTime == 0`
+        // Essentially `slot0.state == State.Ready && slot0.auctionTime == 0`
         require(slot0_ & (SLOT0_MASK_STATE | SLOT0_MASK_AUCTION) == 0);
 
         {
@@ -181,16 +174,14 @@ contract Borrower is IUniswapV3MintCallback {
      * some or all of the payment cannot be made in-kind, `callee` is expected to swap one asset
      * for the other at a venue of their choosing. NOTE: Branches involving callbacks will fail
      * until the borrower has been `warn`ed and the grace period has expired.
-     * @dev As a baseline, `callee` receives `address(this).balance / strain` ETH. This amount is
-     * intended to cover transaction fees. If the liquidation involves a swap callback, `callee`
-     * receives a 5% bonus denominated in the surplus token. In other words, if the two numeric
-     * callback arguments were denominated in the same asset, the first argument would be 5% larger.
+     * @dev As a baseline, `callee` receives `address(this).balance * closeFactor / 10000` ETH (assuming
+     * the liquidation makes the account healthy). This amount is intended to cover transaction fees. If
+     * the liquidation involves a swap callback, `callee` receives an N% bonus denominated in the surplus
+     * token. In other words, if the two numeric callback arguments were denominated in the same asset,
+     * the first argument would be N% larger. N grows as a function of time and hits 8% after 10 minutes.
      * @param callee A smart contract capable of swapping `TOKEN0` for `TOKEN1` and vice versa
      * @param data Encoded parameters that get forwarded to `callee` callbacks
-     * @param closeFactor Almost always set to `1` to pay off all debt and receive maximum reward. If
-     * liquidity is thin and swap price impact would be too large, you can use higher values to
-     * reduce swap size and make it easier for `callee` to do its job. `2` would be half swap size,
-     * `3` one third, and so on.
+     * @param closeFactor The fraction of shortfall to close via a swap, expressed in basis points
      * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
      * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
@@ -274,12 +265,9 @@ contract Borrower is IUniswapV3MintCallback {
                 liabilities1 -= repay1;
             }
 
-            Assets memory assets;
-            assets.a.amount0 = assets0;
-            assets.a.amount1 = assets1;
-            assets.b.amount0 = assets0;
-            assets.b.amount1 = assets1;
-            if (BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1)) {
+            emit Liquidate();
+
+            if (BalanceSheet.isHealthy(prices, assets0, assets1, liabilities0, liabilities1)) {
                 slot0 = (slot0_ & SLOT0_MASK_USERSPACE) | SLOT0_DIRT;
                 SafeTransferLib.safeTransferETH(payable(callee), (address(this).balance * closeFactor) / 10000);
             } else {
@@ -491,8 +479,8 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     function _getAssets(uint256 slot0_, Prices memory prices, bool withdraw) private returns (Assets memory assets) {
-        assets.a.amount0 = assets.b.amount0 = TOKEN0.balanceOf(address(this));
-        assets.a.amount1 = assets.b.amount1 = TOKEN1.balanceOf(address(this));
+        assets.amount0AtA = assets.amount0AtB = TOKEN0.balanceOf(address(this));
+        assets.amount1AtA = assets.amount1AtB = TOKEN1.balanceOf(address(this));
 
         int24[] memory positions = extract(slot0_);
         uint256 count = positions.length;
@@ -514,11 +502,11 @@ contract Borrower is IUniswapV3MintCallback {
                 uint256 amount1;
                 // Compute what amounts underlie `liquidity` at both probe prices
                 (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.a, L, U, liquidity);
-                assets.a.amount0 += amount0;
-                assets.a.amount1 += amount1;
+                assets.amount0AtA += amount0;
+                assets.amount1AtA += amount1;
                 (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.b, L, U, liquidity);
-                assets.b.amount0 += amount0;
-                assets.b.amount1 += amount1;
+                assets.amount0AtB += amount0;
+                assets.amount1AtB += amount1;
 
                 if (!withdraw) continue;
 

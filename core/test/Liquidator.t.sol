@@ -3,7 +3,14 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
-import {DEFAULT_ANTE, DEFAULT_N_SIGMA, LIQUIDATION_INCENTIVE} from "src/libraries/constants/Constants.sol";
+import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
+
+import {
+    DEFAULT_ANTE,
+    DEFAULT_N_SIGMA,
+    LIQUIDATION_INCENTIVE,
+    LIQUIDATION_GRACE_PERIOD
+} from "src/libraries/constants/Constants.sol";
 import {Q96} from "src/libraries/constants/Q.sol";
 import {zip} from "src/libraries/Positions.sol";
 
@@ -99,7 +106,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     }
 
     function test_spec_repayDAI() public {
-        uint256 strain = 1;
+        uint16 closeFactor = 10000;
         // give the account 1 DAI (plus a little due to liabilities rounding up)
         deal(address(asset0), address(account), 1e18 + 1750);
 
@@ -111,7 +118,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(asset0.balanceOf(address(account)), 201e18 + 1750);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), strain, (1 << 32));
+        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
 
         _setInterest(lender0, 10010);
         assertEq(lender0.borrowBalance(address(account)), 200.2e18);
@@ -120,14 +127,14 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.liquidate(this, bytes(""), 0, (1 << 32));
 
         // MARK: actual command
-        account.liquidate(this, bytes(""), strain, (1 << 32));
+        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 0);
         assertEq(asset0.balanceOf(address(account)), 0.8e18 + 1750);
     }
 
     function test_spec_repayETH() public {
-        uint256 strain = 1;
+        uint16 closeFactor = 10000;
         // give the account 0.1 ETH
         deal(address(asset1), address(account), 0.1e18);
 
@@ -139,7 +146,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(asset1.balanceOf(address(account)), 20.1e18);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), strain, (1 << 32));
+        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
 
         _setInterest(lender1, 10010);
         assertEq(lender1.borrowBalance(address(account)), 20.02e18);
@@ -148,14 +155,14 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.liquidate(this, bytes(""), 0, (1 << 32));
 
         // MARK: actual command
-        account.liquidate(this, bytes(""), strain, (1 << 32));
+        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
 
         assertEq(lender1.borrowBalance(address(account)), 0);
         assertEq(asset1.balanceOf(address(account)), 0.08e18);
     }
 
     function test_spec_repayDAIAndETH() public {
-        uint256 strain = 1;
+        uint16 closeFactor = 10000;
         // give the account 1 DAI and 0.1 ETH
         deal(address(asset0), address(account), 1e18);
         deal(address(asset1), address(account), 0.1e18 + 1);
@@ -170,7 +177,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(asset1.balanceOf(address(account)), 20.1e18 + 1);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), strain, (1 << 32));
+        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
 
         _setInterest(lender0, 10010);
         _setInterest(lender1, 10010);
@@ -181,7 +188,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.liquidate(this, bytes(""), 0, (1 << 32));
 
         // MARK: actual command
-        account.liquidate(this, bytes(""), strain, (1 << 32));
+        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 0);
         assertEq(lender1.borrowBalance(address(account)), 0);
@@ -190,7 +197,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     }
 
     function test_spec_repayDAIAndETHWithUniswapPosition() public {
-        uint256 strain = 1;
+        uint16 closeFactor = 10000;
         // give the account 1 DAI and 0.1 ETH
         deal(address(asset0), address(account), 1.1e18);
         deal(address(asset1), address(account), 0.1e18);
@@ -207,7 +214,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(lender1.borrowBalance(address(account)), 20e18);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), strain, (1 << 32));
+        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
 
         _setInterest(lender0, 10010);
         _setInterest(lender1, 10010);
@@ -218,7 +225,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.liquidate(this, bytes(""), 0, (1 << 32));
 
         // MARK: actual command
-        account.liquidate(this, bytes(""), strain, (1 << 32));
+        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 0);
         assertEq(lender1.borrowBalance(address(account)), 0);
@@ -232,8 +239,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     }
 
     /// forge-config: default.fuzz.runs = 16
-    function test_fuzz_interestTriggerRepayDAIUsingSwap(uint8 strain) public {
-        strain = (strain % 8) + 1;
+    function test_fuzz_interestTriggerRepayDAIUsingSwap(uint16 closeFactor) public {
+        closeFactor = uint16(bound(closeFactor, 1, 10000));
 
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
@@ -270,19 +277,19 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 incentive1 = Math.mulDiv(debt / LIQUIDATION_INCENTIVE, price, Q96);
-        uint256 assets1 = Math.mulDiv(debt / strain, price, Q96) + incentive1 / strain;
+        uint256 assets1 = Math.mulDiv(debt / closeFactor, price, Q96) + incentive1 / closeFactor;
 
         // MARK: actual command
         data = abi.encode(assets1);
-        account.liquidate(this, data, strain, (1 << 32));
+        account.liquidate(this, data, closeFactor, (1 << 32));
 
-        assertLe(lender0.borrowBalance(address(account)) - (debt - debt / strain), 1);
+        assertLe(lender0.borrowBalance(address(account)) - (debt - debt / closeFactor), 1);
         assertGt(asset1.balanceOf(address(this)), 0);
     }
 
     /// forge-config: default.fuzz.runs = 16
-    function test_fuzz_cannotReenterLiquidate(uint8 strain) public {
-        strain = (strain % 8) + 1;
+    function test_fuzz_cannotReenterLiquidate(uint8 closeFactor) public {
+        closeFactor = (closeFactor % 8) + 1;
 
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
@@ -306,21 +313,21 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 incentive1 = Math.mulDiv(debt / LIQUIDATION_INCENTIVE, price, Q96);
-        uint256 assets1 = Math.mulDiv(debt / strain, price, Q96) + incentive1 / strain;
+        uint256 assets1 = Math.mulDiv(debt / closeFactor, price, Q96) + incentive1 / closeFactor;
 
         vm.expectRevert();
         data = abi.encode(type(uint256).max); // Special value that we're using to tell our test callback to try to re-enter
-        account.liquidate(this, data, strain, (1 << 32));
+        account.liquidate(this, data, closeFactor, (1 << 32));
 
         // MARK: actual command
         data = abi.encode(assets1, false);
-        account.liquidate(this, data, strain, (1 << 32));
+        account.liquidate(this, data, closeFactor, (1 << 32));
     }
 
     /// forge-config: default.fuzz.runs = 16
-    function test_fuzz_interestTriggerRepayETHUsingSwap(uint8 scale, uint8 strain) public {
+    function test_fuzz_interestTriggerRepayETHUsingSwap(uint8 scale, uint8 closeFactor) public {
         // These tests are forked, so we don't want to spam the RPC with too many fuzzing values
-        strain = (strain % 8) + 1;
+        closeFactor = (closeFactor % 8) + 1;
 
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 borrow1 = 1e18 * ((scale % 4) + 1); // Same concern here
@@ -345,7 +352,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(asset1.balanceOf(address(account)), 0);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), 1, (1 << 32));
+        account.liquidate(this, bytes(""), 10000, (1 << 32));
 
         _setInterest(lender1, 10010);
         borrow1 = (borrow1 * 10010) / 10000;
@@ -359,18 +366,18 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 incentive1 = borrow1 / LIQUIDATION_INCENTIVE;
-        uint256 assets0 = Math.mulDiv(borrow1 / strain + incentive1 / strain, Q96, price);
+        uint256 assets0 = Math.mulDiv(borrow1 / closeFactor + incentive1 / closeFactor, Q96, price);
 
         // MARK: actual command
         data = abi.encode(assets0);
-        account.liquidate(this, data, strain, (1 << 32));
+        account.liquidate(this, data, closeFactor, (1 << 32));
 
-        assertApproxEqAbs(lender1.borrowBalance(address(account)), borrow1 - borrow1 / strain, 1);
+        assertApproxEqAbs(lender1.borrowBalance(address(account)), borrow1 - borrow1 / closeFactor, 1);
         assertGt(asset0.balanceOf(address(this)), 0);
     }
 
     function test_spec_priceTriggerRepayDAIUsingSwap() public {
-        uint256 strain = 1;
+        uint16 closeFactor = 10000;
 
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 borrow0 = 1000e18;
@@ -395,7 +402,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(asset0.balanceOf(address(account)), 0);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), 1, (1 << 32));
+        account.liquidate(this, bytes(""), 10000, (1 << 32));
 
         // increase price of DAI by 1 tick
         {
@@ -421,19 +428,19 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         (prices, ) = account.getPrices(1 << 32);
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
-        uint256 assets1 = Math.mulDiv(borrow0 / strain, price, Q96);
+        uint256 assets1 = Math.mulDiv(borrow0 / closeFactor, price, Q96);
         assets1 += assets1 / LIQUIDATION_INCENTIVE;
 
         // MARK: actual command
         data = abi.encode(assets1);
-        account.liquidate(this, data, strain, (1 << 32));
+        account.liquidate(this, data, closeFactor, (1 << 32));
 
-        assertLe(lender0.borrowBalance(address(account)) - (borrow0 - borrow0 / strain), 1);
+        assertLe(lender0.borrowBalance(address(account)) - (borrow0 - borrow0 / closeFactor), 1);
         assertGt(asset1.balanceOf(address(this)), 0);
     }
 
     function test_spec_warnDoesProtect() public {
-        uint256 strain = 1;
+        uint16 closeFactor = 10000;
 
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 borrow0 = 1000e18;
@@ -453,7 +460,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.modify(this, data, (1 << 32));
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), 1, (1 << 32));
+        account.liquidate(this, bytes(""), 10000, (1 << 32));
 
         // increase price of DAI by 1 tick
         {
@@ -474,17 +481,17 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         }
 
         vm.expectRevert(bytes("Aloe: grace"));
-        account.liquidate(this, bytes(""), 1, (1 << 32));
+        account.liquidate(this, bytes(""), 10000, (1 << 32));
 
         account.warn((1 << 32));
 
         vm.expectRevert(bytes("Aloe: grace"));
-        account.liquidate(this, bytes(""), 1, (1 << 32));
+        account.liquidate(this, bytes(""), 10000, (1 << 32));
 
         skip(LIQUIDATION_GRACE_PERIOD); // `(1 << 32)` will be a bit off after this
 
         vm.expectRevert(bytes("Aloe: grace"));
-        account.liquidate(this, bytes(""), 1, (1 << 32));
+        account.liquidate(this, bytes(""), 10000, (1 << 32));
 
         skip(1);
         borrow0 = lender0.borrowBalance(address(account));
@@ -492,12 +499,12 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         (prices, ) = account.getPrices(1 << 32);
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
-        uint256 assets1 = Math.mulDiv(borrow0 / strain, price, Q96);
+        uint256 assets1 = Math.mulDiv(borrow0 / closeFactor, price, Q96);
         assets1 += assets1 / LIQUIDATION_INCENTIVE;
 
         // MARK: actual command
         data = abi.encode(assets1);
-        account.liquidate(this, data, strain, (1 << 32));
+        account.liquidate(this, data, closeFactor, (1 << 32));
 
         uint40 unleashLiquidationTime = uint40((account.slot0() >> 208) % (1 << 40));
         assertEq(unleashLiquidationTime, 0);
