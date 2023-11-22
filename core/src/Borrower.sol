@@ -45,6 +45,7 @@ interface IManager {
 /// @author Aloe Labs, Inc.
 /// @dev "Test everything; hold fast what is good." - 1 Thessalonians 5:21
 contract Borrower is IUniswapV3MintCallback {
+    using SoladyMath for uint256;
     using SafeTransferLib for ERC20;
 
     /**
@@ -218,7 +219,7 @@ contract Borrower is IUniswapV3MintCallback {
             uint256 assets0 = TOKEN0.balanceOf(address(this));
             uint256 assets1 = TOKEN1.balanceOf(address(this));
 
-            // See what we need to acquire through swaps
+            // See what needs to be acquired through swaps
             uint256 in0 = liabilities0.zeroFloorSub(assets0);
             uint256 in1 = liabilities1.zeroFloorSub(assets1);
 
@@ -245,10 +246,7 @@ contract Borrower is IUniswapV3MintCallback {
                 );
 
                 if (in0 > 0) {
-                    // NOTE: This value is not constrained to `TOKEN1.balanceOf(address(this))`, so liquidators
-                    // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
-                    // be an issue unless the borrower has already started accruing bad debt.
-                    uint256 out1 = mulDiv128(in0, priceX128) + incentive1;
+                    uint256 out1 = (mulDiv128(in0, priceX128) + incentive1).min(assets1);
 
                     TOKEN1.safeTransfer(address(callee), out1);
                     callee.swap1For0(data, out1, in0);
@@ -256,10 +254,7 @@ contract Borrower is IUniswapV3MintCallback {
                     assets1 -= out1;
                     assets0 += in0;
                 } else {
-                    // NOTE: This value is not constrained to `TOKEN0.balanceOf(address(this))`, so liquidators
-                    // are responsible for setting `strain` such that the transfer doesn't revert. This shouldn't
-                    // be an issue unless the borrower has already started accruing bad debt.
-                    uint256 out0 = Math.mulDiv(in1 + incentive1, Q128, priceX128);
+                    uint256 out0 = (in1 + incentive1).fullMulDiv(Q128, priceX128).min(assets0);
 
                     TOKEN0.safeTransfer(address(callee), out0);
                     callee.swap0For1(data, out0, in1);
