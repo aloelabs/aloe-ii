@@ -113,23 +113,29 @@ uint32 constant IV_SCALE = 24 hours;
 /// @dev The initial value of implied volatility, used when `VolatilityOracle.prepare` is called for a new pool.
 /// Expressed as a 1e12 percentage at `IV_SCALE`, e.g. {0.12e12, 24 hours} → 12% daily → 229% annual. Error on the
 /// side of making this too large (resulting in low LTV).
-uint128 constant IV_COLD_START = 0.127921282726e12;
+uint104 constant IV_COLD_START = 0.127921282726e12;
 
 /// @dev The maximum rate at which (reported) implied volatility can change. Raw samples in `VolatilityOracle.update`
 /// are clamped (before being stored) so as not to exceed this rate.
-/// Expressed in 1e12 percentage points at `IV_SCALE` **per second**, e.g. {462962, 24 hours} means daily IV can
-/// change by 0.0000463 percentage points per second → 4 percentage points per day.
-uint256 constant IV_CHANGE_PER_SECOND = 462962;
+/// Expressed in 1e12 percentage points at `IV_SCALE` **per second**, e.g. {115740, 24 hours} means daily IV can
+/// change by 0.0000116 percentage points per second → 1 percentage point per day.
+uint256 constant IV_CHANGE_PER_SECOND = 115740;
 
 /// @dev The maximum amount by which (reported) implied volatility can change with a single `VolatilityOracle.update`
 /// call. If updates happen as frequently as possible (every `FEE_GROWTH_SAMPLE_PERIOD`), this cap is no different
 /// from `IV_CHANGE_PER_SECOND` alone.
-uint256 constant IV_CHANGE_PER_UPDATE = IV_CHANGE_PER_SECOND * FEE_GROWTH_SAMPLE_PERIOD;
+uint104 constant IV_CHANGE_PER_UPDATE = uint104(IV_CHANGE_PER_SECOND * FEE_GROWTH_SAMPLE_PERIOD);
+
+/// @dev The gain on the EMA update when IV is increasing. Expressed as reciprocal, e.g. 20 → 0.05
+int256 constant IV_EMA_GAIN_POS = 20;
+
+/// @dev The gain on the EMA update when IV is decreasing. Expressed as reciprocal, e.g. 100 → 0.01
+int256 constant IV_EMA_GAIN_NEG = 100;
 
 /// @dev To estimate volume, we need 2 samples. One is always at the current block, the other is from
 /// `FEE_GROWTH_AVG_WINDOW` seconds ago, +/- `FEE_GROWTH_SAMPLE_PERIOD / 2`. Larger values make the resulting volume
 /// estimate more robust, but may cause the oracle to miss brief spikes in activity.
-uint256 constant FEE_GROWTH_AVG_WINDOW = 6 hours;
+uint256 constant FEE_GROWTH_AVG_WINDOW = 72 hours;
 
 /// @dev The length of the circular buffer that stores feeGrowthGlobals samples.
 /// Must be in interval
@@ -138,7 +144,7 @@ uint256 constant FEE_GROWTH_ARRAY_LENGTH = 32;
 
 /// @dev The minimum number of seconds that must elapse before a new feeGrowthGlobals sample will be stored. This
 /// controls how often the oracle can update IV.
-uint256 constant FEE_GROWTH_SAMPLE_PERIOD = 1 hours;
+uint256 constant FEE_GROWTH_SAMPLE_PERIOD = 4 hours;
 
 /// @dev To compute Uniswap mean price & liquidity, we need 2 samples. One is always at the current block, the other is
 /// from `UNISWAP_AVG_WINDOW` seconds ago. Larger values make the resulting price/liquidity values harder to
