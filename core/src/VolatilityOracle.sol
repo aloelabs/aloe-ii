@@ -41,7 +41,7 @@ contract VolatilityOracle {
 
         if (lastWrites[pool].time == 0) {
             feeGrowthGlobals[pool][0] = _getFeeGrowthGlobalsNow(pool);
-            lastWrites[pool] = LastWrite(0, uint32(block.timestamp), IV_COLD_START, IV_COLD_START);
+            lastWrites[pool] = LastWrite(0, uint40(block.timestamp), IV_COLD_START, IV_COLD_START);
         }
     }
 
@@ -67,7 +67,7 @@ contract VolatilityOracle {
 
             // Bring `lastWrite` forward so it's essentially "currentWrite"
             lastWrite.index = uint8((lastWrite.index + 1) % FEE_GROWTH_ARRAY_LENGTH);
-            lastWrite.time = uint32(block.timestamp);
+            lastWrite.time = uint40(block.timestamp);
             lastWrite.oldIV = lastWrite.newIV;
             // lastWrite.newIV is updated below, iff feeGrowthGlobals samples are ≈`FEE_GROWTH_AVG_WINDOW` hours apart
 
