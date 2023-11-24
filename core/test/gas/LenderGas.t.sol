@@ -72,6 +72,11 @@ contract LenderGasTest is Test {
         asset.transferFrom(alice, address(lender), 0.5e18);
         lender.deposit(0.5e18, alice, 1);
 
+        // `alice` allows this test contract to manage her WETH+
+        // (must do it again since crediting couriers clears the allowance)
+        vm.prank(alice);
+        lender.approve(address(this), type(uint256).max);
+
         skip(3600); // seconds
         lender.accrueInterest();
     }
