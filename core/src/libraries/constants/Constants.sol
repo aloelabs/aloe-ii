@@ -45,10 +45,6 @@ uint8 constant DEFAULT_N_SIGMA = 50;
 /// \frac{log_{1.0001}\left( \frac{1}{\text{LTV}} \right)}{\text{MANIPULATION_THRESHOLD_DIVISOR}} \\)
 uint8 constant DEFAULT_MANIPULATION_THRESHOLD_DIVISOR = 12;
 
-/// @dev The default portion of interest that will accrue to a `Lender`'s `RESERVE` address.
-/// Expressed as a reciprocal, e.g. 16 → 6.25%
-uint8 constant DEFAULT_RESERVE_FACTOR = 16;
-
 /*//////////////////////////////////////////////////////////////
                         GOVERNANCE CONSTRAINTS
 //////////////////////////////////////////////////////////////*/
@@ -66,12 +62,6 @@ uint8 constant CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN = 10;
 
 /// @dev The maximum value of the `manipulationThresholdDivisor`, described above
 uint8 constant CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX = 16;
-
-/// @dev The lower bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 4 → 25%
-uint8 constant CONSTRAINT_RESERVE_FACTOR_MIN = 4;
-
-/// @dev The upper bound on what any `Lender`'s reserve factor can be. Expressed as reciprocal, e.g. 20 → 5%
-uint8 constant CONSTRAINT_RESERVE_FACTOR_MAX = 20;
 
 /// @dev The maximum amount of Ether that `Borrower`s can be required to post before taking on debt
 uint216 constant CONSTRAINT_ANTE_MAX = 0.5 ether;

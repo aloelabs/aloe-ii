@@ -32,14 +32,14 @@ contract ERC4626InvariantsTest is Test {
     function setUp() public {
         {
             asset = new MockERC20("Token", "TKN", 18); // TODO: replace 18 with an env var
-            address lenderImplementation = address(new Lender(address(2)));
+            address lenderImplementation = address(new Lender());
             Lender lender = Lender(ClonesWithImmutableArgs.clone(
                 lenderImplementation,
                 abi.encodePacked(address(asset))
             ));
             RateModel rateModel = new RateModel();
             lender.initialize();
-            lender.setRateModelAndReserveFactor(rateModel, 8); // TODO: replace 8 with an env var
+            lender.setRateModel(rateModel);
 
             vault = ERC4626(address(lender));
             vaultHarness = new ERC4626Harness(lender);

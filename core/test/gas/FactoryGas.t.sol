@@ -21,7 +21,6 @@ contract FactoryGasTest is Test {
 
         factory = new FatFactory(
             address(0),
-            address(0),
             new VolatilityOracle(),
             new RateModel()
         );

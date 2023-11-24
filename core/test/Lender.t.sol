@@ -110,10 +110,6 @@ contract LenderTest is Test {
             FixedPointMathLib.rpow(ONE + yieldPerSecond, 13, ONE),
             1e12
         );
-        uint256 interest = newInventory - 2e18;
-        uint256 reserves = interest / lender.reserveFactor();
-
-        uint256 epsilon = 2;
 
         // Initially, the `lender` holds 1e18 and has lent out 1e18
         assertEqDecimal(lender.totalAssets(), 2e18, 18);
@@ -127,16 +123,11 @@ contract LenderTest is Test {
         lender.accrueInterest();
         // Both `totalAssets` and `underlyingBalanceStored` should have updated now
         assertEqDecimal(lender.totalAssets(), newInventory, 18);
-        assertLeDecimal(
-            stdMath.delta(lender.underlyingBalanceStored(address(this)), newInventory - reserves),
-            epsilon,
-            18
-        );
+        assertEqDecimal(lender.underlyingBalanceStored(address(this)), newInventory, 18);
         // Make sure `borrowIndex` is just as precise as `yieldPerSecond` and `accrualFactor`
         if (yieldPerSecond > 0) assertGt(lender.borrowIndex(), 1e12);
 
         assertEq(lender.lastAccrualTime(), block.timestamp);
-        assertLeDecimal(stdMath.delta(lender.underlyingBalance(lender.RESERVE()), reserves), epsilon, 18);
 
         vm.clearMockedCalls();
     }
@@ -268,8 +259,8 @@ contract LenderTest is Test {
         assertEq(asset.balanceOf(jim), 10e6);
         assertEq(lender.borrowBalance(jim), 10000058);
 
-        assertEq(lender.underlyingBalance(alice), 100000050);
-        assertEq(lender.underlyingBalanceStored(alice), 100000050);
+        assertEq(lender.underlyingBalance(alice), 100000057);
+        assertEq(lender.underlyingBalanceStored(alice), 100000057);
     }
 
     function test_fuzz_borrow(uint256 amount, address recipient, address caller) public {

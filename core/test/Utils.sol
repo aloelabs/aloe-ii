@@ -17,17 +17,16 @@ import {VolatilityOracle} from "src/VolatilityOracle.sol";
 contract FatFactory is Factory {
     constructor(
         address governor,
-        address reserve,
         VolatilityOracle oracle,
         IRateModel defaultRateModel
-    ) Factory(governor, reserve, oracle, new BorrowerDeployer(), defaultRateModel) {}
+    ) Factory(governor, oracle, new BorrowerDeployer(), defaultRateModel) {}
 }
 
 contract FactoryForLenderTests is FatFactory {
     constructor(
         RateModel rateModel,
         ERC20 rewardsToken_
-    ) FatFactory(address(0), address(this), VolatilityOracle(address(0)), rateModel) {
+    ) FatFactory(address(0), VolatilityOracle(address(0)), rateModel) {
         rewardsToken = rewardsToken_;
     }
 
@@ -36,7 +35,7 @@ contract FactoryForLenderTests is FatFactory {
         peer[proxy] = address(1);
 
         Lender(proxy).initialize();
-        Lender(proxy).setRateModelAndReserveFactor(DEFAULT_RATE_MODEL, 8);
+        Lender(proxy).setRateModel(DEFAULT_RATE_MODEL);
         return Lender(proxy);
     }
 }

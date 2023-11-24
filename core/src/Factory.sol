@@ -9,13 +9,10 @@ import {
     DEFAULT_ANTE,
     DEFAULT_N_SIGMA,
     DEFAULT_MANIPULATION_THRESHOLD_DIVISOR,
-    DEFAULT_RESERVE_FACTOR,
     CONSTRAINT_N_SIGMA_MIN,
     CONSTRAINT_N_SIGMA_MAX,
     CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN,
     CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX,
-    CONSTRAINT_RESERVE_FACTOR_MIN,
-    CONSTRAINT_RESERVE_FACTOR_MAX,
     CONSTRAINT_ANTE_MAX,
     UNISWAP_AVG_WINDOW
 } from "./libraries/constants/Constants.sol";
@@ -70,10 +67,6 @@ contract Factory {
         uint8 nSigma;
         // Described above
         uint8 manipulationThresholdDivisor;
-        // The reserve factor for `market.lender0`, expressed as a reciprocal
-        uint8 reserveFactor0;
-        // The reserve factor for `market.lender1`, expressed as a reciprocal
-        uint8 reserveFactor1;
         // The rate model for `market.lender0`
         IRateModel rateModel0;
         // The rate model for `market.lender1`
@@ -135,14 +128,13 @@ contract Factory {
 
     constructor(
         address governor,
-        address reserve,
         VolatilityOracle oracle,
         BorrowerDeployer borrowerDeployer,
         IRateModel defaultRateModel
     ) {
         GOVERNOR = governor;
         ORACLE = oracle;
-        LENDER_IMPLEMENTATION = address(new Lender(reserve));
+        LENDER_IMPLEMENTATION = address(new Lender());
         _BORROWER_DEPLOYER = borrowerDeployer;
         DEFAULT_RATE_MODEL = defaultRateModel;
     }
@@ -190,8 +182,6 @@ contract Factory {
                 DEFAULT_ANTE,
                 DEFAULT_N_SIGMA,
                 DEFAULT_MANIPULATION_THRESHOLD_DIVISOR,
-                DEFAULT_RESERVE_FACTOR,
-                DEFAULT_RESERVE_FACTOR,
                 DEFAULT_RATE_MODEL,
                 DEFAULT_RATE_MODEL
             ),
@@ -281,13 +271,7 @@ contract Factory {
                 (CONSTRAINT_N_SIGMA_MIN <= config.nSigma && config.nSigma <= CONSTRAINT_N_SIGMA_MAX) &&
                 // manipulationThresholdDivisor: min, max
                 (CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN <= config.manipulationThresholdDivisor &&
-                    config.manipulationThresholdDivisor <= CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX) &&
-                // reserveFactor0: min, max
-                (CONSTRAINT_RESERVE_FACTOR_MIN <= config.reserveFactor0 &&
-                    config.reserveFactor0 <= CONSTRAINT_RESERVE_FACTOR_MAX) &&
-                // reserveFactor1: min, max
-                (CONSTRAINT_RESERVE_FACTOR_MIN <= config.reserveFactor1 &&
-                    config.reserveFactor1 <= CONSTRAINT_RESERVE_FACTOR_MAX),
+                    config.manipulationThresholdDivisor <= CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX),
             "Aloe: constraints"
         );
 
@@ -303,8 +287,8 @@ contract Factory {
         });
 
         Market memory market = getMarket[pool];
-        market.lender0.setRateModelAndReserveFactor(config.rateModel0, config.reserveFactor0);
-        market.lender1.setRateModelAndReserveFactor(config.rateModel1, config.reserveFactor1);
+        market.lender0.setRateModel(config.rateModel0);
+        market.lender1.setRateModel(config.rateModel1);
 
         emit SetMarketConfig(pool, config);
     }
