@@ -109,7 +109,8 @@ contract VolatilityOracle {
     function _ema(int256 oldIV, int256 estimate) private pure returns (uint104) {
         unchecked {
             int256 gain = estimate > oldIV ? IV_EMA_GAIN_POS : IV_EMA_GAIN_NEG;
-            return uint104(uint256(oldIV + (estimate - oldIV) / gain));
+            uint256 newIV = uint256(oldIV + (estimate - oldIV) / gain);
+            return newIV > type(uint104).max ? type(uint104).max : uint104(newIV);
         }
     }
 
