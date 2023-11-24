@@ -62,6 +62,13 @@ contract Borrower is IUniswapV3MintCallback {
     event Warn();
 
     /**
+     * @notice The opposite of `Warn`. Fortuitous price movements and/or direct `Lender.repay` can bring the
+     * account back to health, but the warning won't be cleared until `unwarn` or `modify` is called. This is
+     * emitted in the `unwarn` case.
+     */
+    event Unwarn();
+
+    /**
      * @notice Emitted when the account gets `liquidate`d
      * @param repay0 The amount of `TOKEN0` that was repaid
      * @param repay1 The amount of `TOKEN1` that was repaid
@@ -156,22 +163,34 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 slot0_ = slot0;
         // Essentially `slot0.state == State.Ready && slot0.unleashLiquidationTime == 0`
         require(slot0_ & (SLOT0_MASK_STATE | SLOT0_MASK_UNLEASH) == 0);
-
-        {
-            // Fetch prices from oracle
-            (Prices memory prices, ) = getPrices(oracleSeed);
-            // Tally assets without actually withdrawing Uniswap positions
-            Assets memory assets = _getAssets(slot0_, prices, false);
-            // Fetch liabilities from lenders
-            (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-            // Ensure only unhealthy accounts get warned
-            require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
-        }
+        // Ensure only unhealthy accounts get warned
+        require(!_isHealthy(slot0_, oracleSeed), "Aloe: healthy");
 
         slot0 = slot0_ | ((block.timestamp + LIQUIDATION_GRACE_PERIOD) << 208);
         emit Warn();
 
-        SafeTransferLib.safeTransferETH(msg.sender, address(this).balance >> 3);
+        SafeTransferLib.safeTransferETH(msg.sender, address(this).balance / 5);
+    }
+
+    /**
+     * @notice Clears the warning state from a healthy borrower. NOTE: There is no guarantee that this
+     * will be called. Users are encouraged to clear the warning state via `modify` as soon as possible.
+     * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
+     * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
+     * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
+     */
+    function unwarn(uint40 oracleSeed) external {
+        uint256 slot0_ = slot0;
+        // Essentially `slot0.state == State.Ready && slot0.auctionTime > 0`
+        require(slot0_ & SLOT0_MASK_STATE == 0 && slot0_ & SLOT0_MASK_UNLEASH > 0);
+        // Ensure only healthy accounts get unwarned
+        require(_isHealthy(slot0_, oracleSeed), "Aloe: unhealthy");
+
+        // Stop auction
+        slot0 = (slot0_ & SLOT0_MASK_POSITIONS) | SLOT0_DIRT;
+        emit Unwarn();
+
+        SafeTransferLib.safeTransferETH(msg.sender, address(this).balance / 4);
     }
 
     /**
@@ -488,6 +507,17 @@ contract Borrower is IUniswapV3MintCallback {
             nSigma,
             manipulationThresholdDivisor
         );
+    }
+
+    function _isHealthy(uint256 slot0_, uint40 oracleSeed) private returns (bool) {
+        // Fetch prices from oracle
+        (Prices memory prices, ) = getPrices(oracleSeed);
+        // Tally assets without actually withdrawing Uniswap positions
+        Assets memory assets = _getAssets(slot0_, prices, false);
+        // Fetch liabilities from lenders
+        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+
+        return BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1);
     }
 
     function _getAssets(uint256 slot0_, Prices memory prices, bool withdraw) private returns (Assets memory assets) {
