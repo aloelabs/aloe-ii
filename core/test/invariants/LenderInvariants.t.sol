@@ -22,7 +22,6 @@ contract LenderInvariantsTest is Test {
 
     struct ThingsThatShouldntChange {
         IRateModel rateModel;
-        uint8 reserveFactor;
         string symbol;
         uint8 decimals;
         ERC20 asset;
@@ -63,31 +62,24 @@ contract LenderInvariantsTest is Test {
 
         thingsThatShouldntChange = ThingsThatShouldntChange(
             lender.rateModel(),
-            lender.reserveFactor(),
             lender.symbol(),
             lender.decimals(),
             lender.asset(),
             lender.DOMAIN_SEPARATOR()
         );
 
-        thingsThatShouldntShrink = ThingsThatShouldntShrink(
-            lender.lastAccrualTime(),
-            lender.borrowIndex()
-        );
+        thingsThatShouldntShrink = ThingsThatShouldntShrink(lender.lastAccrualTime(), lender.borrowIndex());
     }
 
     function invariant_statsValuesMatchOtherGetters() public {
         (, uint256 totalAssets, , uint256 totalSupply) = lender.stats();
-        // NOTE: `totalSupply` from `stats()` assumes interest accrual --> shares minted to reserves --> so it's
-        // always >= the current value
-        assertGe(totalSupply, lender.totalSupply());
+        assertEq(totalSupply, lender.totalSupply());
         assertEq(totalAssets, lender.totalAssets());
     }
 
     function invariant_thingsThatShouldntChangeDontChange() public {
         ThingsThatShouldntChange memory update = ThingsThatShouldntChange(
             lender.rateModel(),
-            lender.reserveFactor(),
             lender.symbol(),
             lender.decimals(),
             lender.asset(),
@@ -95,7 +87,6 @@ contract LenderInvariantsTest is Test {
         );
 
         assertEq(uint160(address(update.rateModel)), uint160(address(thingsThatShouldntChange.rateModel)));
-        assertEq(update.reserveFactor, thingsThatShouldntChange.reserveFactor);
         assertEq(bytes(update.symbol), bytes(thingsThatShouldntChange.symbol));
         assertEq(update.decimals, thingsThatShouldntChange.decimals);
         assertEq(address(update.asset), address(thingsThatShouldntChange.asset));
@@ -143,11 +134,11 @@ contract LenderInvariantsTest is Test {
     }
 
     function invariant_totalAssetsEqualsSumOfUnderlyingBalances() public {
-        // Σ(lender.underlyingBalance) = totalAssets - valueOfCourierFees - valueOfNewReserves
+        // Σ(lender.underlyingBalance) = totalAssets - valueOfCourierFees
         uint256 sumUnderlyingBalances;
         // Σ(lender.underlyingBalanceStored) = totalAssets - valueOfCourierFees - newInterest
         uint256 sumUnderlyingBalancesStored;
-        // Σ(lender.convertToAssets(lender.balanceOf) = totalAssets - valueOfNewReserves
+        // Σ(lender.convertToAssets(lender.balanceOf) = totalAssets
         uint256 sumConvertedBalances;
 
         uint256 count = lenderHarness.getHolderCount();
@@ -162,13 +153,7 @@ contract LenderInvariantsTest is Test {
         assertLe(sumUnderlyingBalancesStored, sumUnderlyingBalances);
         assertLe(sumUnderlyingBalances, sumConvertedBalances);
 
-        (, , , uint256 newTotalSupply) = lender.stats();
-        uint256 valueOfNewReserves = lender.convertToAssets(newTotalSupply - lender.totalSupply());
-        assertApproxEqAbs(
-            sumConvertedBalances + valueOfNewReserves,
-            lender.totalAssets(),
-            1 * count // max error of 1 per user
-        );
+        assertApproxEqAbs(sumConvertedBalances, lender.totalAssets(), 1 * count); // max error of 1 per user
     }
 
     function invariant_maxWithdrawLessThanUnderlyingBalance() public {

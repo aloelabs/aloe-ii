@@ -38,13 +38,15 @@ contract Lender is Ledger {
 
     event Repay(address indexed caller, address indexed beneficiary, uint256 amount, uint256 units);
 
+    event Erase(address indexed caller, uint256 units);
+
+    event AccrueInterest(uint72 borrowIndex);
+
     event CreditCourier(uint32 indexed id, address indexed account);
 
     /*//////////////////////////////////////////////////////////////
                        CONSTRUCTOR & INITIALIZER
     //////////////////////////////////////////////////////////////*/
-
-    constructor(address reserve) Ledger(reserve) {}
 
     function initialize() external {
         require(borrowIndex == 0);
@@ -52,13 +54,12 @@ contract Lender is Ledger {
         lastAccrualTime = uint32(block.timestamp);
     }
 
-    /// @notice Sets the `rateModel` and `reserveFactor`. Only the `FACTORY` can call this.
-    function setRateModelAndReserveFactor(IRateModel rateModel_, uint8 reserveFactor_) external {
+    /// @notice Sets the `rateModel`. Only the `FACTORY` can call this.
+    function setRateModel(IRateModel rateModel_) external {
         this.accrueInterest();
 
-        require(msg.sender == address(FACTORY) && reserveFactor_ > 0);
+        require(msg.sender == address(FACTORY));
         rateModel = rateModel_;
-        reserveFactor = reserveFactor_;
     }
 
     /**
@@ -123,18 +124,17 @@ contract Lender is Ledger {
             (address courier, uint16 cut) = FACTORY.couriers(courierId);
 
             require(
-                // Prevent `RESERVE` from having a courier, since its principle wouldn't be tracked properly
-                (beneficiary != RESERVE) &&
-                    // Payout logic can't handle self-reference, so don't let accounts credit themselves
-                    (beneficiary != courier) &&
+                // Payout logic can't handle self-reference, so don't let accounts credit themselves
+                (beneficiary != courier) &&
                     // Make sure `cut` has been set
                     (cut != 0),
                 "Aloe: courier"
             );
         }
 
-        // Accrue interest and update reserves
-        (Cache memory cache, uint256 inventory) = _load();
+        // Accrue interest
+        Cache memory cache = _load();
+        uint256 inventory = _inventory(cache);
 
         // Convert `amount` to `shares`
         shares = _convertToShares(amount, inventory, cache.totalSupply, /* roundUp: */ false);
@@ -186,8 +186,9 @@ contract Lender is Ledger {
             if (allowed != type(uint256).max) allowance[owner][msg.sender] = allowed - shares;
         }
 
-        // Accrue interest and update reserves
-        (Cache memory cache, uint256 inventory) = _load();
+        // Accrue interest
+        Cache memory cache = _load();
+        uint256 inventory = _inventory(cache);
 
         // Convert `shares` to `amount`
         amount = _convertToAssets(shares, inventory, cache.totalSupply, /* roundUp: */ false);
@@ -218,13 +219,13 @@ contract Lender is Ledger {
 
     /// @notice Sends `amount` of `asset` to `recipient` and increases `msg.sender`'s debt by `units`
     function borrow(uint256 amount, address recipient) external returns (uint256 units) {
-        uint256 b = borrows[msg.sender];
-        require(b != 0, "Aloe: not a borrower");
-
-        // Accrue interest and update reserves
-        (Cache memory cache, ) = _load();
+        // Accrue interest
+        Cache memory cache = _load();
 
         unchecked {
+            uint256 b = borrows[msg.sender];
+            require(b != 0, "Aloe: not a borrower");
+
             // Convert `amount` to `units`
             units = (amount * BORROWS_SCALER) / cache.borrowIndex;
 
@@ -259,12 +260,12 @@ contract Lender is Ledger {
      * ```
      */
     function repay(uint256 amount, address beneficiary) external returns (uint256 units) {
-        uint256 b = borrows[beneficiary];
-
-        // Accrue interest and update reserves
-        (Cache memory cache, ) = _load();
+        // Accrue interest
+        Cache memory cache = _load();
 
         unchecked {
+            uint256 b = borrows[beneficiary];
+
             // Convert `amount` to `units`
             units = (amount * BORROWS_SCALER) / cache.borrowIndex;
             if (!(units < b)) {
@@ -290,8 +291,30 @@ contract Lender is Ledger {
         emit Repay(msg.sender, beneficiary, amount, units);
     }
 
+    function erase() external returns (uint256 units) {
+        // Accrue interest
+        Cache memory cache = _load();
+
+        unchecked {
+            uint256 b = borrows[msg.sender];
+            require(b > 1, "Aloe: cannot erase");
+
+            // Maximize `units`
+            units = b - 1;
+
+            // Track borrows
+            borrows[msg.sender] = 1;
+            cache.borrowBase -= units;
+        }
+
+        // Save state to storage (thus far, only mappings have been updated, so we must address everything else)
+        _save(cache, /* didChangeBorrowBase: */ true);
+
+        emit Erase(msg.sender, units);
+    }
+
     function accrueInterest() external returns (uint72) {
-        (Cache memory cache, ) = _load();
+        Cache memory cache = _load();
         _save(cache, /* didChangeBorrowBase: */ false);
         return uint72(cache.borrowIndex);
     }
@@ -512,17 +535,9 @@ contract Lender is Ledger {
         emit Transfer(from, address(0), shares);
     }
 
-    function _load() private returns (Cache memory cache, uint256 inventory) {
-        cache = Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
-
-        // Accrue interest (only in memory)
-        uint256 newTotalSupply;
-        (cache, inventory, newTotalSupply) = _previewInterest(cache); // Reverts if reentrancy guard is active
-
-        // Update reserves (new `totalSupply` is only in memory, but `balances[RESERVE]` is updated in storage)
-        if (newTotalSupply > cache.totalSupply) {
-            cache.totalSupply = _mint(RESERVE, newTotalSupply - cache.totalSupply, 0, cache.totalSupply, 0);
-        }
+    function _load() private returns (Cache memory cache) {
+        cache = _previewInterest(_getCache());
+        if (cache.lastAccrualTime == 0) emit AccrueInterest(uint72(cache.borrowIndex));
     }
 
     function _save(Cache memory cache, bool didChangeBorrowBase) private {
@@ -534,6 +549,6 @@ contract Lender is Ledger {
 
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
-        lastAccrualTime = uint32(block.timestamp); // Disables reentrancy guard if there was one
+        lastAccrualTime = uint32(block.timestamp);
     }
 }

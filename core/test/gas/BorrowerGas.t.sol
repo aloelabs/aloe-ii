@@ -29,7 +29,6 @@ contract BorrowerGasTest is Test, IManager {
 
         Factory factory = new FatFactory(
             address(0),
-            address(0),
             VolatilityOracle(address(new VolatilityOracleMock())),
             new RateModel()
         );

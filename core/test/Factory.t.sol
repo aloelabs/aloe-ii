@@ -8,13 +8,10 @@ import {
     DEFAULT_ANTE,
     DEFAULT_N_SIGMA,
     DEFAULT_MANIPULATION_THRESHOLD_DIVISOR,
-    DEFAULT_RESERVE_FACTOR,
     CONSTRAINT_N_SIGMA_MIN,
     CONSTRAINT_N_SIGMA_MAX,
     CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN,
     CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX,
-    CONSTRAINT_RESERVE_FACTOR_MIN,
-    CONSTRAINT_RESERVE_FACTOR_MAX,
     CONSTRAINT_ANTE_MAX,
     UNISWAP_AVG_WINDOW
 } from "src/libraries/constants/Constants.sol";
@@ -41,7 +38,7 @@ contract FactoryTest is Test {
     function setUp() public {
         vm.createSelectFork(vm.rpcUrl("mainnet"), 15_348_451);
 
-        factory = new FatFactory(address(12345), address(0), new VolatilityOracle(), new RateModel());
+        factory = new FatFactory(address(12345), new VolatilityOracle(), new RateModel());
         rewardsToken = new MockERC20("Mock Token", "MOCK", 18);
     }
 
@@ -55,8 +52,6 @@ contract FactoryTest is Test {
         assertEq(factory.peer(address(lender1)), address(lender0));
         assertEq(address(lender0.rateModel()), address(factory.DEFAULT_RATE_MODEL()));
         assertEq(address(lender1.rateModel()), address(factory.DEFAULT_RATE_MODEL()));
-        assertEq(lender0.reserveFactor(), DEFAULT_RESERVE_FACTOR);
-        assertEq(lender1.reserveFactor(), DEFAULT_RESERVE_FACTOR);
 
         vm.expectRevert(bytes(""));
         lender0.initialize();

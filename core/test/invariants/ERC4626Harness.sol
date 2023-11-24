@@ -33,9 +33,6 @@ contract ERC4626Harness {
 
     constructor(Lender lender) {
         VAULT = ERC4626(address(lender));
-
-        holders.push(lender.RESERVE());
-        alreadyHolder[lender.RESERVE()] = true;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -93,13 +90,14 @@ contract ERC4626Harness {
 
         // Collect data
         uint256 totalAssets = VAULT.totalAssets();
-        // uint256 totalSupply = VAULT.totalSupply();
+        uint256 totalSupply = VAULT.totalSupply();
         uint256 sharesBefore = VAULT.balanceOf(receiver);
 
         // Actual action
         // --> Pre-pay or approve
         vm.prank(msg.sender);
-        if (shouldPrepay) asset.transfer(address(VAULT), amount); // MAY support an additional flow
+        if (shouldPrepay)
+            asset.transfer(address(VAULT), amount); // MAY support an additional flow
         else asset.approve(address(VAULT), amount); // MUST support EIP-20 `approve`/`transferFrom` flow
         // --> Make deposit
         if (shares == 0) {
@@ -117,11 +115,8 @@ contract ERC4626Harness {
         // Assertions
         require(asset.balanceOf(msg.sender) == balance - amount, "deposit: payment issue");
         require(VAULT.totalAssets() == totalAssets + amount, "deposit: totalAssets mismatch");
-        // NOTE: This doesn't hold when interest accrues (because shares are minted to reserves)
-        // require(VAULT.totalSupply() == totalSupply + shares, "deposit: totalSupply mismatch");
-        if (receiver != holders[0]) {
-            require(VAULT.balanceOf(receiver) == sharesBefore + shares, "deposit: mint issue");
-        }
+        require(VAULT.totalSupply() == totalSupply + shares, "deposit: totalSupply mismatch");
+        require(VAULT.balanceOf(receiver) == sharesBefore + shares, "deposit: mint issue");
 
         // {HARNESS BOOKKEEPING} Keep holders up-to-date
         if (!alreadyHolder[receiver]) {
@@ -152,12 +147,14 @@ contract ERC4626Harness {
 
         // Collect data
         uint256 totalAssets = VAULT.totalAssets();
+        uint256 totalSupply = VAULT.totalSupply();
         uint256 sharesBefore = VAULT.balanceOf(receiver);
 
         // Actual action
         // --> Pre-pay or approve
         vm.prank(msg.sender);
-        if (shouldPrepay) asset.transfer(address(VAULT), amount); // MAY support an additional flow
+        if (shouldPrepay)
+            asset.transfer(address(VAULT), amount); // MAY support an additional flow
         else asset.approve(address(VAULT), amount); // MUST support EIP-20 `approve`/`transferFrom` flow
         // --> Make mint
         if (shares == 0) {
@@ -174,11 +171,8 @@ contract ERC4626Harness {
         // Assertions
         require(asset.balanceOf(msg.sender) == balance - amount, "mint: payment issue");
         require(VAULT.totalAssets() == totalAssets + amount, "mint: totalAssets mismatch");
-        if (receiver != holders[0]) {
-            require(VAULT.balanceOf(receiver) == sharesBefore + shares, "mint: mint issue");
-        }
-        // NOTE: We don't make assertions about the change in `totalSupply` because when interest accrues,
-        // shares are minted to reserves (separate from the operations being tested).
+        require(VAULT.totalSupply() == totalSupply + shares, "deposit: totalSupply mismatch");
+        require(VAULT.balanceOf(receiver) == sharesBefore + shares, "mint: mint issue");
 
         // {HARNESS BOOKKEEPING} Keep holders up-to-date
         if (!alreadyHolder[receiver]) {
@@ -213,6 +207,7 @@ contract ERC4626Harness {
         // Collect data
         assets = VAULT.previewRedeem(shares);
         uint256 totalAssets = VAULT.totalAssets();
+        uint256 totalSupply = VAULT.totalSupply();
         uint256 sharesBefore = VAULT.balanceOf(owner);
         uint256 assetsBefore = VAULT.asset().balanceOf(receiver);
 
@@ -231,16 +226,14 @@ contract ERC4626Harness {
 
         // Assertions
         require(VAULT.totalAssets() == totalAssets - assets, "redeem: totalAssets mismatch");
+        require(VAULT.totalSupply() == totalSupply - shares, "deposit: totalSupply mismatch");
+        require(VAULT.balanceOf(owner) == sharesBefore - shares, "redeem: burn issue");
+
         if (receiver != address(VAULT)) {
             require(VAULT.asset().balanceOf(receiver) == assetsBefore + assets, "redeem: transfer issue");
         } else {
             require(VAULT.asset().balanceOf(receiver) == assetsBefore, "redeem: bad self reference");
         }
-        if (receiver != holders[0]) {
-            require(VAULT.balanceOf(owner) == sharesBefore - shares, "redeem: burn issue");
-        }
-        // NOTE: We don't make assertions about the change in `totalSupply` because when interest accrues,
-        // shares are minted to reserves (separate from the operations being tested).
     }
 
     function withdraw(uint256 assets, address receiver, address owner) public returns (uint256 shares) {
@@ -267,6 +260,7 @@ contract ERC4626Harness {
 
         // Collect data
         uint256 totalAssets = VAULT.totalAssets();
+        uint256 totalSupply = VAULT.totalSupply();
         uint256 sharesBefore = VAULT.balanceOf(owner);
         uint256 assetsBefore = VAULT.asset().balanceOf(receiver);
 
@@ -285,16 +279,14 @@ contract ERC4626Harness {
 
         // Assertions
         require(VAULT.totalAssets() == totalAssets - assets, "withdraw: totalAssets mismatch");
+        require(VAULT.totalSupply() == totalSupply - shares, "deposit: totalSupply mismatch");
+        require(VAULT.balanceOf(owner) == sharesBefore - shares, "withdraw: burn issue");
+
         if (receiver != address(VAULT)) {
             require(VAULT.asset().balanceOf(receiver) == assetsBefore + assets, "withdraw: transfer issue");
         } else {
             require(VAULT.asset().balanceOf(receiver) == assetsBefore, "withdraw: bad self reference");
         }
-        if (receiver != holders[0]) {
-            require(VAULT.balanceOf(owner) == sharesBefore - shares, "withdraw: burn issue");
-        }
-        // NOTE: We don't make assertions about the change in `totalSupply` because when interest accrues,
-        // shares are minted to reserves (separate from the operations being tested).
     }
 
     /*//////////////////////////////////////////////////////////////
