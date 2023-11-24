@@ -51,9 +51,33 @@ library BalanceSheet {
         uint256 liabilities0,
         uint256 liabilities1
     ) internal pure returns (bool) {
-        if (!isSolvent(prices.a, assets.amount0AtA, assets.amount1AtA, liabilities0, liabilities1)) return false;
-        if (!isSolvent(prices.b, assets.amount0AtB, assets.amount1AtB, liabilities0, liabilities1)) return false;
-        return true;
+        unchecked {
+            // The optimizer eliminates the conditional in `divUp`; don't worry about gas golfing that
+            liabilities0 += liabilities0.divUp(MAX_LEVERAGE);
+            liabilities1 += liabilities1.divUp(MAX_LEVERAGE);
+
+            if (
+                !isSolvent(
+                    prices.a,
+                    assets.amount0AtA,
+                    assets.amount1AtA,
+                    liabilities0 + liabilities0.zeroFloorSub(assets.amount0AtA).divUp(LIQUIDATION_INCENTIVE),
+                    liabilities1 + liabilities1.zeroFloorSub(assets.amount1AtA).divUp(LIQUIDATION_INCENTIVE)
+                )
+            ) return false;
+
+            if (
+                !isSolvent(
+                    prices.b,
+                    assets.amount0AtB,
+                    assets.amount1AtB,
+                    liabilities0 + liabilities0.zeroFloorSub(assets.amount0AtB).divUp(LIQUIDATION_INCENTIVE),
+                    liabilities1 + liabilities1.zeroFloorSub(assets.amount1AtB).divUp(LIQUIDATION_INCENTIVE)
+                )
+            ) return false;
+
+            return true;
+        }
     }
 
     /**
@@ -75,23 +99,11 @@ library BalanceSheet {
             liabilities1 +=
                 liabilities1.divUp(MAX_LEVERAGE) +
                 liabilities1.zeroFloorSub(assets1).divUp(LIQUIDATION_INCENTIVE);
+
+            if (!isSolvent(prices.a, assets0, assets1, liabilities0, liabilities1)) return false;
+            if (!isSolvent(prices.b, assets0, assets1, liabilities0, liabilities1)) return false;
+            return true;
         }
-
-        uint256 priceX128;
-        uint256 liabilities;
-        uint256 assets;
-
-        priceX128 = square(prices.a);
-        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
-        assets = assets1 + mulDiv128(assets0, priceX128);
-        if (liabilities > assets) return false;
-
-        priceX128 = square(prices.b);
-        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
-        assets = assets1 + mulDiv128(assets0, priceX128);
-        if (liabilities > assets) return false;
-
-        return true;
     }
 
     function isSolvent(
@@ -101,16 +113,6 @@ library BalanceSheet {
         uint256 liabilities0,
         uint256 liabilities1
     ) internal pure returns (bool) {
-        unchecked {
-            // The optimizer eliminates the conditional in `divUp`; don't worry about gas golfing that
-            liabilities0 +=
-                liabilities0.divUp(MAX_LEVERAGE) +
-                liabilities0.zeroFloorSub(assets0).divUp(LIQUIDATION_INCENTIVE);
-            liabilities1 +=
-                liabilities1.divUp(MAX_LEVERAGE) +
-                liabilities1.zeroFloorSub(assets1).divUp(LIQUIDATION_INCENTIVE);
-        }
-
         uint256 priceX128 = square(sqrtPriceX96);
         uint256 liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
         uint256 assets = assets1 + mulDiv128(assets0, priceX128);
@@ -153,19 +155,15 @@ library BalanceSheet {
     /**
      * @notice Computes a liquidation incentive that increases as the auction progresses. Reverts if called
      * during the `LIQUIDATION_GRACE_PERIOD`.
-     * @param liabilities0 The amount of `TOKEN0` that the `Borrower` owes to `LENDER0`
-     * @param liabilities1 The amount of `TOKEN1` that the `Borrower` owes to `LENDER1`
-     * @param meanPriceX128 The current TWAP
      * @param auctionTime The `block.timestamp` when `Borrower.warn` was called
      * @param closeFactor The fraction of shortfall being closed via a swap, expressed in basis points
+     * @param liabilities The value of liabilities at the TWAP, denominated in `TOKEN1`
      * @return incentive1 The incentive to pay out, denominated in `TOKEN1`
      */
     function computeLiquidationIncentive(
-        uint256 liabilities0,
-        uint256 liabilities1,
-        uint256 meanPriceX128,
         uint256 auctionTime,
-        uint16 closeFactor
+        uint256 closeFactor,
+        uint256 liabilities
     ) internal view returns (uint256 incentive1) {
         assembly ("memory-safe") {
             // Equivalent: `if (auctionTime != 0) auctionTime = block.timestamp - auctionTime;`
@@ -178,9 +176,7 @@ library BalanceSheet {
             if (auctionTime > 3 * LIQUIDATION_GRACE_PERIOD) {
                 incentive1 -= 0.07354386e8 * (auctionTime - 3 * LIQUIDATION_GRACE_PERIOD);
             }
-            incentive1 =
-                (incentive1 * (liabilities1 + mulDiv128Up(liabilities0, meanPriceX128)) * closeFactor) /
-                (1e8 * 10 minutes * 10_000);
+            incentive1 = (incentive1 * liabilities * closeFactor) / (1e8 * 10 minutes * 10_000);
         }
     }
 

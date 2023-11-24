@@ -10,7 +10,7 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {Q128} from "./libraries/constants/Q.sol";
 import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
-import {square, mulDiv128} from "./libraries/MulDiv.sol";
+import {square, mulDiv128, mulDiv128Up} from "./libraries/MulDiv.sol";
 import {extract} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 
@@ -60,6 +60,13 @@ contract Borrower is IUniswapV3MintCallback {
      * If this value is 0, the account is in the aforementioned "clean" state.
      */
     event Warn();
+
+    /**
+     * @notice The opposite of `Warn`. Fortuitous price movements and/or direct `Lender.repay` can bring the
+     * account back to health, but the warning won't be cleared until `unwarn` or `modify` is called. This is
+     * emitted in the `unwarn` case.
+     */
+    event Unwarn();
 
     /// @notice Emitted when the account gets `liquidate`d
     event Liquidate();
@@ -151,22 +158,35 @@ contract Borrower is IUniswapV3MintCallback {
         uint256 slot0_ = slot0;
         // Essentially `slot0.state == State.Ready && slot0.auctionTime == 0`
         require(slot0_ & (SLOT0_MASK_STATE | SLOT0_MASK_AUCTION) == 0);
+        // Ensure only unhealthy accounts get warned
+        require(!_isHealthy(slot0_, oracleSeed), "Aloe: healthy");
 
-        {
-            // Fetch prices from oracle
-            (Prices memory prices, ) = getPrices(oracleSeed);
-            // Tally assets without actually withdrawing Uniswap positions
-            Assets memory assets = _getAssets(slot0_, prices, false);
-            // Fetch liabilities from lenders
-            (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-            // Ensure only unhealthy accounts get warned
-            require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
-        }
-
+        // Start auction
         slot0 = slot0_ | (block.timestamp << 208);
         emit Warn();
 
-        SafeTransferLib.safeTransferETH(msg.sender, address(this).balance >> 3);
+        SafeTransferLib.safeTransferETH(msg.sender, address(this).balance / 5);
+    }
+
+    /**
+     * @notice Clears the warning state from a healthy borrower. NOTE: There is no guarantee that this
+     * will be called. Users are encouraged to clear the warning state via `modify` as soon as possible.
+     * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
+     * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
+     * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
+     */
+    function unwarn(uint40 oracleSeed) external {
+        uint256 slot0_ = slot0;
+        // Essentially `slot0.state == State.Ready && slot0.auctionTime > 0`
+        require(slot0_ & SLOT0_MASK_STATE == 0 && slot0_ & SLOT0_MASK_AUCTION > 0);
+        // Ensure only healthy accounts get unwarned
+        require(_isHealthy(slot0_, oracleSeed), "Aloe: unhealthy");
+
+        // Stop auction
+        slot0 = (slot0_ & SLOT0_MASK_POSITIONS) | SLOT0_DIRT;
+        emit Unwarn();
+
+        SafeTransferLib.safeTransferETH(msg.sender, address(this).balance / 4);
     }
 
     /**
@@ -186,8 +206,8 @@ contract Borrower is IUniswapV3MintCallback {
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
      * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
      */
-    function liquidate(ILiquidator callee, bytes calldata data, uint16 closeFactor, uint40 oracleSeed) external {
-        require(0 < closeFactor && closeFactor <= 10000, "Aloe: close");
+    function liquidate(ILiquidator callee, bytes calldata data, uint256 closeFactor, uint40 oracleSeed) external {
+        require(closeFactor <= 10000, "Aloe: close");
 
         uint256 slot0_ = slot0;
         // Essentially `slot0.state == State.Ready`
@@ -195,7 +215,7 @@ contract Borrower is IUniswapV3MintCallback {
         slot0 = slot0_ | (uint256(State.Locked) << 248);
 
         // Fetch prices from oracle
-        (Prices memory prices, ) = getPrices(oracleSeed);
+        (Prices memory prices, bool seemsLegit) = getPrices(oracleSeed);
         // Fetch liabilities from lenders
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         {
@@ -211,68 +231,87 @@ contract Borrower is IUniswapV3MintCallback {
             uint256 assets1 = TOKEN1.balanceOf(address(this));
 
             // See what needs to be acquired through swaps
-            uint256 in0 = liabilities0.zeroFloorSub(assets0);
-            uint256 in1 = liabilities1.zeroFloorSub(assets1);
+            uint256 x = liabilities0.zeroFloorSub(assets0);
+            uint256 y = liabilities1.zeroFloorSub(assets1);
 
             // Decide whether to swap or not
             bool shouldSwap;
             assembly ("memory-safe") {
                 // If both are zero or neither is zero, there's nothing more to do
-                shouldSwap := xor(gt(in0, 0), gt(in1, 0))
+                shouldSwap := xor(gt(x, 0), gt(y, 0))
                 // Apply `closeFactor` and check again. This second check can generate false positives in cases
                 // where one division (not both) floors to 0, which is why we `and()` with the check above.
-                in0 := div(mul(in0, closeFactor), 10000)
-                in1 := div(mul(in1, closeFactor), 10000)
-                shouldSwap := and(shouldSwap, xor(gt(in0, 0), gt(in1, 0)))
+                x := div(mul(x, closeFactor), 10000)
+                y := div(mul(y, closeFactor), 10000)
+                shouldSwap := and(shouldSwap, xor(gt(x, 0), gt(y, 0)))
             }
 
-            if (shouldSwap) {
-                uint256 priceX128 = square(prices.c);
-                uint256 incentive1 = BalanceSheet.computeLiquidationIncentive(
-                    liabilities0,
-                    liabilities1,
-                    priceX128,
-                    (slot0_ & SLOT0_MASK_AUCTION) >> 208,
-                    closeFactor
-                );
-
-                if (in0 > 0) {
-                    uint256 out1 = (mulDiv128(in0, priceX128) + incentive1).min(assets1);
-
-                    TOKEN1.safeTransfer(address(callee), out1);
-                    callee.swap1For0(data, out1, in0);
-
-                    assets1 -= out1;
-                    assets0 += in0;
-                } else {
-                    uint256 out0 = (in1 + incentive1).fullMulDiv(Q128, priceX128).min(assets0);
-
-                    TOKEN0.safeTransfer(address(callee), out0);
-                    callee.swap0For1(data, out0, in1);
-
-                    assets0 -= out0;
-                    assets1 += in1;
-                }
-            }
-
+            // Swap using an incentive ∝ (auctionTime, closeFactor, liabilities)
             {
-                uint256 repay0 = SoladyMath.min(assets0, liabilities0);
-                uint256 repay1 = SoladyMath.min(assets1, liabilities1);
-                _repay(repay0, repay1);
-                assets0 -= repay0;
-                assets1 -= repay1;
-                liabilities0 -= repay0;
-                liabilities1 -= repay1;
+                uint256 priceX128 = square(prices.c);
+                uint256 liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+
+                if (shouldSwap) {
+                    uint256 incentive1 = BalanceSheet.computeLiquidationIncentive(
+                        (slot0_ & SLOT0_MASK_AUCTION) >> 208,
+                        closeFactor,
+                        liabilities
+                    );
+
+                    if (x > 0) {
+                        uint256 out1 = (mulDiv128(x, priceX128) + incentive1).min(assets1 - liabilities1);
+
+                        TOKEN1.safeTransfer(address(callee), out1);
+                        callee.swap1For0(data, out1, x);
+
+                        assets1 -= out1;
+                        assets0 += x;
+                    } else {
+                        uint256 out0 = (y + incentive1).fullMulDiv(Q128, priceX128).min(assets0 - liabilities0);
+
+                        TOKEN0.safeTransfer(address(callee), out0);
+                        callee.swap0For1(data, out0, y);
+
+                        assets0 -= out0;
+                        assets1 += y;
+                    }
+                }
+                // `x` and `y` are now the amounts that will be repaid
+                x = SoladyMath.min(assets0, liabilities0);
+                y = SoladyMath.min(assets1, liabilities1);
+                // Update `closeFactor` to be the fraction of liabilities repaid (regardless of swap amounts)
+                closeFactor = (10000 * (y + mulDiv128Up(x, priceX128))) / liabilities;
             }
+
+            // Repay as much as possible
+            _repay(x, y);
+            assets0 -= x;
+            assets1 -= y;
+            liabilities0 -= x;
+            liabilities1 -= y;
 
             emit Liquidate();
 
             if (BalanceSheet.isHealthy(prices, assets0, assets1, liabilities0, liabilities1)) {
                 slot0 = (slot0_ & SLOT0_MASK_USERSPACE) | SLOT0_DIRT;
                 SafeTransferLib.safeTransferETH(payable(callee), (address(this).balance * closeFactor) / 10000);
-            } else {
-                slot0 = (slot0_ & (SLOT0_MASK_AUCTION | SLOT0_MASK_USERSPACE)) | SLOT0_DIRT;
+                return;
             }
+
+            if (!BalanceSheet.isSolvent(prices.c, assets0, assets1, liabilities0, liabilities1)) {
+                (, , , uint32 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
+                require(seemsLegit && (block.timestamp > pausedUntilTime), "Aloe: sus price");
+
+                // TODO: uncomment these once other PR is merged
+                // LENDER0.erase();
+                // LENDER1.erase();
+
+                slot0 = (slot0_ & SLOT0_MASK_USERSPACE) | SLOT0_DIRT;
+                SafeTransferLib.safeTransferETH(payable(callee), address(this).balance);
+                return;
+            }
+
+            slot0 = (slot0_ & (SLOT0_MASK_AUCTION | SLOT0_MASK_USERSPACE)) | SLOT0_DIRT;
         }
     }
 
@@ -476,6 +515,17 @@ contract Borrower is IUniswapV3MintCallback {
             nSigma,
             manipulationThresholdDivisor
         );
+    }
+
+    function _isHealthy(uint256 slot0_, uint40 oracleSeed) private returns (bool) {
+        // Fetch prices from oracle
+        (Prices memory prices, ) = getPrices(oracleSeed);
+        // Tally assets without actually withdrawing Uniswap positions
+        Assets memory assets = _getAssets(slot0_, prices, false);
+        // Fetch liabilities from lenders
+        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+
+        return BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1);
     }
 
     function _getAssets(uint256 slot0_, Prices memory prices, bool withdraw) private returns (Assets memory assets) {
