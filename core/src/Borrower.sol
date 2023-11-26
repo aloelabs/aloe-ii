@@ -302,9 +302,8 @@ contract Borrower is IUniswapV3MintCallback {
                 (, , , uint32 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
                 require(seemsLegit && (block.timestamp > pausedUntilTime), "Aloe: sus price");
 
-                // TODO: uncomment these once other PR is merged
-                // LENDER0.erase();
-                // LENDER1.erase();
+                LENDER0.erase();
+                LENDER1.erase();
 
                 slot0 = (slot0_ & SLOT0_MASK_USERSPACE) | SLOT0_DIRT;
                 SafeTransferLib.safeTransferETH(payable(callee), address(this).balance);
