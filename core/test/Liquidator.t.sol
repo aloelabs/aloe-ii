@@ -26,6 +26,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     ERC20 constant asset0 = ERC20(0x6B175474E89094C44Da98b954EedeAC495271d0F);
     ERC20 constant asset1 = ERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
+    uint256 constant TIME_OF_5_PERCENT = 6 minutes + 15 seconds;
+
     Lender immutable lender0;
     Lender immutable lender1;
     Borrower immutable account;
@@ -90,7 +92,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.warn((1 << 32));
 
         uint40 unleashLiquidationTime = uint40((account.slot0() >> 208) % (1 << 40));
-        assertEq(unleashLiquidationTime, block.timestamp + LIQUIDATION_GRACE_PERIOD);
+        assertEq(unleashLiquidationTime, block.timestamp);
 
         vm.expectRevert(bytes(""));
         account.warn((1 << 32));
@@ -122,9 +124,6 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         _setInterest(lender0, 10010);
         assertEq(lender0.borrowBalance(address(account)), 200.2e18);
 
-        vm.expectRevert();
-        account.liquidate(this, bytes(""), 0, (1 << 32));
-
         // MARK: actual command
         account.liquidate(this, bytes(""), closeFactor, (1 << 32));
 
@@ -149,9 +148,6 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         _setInterest(lender1, 10010);
         assertEq(lender1.borrowBalance(address(account)), 20.02e18);
-
-        vm.expectRevert();
-        account.liquidate(this, bytes(""), 0, (1 << 32));
 
         // MARK: actual command
         account.liquidate(this, bytes(""), closeFactor, (1 << 32));
@@ -182,9 +178,6 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         _setInterest(lender1, 10010);
         assertEq(lender0.borrowBalance(address(account)), 200.2e18);
         assertEq(lender1.borrowBalance(address(account)), 20.02e18);
-
-        vm.expectRevert();
-        account.liquidate(this, bytes(""), 0, (1 << 32));
 
         // MARK: actual command
         account.liquidate(this, bytes(""), closeFactor, (1 << 32));
@@ -219,9 +212,6 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         _setInterest(lender1, 10010);
         assertEq(lender0.borrowBalance(address(account)), 200.2e18);
         assertEq(lender1.borrowBalance(address(account)), 20.02e18);
-
-        vm.expectRevert();
-        account.liquidate(this, bytes(""), 0, (1 << 32));
 
         // MARK: actual command
         account.liquidate(this, bytes(""), closeFactor, (1 << 32));
@@ -267,28 +257,30 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         debt = lender0.borrowBalance(address(account));
         assertLe(debt - (1595e18 * 10010) / 10000, 1);
 
-        // Disable warn() requirement by setting unleashLiquidationTime=1
-        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(1 << 208)));
-
-        vm.expectRevert();
-        account.liquidate(this, bytes(""), 0, (1 << 32));
+        // Disable warn() requirement by setting auctionTime
+        vm.store(
+            address(account),
+            bytes32(uint256(0)),
+            bytes32(uint256((block.timestamp - LIQUIDATION_GRACE_PERIOD - TIME_OF_5_PERCENT) << 208))
+        );
 
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
-        uint256 incentive1 = Math.mulDiv(debt / LIQUIDATION_INCENTIVE, price, Q96);
-        uint256 assets1 = Math.mulDiv(debt / closeFactor, price, Q96) + incentive1 / closeFactor;
+        uint256 assets1 = Math.mulDiv(debt, price, Q96);
+        assets1 += assets1 / LIQUIDATION_INCENTIVE;
+        assets1 = (assets1 * closeFactor) / 10000;
 
         // MARK: actual command
         data = abi.encode(assets1);
         account.liquidate(this, data, closeFactor, (1 << 32));
 
-        assertLe(lender0.borrowBalance(address(account)) - (debt - debt / closeFactor), 1);
+        assertLe(lender0.borrowBalance(address(account)) - (debt - (debt * closeFactor) / 10000), 1);
         assertGt(asset1.balanceOf(address(this)), 0);
     }
 
     /// forge-config: default.fuzz.runs = 16
-    function test_fuzz_cannotReenterLiquidate(uint8 closeFactor) public {
-        closeFactor = (closeFactor % 8) + 1;
+    function test_fuzz_cannotReenterLiquidate(uint256 closeFactor) public {
+        closeFactor = bound(closeFactor, 1, 10000);
 
         // give the account 1 WETH
         deal(address(asset1), address(account), 1e18);
@@ -306,13 +298,17 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         _setInterest(lender0, 10010);
         debt = (debt * 10010) / 10000;
 
-        // Disable warn() requirement by setting unleashLiquidationTime=1
-        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(1 << 208)));
+        // Disable warn() requirement by setting auctionTime
+        vm.store(
+            address(account),
+            bytes32(uint256(0)),
+            bytes32(uint256((block.timestamp - LIQUIDATION_GRACE_PERIOD - TIME_OF_5_PERCENT) << 208))
+        );
 
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 incentive1 = Math.mulDiv(debt / LIQUIDATION_INCENTIVE, price, Q96);
-        uint256 assets1 = Math.mulDiv(debt / closeFactor, price, Q96) + incentive1 / closeFactor;
+        uint256 assets1 = Math.mulDiv((debt * closeFactor) / 10000, price, Q96) + (incentive1 * closeFactor) / 10000;
 
         vm.expectRevert();
         data = abi.encode(type(uint256).max); // Special value that we're using to tell our test callback to try to re-enter
@@ -324,9 +320,9 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     }
 
     /// forge-config: default.fuzz.runs = 16
-    function test_fuzz_interestTriggerRepayETHUsingSwap(uint8 scale, uint8 closeFactor) public {
+    function test_fuzz_interestTriggerRepayETHUsingSwap(uint8 scale, uint256 closeFactor) public {
         // These tests are forked, so we don't want to spam the RPC with too many fuzzing values
-        closeFactor = (closeFactor % 8) + 1;
+        closeFactor = bound(closeFactor, 1, 10000);
 
         (Prices memory prices, ) = account.getPrices(1 << 32);
         uint256 borrow1 = 1e18 * ((scale % 4) + 1); // Same concern here
@@ -357,21 +353,22 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         borrow1 = (borrow1 * 10010) / 10000;
         assertEq(lender1.borrowBalance(address(account)), borrow1);
 
-        // Disable warn() requirement by setting unleashLiquidationTime=1
-        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(1 << 208)));
-
-        vm.expectRevert();
-        account.liquidate(this, bytes(""), 0, (1 << 32));
+        // Disable warn() requirement by setting auctionTime
+        vm.store(
+            address(account),
+            bytes32(uint256(0)),
+            bytes32(uint256((block.timestamp - LIQUIDATION_GRACE_PERIOD - TIME_OF_5_PERCENT) << 208))
+        );
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 incentive1 = borrow1 / LIQUIDATION_INCENTIVE;
-        uint256 assets0 = Math.mulDiv(borrow1 / closeFactor + incentive1 / closeFactor, Q96, price);
+        uint256 assets0 = Math.mulDiv(((borrow1 + incentive1) * closeFactor) / 10000, Q96, price);
 
         // MARK: actual command
         data = abi.encode(assets0);
         account.liquidate(this, data, closeFactor, (1 << 32));
 
-        assertApproxEqAbs(lender1.borrowBalance(address(account)), borrow1 - borrow1 / closeFactor, 1);
+        assertApproxEqAbs(lender1.borrowBalance(address(account)), borrow1 - (borrow1 * closeFactor) / 10000, 1);
         assertGt(asset0.balanceOf(address(this)), 0);
     }
 
@@ -421,20 +418,24 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
             );
         }
 
-        // Disable warn() requirement by setting unleashLiquidationTime=1
-        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(1 << 208)));
+        // Disable warn() requirement by setting auctionTime
+        vm.store(
+            address(account),
+            bytes32(uint256(0)),
+            bytes32(uint256((block.timestamp - LIQUIDATION_GRACE_PERIOD - TIME_OF_5_PERCENT) << 208))
+        );
 
         (prices, ) = account.getPrices(1 << 32);
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
-        uint256 assets1 = Math.mulDiv(borrow0 / closeFactor, price, Q96);
+        uint256 assets1 = Math.mulDiv((borrow0 * closeFactor) / 10000, price, Q96);
         assets1 += assets1 / LIQUIDATION_INCENTIVE;
 
         // MARK: actual command
         data = abi.encode(assets1);
         account.liquidate(this, data, closeFactor, (1 << 32));
 
-        assertLe(lender0.borrowBalance(address(account)) - (borrow0 - borrow0 / closeFactor), 1);
+        assertLe(lender0.borrowBalance(address(account)) - (borrow0 - (borrow0 * closeFactor) / 10000), 1);
         assertGt(asset1.balanceOf(address(this)), 0);
     }
 
@@ -492,13 +493,13 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         vm.expectRevert(bytes("Aloe: grace"));
         account.liquidate(this, bytes(""), 10000, (1 << 32));
 
-        skip(1);
+        skip(TIME_OF_5_PERCENT);
         borrow0 = lender0.borrowBalance(address(account));
 
         (prices, ) = account.getPrices(1 << 32);
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
-        uint256 assets1 = Math.mulDiv(borrow0 / closeFactor, price, Q96);
+        uint256 assets1 = Math.mulDiv((borrow0 * closeFactor) / 10000, price, Q96);
         assets1 += assets1 / LIQUIDATION_INCENTIVE;
 
         // MARK: actual command
@@ -539,7 +540,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         if (expected == type(uint256).max) {
             Borrower(payable(msg.sender)).liquidate(this, data, 1, (1 << 32));
         }
-        assertEq(actual, expected);
+        assertApproxEqAbs(actual, expected, 1);
         pool.swap(msg.sender, false, -int256(expected0), TickMath.MAX_SQRT_RATIO - 1, bytes(""));
     }
 
@@ -548,7 +549,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         if (expected == type(uint256).max) {
             Borrower(payable(msg.sender)).liquidate(this, data, 1, (1 << 32));
         }
-        assertEq(actual, expected);
+        assertApproxEqAbs(actual, expected, 1);
         pool.swap(msg.sender, true, -int256(expected1), TickMath.MIN_SQRT_RATIO + 1, bytes(""));
     }
 

@@ -17,6 +17,7 @@ import {
     IV_COLD_START
 } from "src/libraries/constants/Constants.sol";
 import {BalanceSheet, Assets, Prices, TickMath, square} from "src/libraries/BalanceSheet.sol";
+import {LiquidityAmounts} from "src/libraries/LiquidityAmounts.sol";
 
 contract LibraryWrapper {
     function isHealthy(
@@ -27,23 +28,120 @@ contract LibraryWrapper {
     ) external pure returns (bool) {
         return BalanceSheet.isHealthy(prices, mem, liabilities0, liabilities1);
     }
+
+    function isHealthy(
+        Prices memory prices,
+        uint256 assets0,
+        uint256 assets1,
+        uint256 liabilities0,
+        uint256 liabilities1
+    ) external pure returns (bool) {
+        return BalanceSheet.isHealthy(prices, assets0, assets1, liabilities0, liabilities1);
+    }
+
+    function isSolvent(
+        uint160 sqrtPriceX96,
+        uint256 assets0,
+        uint256 assets1,
+        uint256 liabilities0,
+        uint256 liabilities1
+    ) external pure returns (bool) {
+        return BalanceSheet.isSolvent(sqrtPriceX96, assets0, assets1, liabilities0, liabilities1);
+    }
 }
 
 contract BalanceSheetTest is Test {
     function setUp() public {}
 
-    // TODO: test that if it has 5% available at probe prices, it has 5% available at the current price
-    // (math works out but nice to fuzz as well)
-
     // TODO: test behavior of new computeLiquidationIncentive
+
+    // TODO: (for Borrower) test closeFactor=0
 
     // TODO: (for Borrower) test that liquidate() fails if the liquidator doesn't pay back at least in0 or in1 (for all close factors)
 
+    function test_healthConcavity(
+        uint128 fixed0,
+        uint128 fixed1,
+        uint128 liabilities0,
+        uint128 liabilities1,
+        uint160[6] memory p,
+        uint96[2] memory liquidities
+    ) public {
+        vm.assume(p[0] > 0 && p[1] > 0);
+
+        p[0] = uint160(bound(p[0], TickMath.MIN_SQRT_RATIO + 1, TickMath.MAX_SQRT_RATIO - 1));
+        p[1] = uint160(bound(p[1], p[0], TickMath.MAX_SQRT_RATIO - 1));
+
+        p[2] = uint160(bound(p[2], p[0], p[1]));
+        p[3] = uint160(bound(p[3], p[2], TickMath.MAX_SQRT_RATIO - 1));
+
+        p[4] = uint160(bound(p[4], TickMath.MIN_SQRT_RATIO + 1, p[0]));
+        p[5] = uint160(bound(p[5], p[4], p[1]));
+
+        LibraryWrapper wrapper = new LibraryWrapper();
+
+        uint256 i;
+        while (i < 32) {
+            Assets memory assets = _getAssets(fixed0, fixed1, p, liquidities);
+
+            try wrapper.isHealthy(Prices(p[0], p[1], 0), assets, liabilities0, liabilities1) returns (bool isHealthy) {
+                if (isHealthy) {
+                    i = 0;
+                    while (p[0] < p[1] && i < 256) {
+                        isHealthy = wrapper.isHealthy(Prices(p[0], p[1], 0), assets, liabilities0, liabilities1);
+                        assertTrue(isHealthy);
+
+                        p[0] = uint160(SoladyMath.min(uint256(p[0]) * 2, type(uint160).max));
+                        p[1] = uint160(uint256(p[1]) / 2);
+
+                        i++;
+                    }
+                    console2.log("Runs:", i);
+                    break;
+                }
+            } catch {
+                vm.assume(false);
+                break;
+            }
+
+            fixed0 = uint128(uint256(fixed0) * 2);
+            fixed1 = uint128(uint256(fixed1) * 2);
+            liabilities0 = liabilities0 / 2;
+            liabilities1 = liabilities0 / 2;
+
+            i++;
+        }
+    }
+
+    function _getAssets(
+        uint256 fixed0,
+        uint256 fixed1,
+        uint160[6] memory p,
+        uint96[2] memory liquidities
+    ) private pure returns (Assets memory assets) {
+        assets.amount0AtA = assets.amount0AtB = fixed0;
+        assets.amount1AtA = assets.amount1AtB = fixed1;
+
+        (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(p[0], p[2], p[3], liquidities[0]);
+        assets.amount0AtA += amount0;
+        assets.amount1AtA += amount1;
+        (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(p[1], p[2], p[3], liquidities[0]);
+        assets.amount0AtB += amount0;
+        assets.amount1AtB += amount1;
+
+        (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(p[0], p[4], p[5], liquidities[1]);
+        assets.amount0AtA += amount0;
+        assets.amount1AtA += amount1;
+        (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(p[1], p[4], p[5], liquidities[1]);
+        assets.amount0AtB += amount0;
+        assets.amount1AtB += amount1;
+    }
+
     function test_fuzz_alwaysHealthyWhenLiabilitiesAre0(
-        uint256 amount0AtA,
-        uint256 amount1AtA,
-        uint256 amount0AtB,
-        uint256 amount1AtB,
+        uint128 amount0AtA,
+        uint128 amount1AtA,
+        uint128 amount0AtB,
+        uint128 amount1AtB,
         uint160 a,
         uint160 b,
         uint160 c
@@ -55,8 +153,25 @@ contract BalanceSheetTest is Test {
         try wrapper.isHealthy(prices, assets, 0, 0) returns (bool isHealthy) {
             assertTrue(isHealthy);
         } catch {
-            vm.expectRevert(stdError.arithmeticError);
+            vm.expectRevert(0xae47f702);
             wrapper.isHealthy(prices, assets, 0, 0);
+        }
+
+        try wrapper.isHealthy(prices, amount0AtA, amount1AtA, 0, 0) returns (bool isHealthy) {
+            assertTrue(isHealthy);
+        } catch {
+            vm.expectRevert(0xae47f702);
+            wrapper.isHealthy(prices, amount0AtA, amount1AtA, 0, 0);
+        }
+    }
+
+    function test_fuzz_alwaysSolventWhenLiabilitiesAre0(uint160 sqrtPriceX96, uint128 amount0, uint128 amount1) public {
+        LibraryWrapper wrapper = new LibraryWrapper();
+        try wrapper.isSolvent(sqrtPriceX96, amount0, amount1, 0, 0) returns (bool isHealthy) {
+            assertTrue(isHealthy);
+        } catch {
+            vm.expectRevert(0xae47f702);
+            wrapper.isSolvent(sqrtPriceX96, amount0, amount1, 0, 0);
         }
     }
 

@@ -52,29 +52,31 @@ library BalanceSheet {
         uint256 liabilities1
     ) internal pure returns (bool) {
         unchecked {
+            uint256 augmented0;
+            uint256 augmented1;
+
             // The optimizer eliminates the conditional in `divUp`; don't worry about gas golfing that
-            liabilities0 += liabilities0.divUp(MAX_LEVERAGE);
-            liabilities1 += liabilities1.divUp(MAX_LEVERAGE);
+            augmented0 =
+                liabilities0 +
+                liabilities0.divUp(MAX_LEVERAGE) +
+                liabilities0.zeroFloorSub(assets.amount0AtA).divUp(LIQUIDATION_INCENTIVE);
+            augmented1 =
+                liabilities1 +
+                liabilities1.divUp(MAX_LEVERAGE) +
+                liabilities1.zeroFloorSub(assets.amount1AtA).divUp(LIQUIDATION_INCENTIVE);
 
-            if (
-                !isSolvent(
-                    prices.a,
-                    assets.amount0AtA,
-                    assets.amount1AtA,
-                    liabilities0 + liabilities0.zeroFloorSub(assets.amount0AtA).divUp(LIQUIDATION_INCENTIVE),
-                    liabilities1 + liabilities1.zeroFloorSub(assets.amount1AtA).divUp(LIQUIDATION_INCENTIVE)
-                )
-            ) return false;
+            if (!isSolvent(prices.a, assets.amount0AtA, assets.amount1AtA, augmented0, augmented1)) return false;
 
-            if (
-                !isSolvent(
-                    prices.b,
-                    assets.amount0AtB,
-                    assets.amount1AtB,
-                    liabilities0 + liabilities0.zeroFloorSub(assets.amount0AtB).divUp(LIQUIDATION_INCENTIVE),
-                    liabilities1 + liabilities1.zeroFloorSub(assets.amount1AtB).divUp(LIQUIDATION_INCENTIVE)
-                )
-            ) return false;
+            augmented0 =
+                liabilities0 +
+                liabilities0.divUp(MAX_LEVERAGE) +
+                liabilities0.zeroFloorSub(assets.amount0AtB).divUp(LIQUIDATION_INCENTIVE);
+            augmented1 =
+                liabilities1 +
+                liabilities1.divUp(MAX_LEVERAGE) +
+                liabilities1.zeroFloorSub(assets.amount1AtB).divUp(LIQUIDATION_INCENTIVE);
+
+            if (!isSolvent(prices.b, assets.amount0AtB, assets.amount1AtB, augmented0, augmented1)) return false;
 
             return true;
         }

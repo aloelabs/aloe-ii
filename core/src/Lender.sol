@@ -297,7 +297,7 @@ contract Lender is Ledger {
 
         unchecked {
             uint256 b = borrows[msg.sender];
-            require(b > 1, "Aloe: cannot erase");
+            require(b > 0, "Aloe: cannot erase");
 
             // Maximize `units`
             units = b - 1;
