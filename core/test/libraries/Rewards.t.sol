@@ -5,7 +5,7 @@ import "forge-std/Test.sol";
 
 import {ERC20, MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 
-import {Rewards, exp2} from "src/libraries/Rewards.sol";
+import {Rewards} from "src/libraries/Rewards.sol";
 
 contract MockERC20Rewards is MockERC20 {
     ERC20 public immutable REWARDS_TOKEN;
@@ -19,12 +19,13 @@ contract MockERC20Rewards is MockERC20 {
         REWARDS_TOKEN = rewardsToken;
     }
 
-    function setRate(uint56 rate) external {
-        Rewards.setRate(rate);
+    function setRate(uint64 rate) external {
+        (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply);
+        Rewards.setRate(s, a, rate);
     }
 
     function transfer(address to, uint256 amount) public virtual override returns (bool) {
-        (Rewards.Storage storage s, uint144 a) = Rewards.load();
+        (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply);
         Rewards.updateUserState(s, a, msg.sender, balanceOf[msg.sender]);
         Rewards.updateUserState(s, a, to, balanceOf[to]);
 
@@ -32,7 +33,7 @@ contract MockERC20Rewards is MockERC20 {
     }
 
     function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {
-        (Rewards.Storage storage s, uint144 a) = Rewards.load();
+        (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply);
         Rewards.updateUserState(s, a, from, balanceOf[from]);
         Rewards.updateUserState(s, a, to, balanceOf[to]);
 
@@ -40,43 +41,38 @@ contract MockERC20Rewards is MockERC20 {
     }
 
     function mint(address to, uint256 value) public virtual override {
-        (Rewards.Storage storage s, uint144 a) = Rewards.load();
-        Rewards.updatePoolState(s, a, totalSupply + value);
+        (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply);
+        Rewards.updatePoolState(s, a);
         Rewards.updateUserState(s, a, to, balanceOf[to]);
 
         super.mint(to, value);
     }
 
     function burn(address from, uint256 value) public virtual override {
-        (Rewards.Storage storage s, uint144 a) = Rewards.load();
-        Rewards.updatePoolState(s, a, totalSupply - value);
+        (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply);
+        Rewards.updatePoolState(s, a);
         Rewards.updateUserState(s, a, from, balanceOf[from]);
 
         super.burn(from, value);
     }
 
     function claim() external {
-        (Rewards.Storage storage s, uint144 a) = Rewards.load();
+        (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply);
         REWARDS_TOKEN.transfer(msg.sender, Rewards.claim(s, a, msg.sender, balanceOf[msg.sender]));
     }
 
-    function rewards(address user) external view returns (uint112) {
-        (Rewards.Storage storage s, uint144 a) = Rewards.load();
+    function rewards(address user) external view returns (uint96) {
+        (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply);
         return Rewards.previewUserState(s, a, user, balanceOf[user]).earned;
     }
 
-    function rewardsRate() external view returns (uint56) {
-        (Rewards.Storage storage s, ) = Rewards.load();
+    function rewardsRate() external view returns (uint64) {
+        (Rewards.Storage storage s, ) = Rewards.load(totalSupply);
         return s.poolState.rate;
     }
 
-    function rewardsAccumulator() external view returns (uint144 a) {
-        (, a) = Rewards.load();
-    }
-
-    function log2TotalSupply() external view returns (int24) {
-        (Rewards.Storage storage s, ) = Rewards.load();
-        return s.poolState.log2TotalSupply;
+    function rewardsAccumulator() external view returns (uint160 a) {
+        (, a) = Rewards.load(totalSupply);
     }
 }
 
@@ -94,19 +90,26 @@ contract RewardsTest is Test {
                                NO REVERT
     //////////////////////////////////////////////////////////////*/
 
-    function test_library_setRate(uint56 rate) public {
-        Rewards.setRate(rate);
+    function test_library_setRate(uint64 rate, uint256 totalSupply) public {
+        (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply);
+        Rewards.setRate(s, a, rate);
     }
 
-    function test_library_updatePoolState(uint56 rate, uint144 a, uint256 newTotalSupply) public {
-        Rewards.setRate(rate);
-        (Rewards.Storage storage s, ) = Rewards.load();
-        Rewards.updatePoolState(s, a, newTotalSupply);
+    function test_library_updatePoolState(uint64 rate, uint160 a, uint256 totalSupply) public {
+        (Rewards.Storage storage s, ) = Rewards.load(totalSupply);
+        Rewards.setRate(s, a, rate);
+        Rewards.updatePoolState(s, a);
     }
 
-    function test_library_updateUserState(uint56 rate, uint144 a, address user, uint256 balance) public {
-        Rewards.setRate(rate);
-        (Rewards.Storage storage s, ) = Rewards.load();
+    function test_library_updateUserState(
+        uint64 rate,
+        uint160 a,
+        uint256 totalSupply,
+        address user,
+        uint256 balance
+    ) public {
+        (Rewards.Storage storage s, ) = Rewards.load(totalSupply);
+        Rewards.setRate(s, a, rate);
         Rewards.updateUserState(s, a, user, balance);
     }
 
@@ -114,7 +117,7 @@ contract RewardsTest is Test {
                                   MOCK
     //////////////////////////////////////////////////////////////*/
 
-    function test_mock_rateNotSet(address a, address b, uint112 shares, uint56 rate) public {
+    function test_mock_rateNotSet(address a, address b, uint96 shares, uint64 rate) public {
         vm.assume(a != b);
 
         pool.mint(a, shares);
@@ -139,13 +142,13 @@ contract RewardsTest is Test {
         uint256 minRate = (uint256(10) * 1e18) / 365 days;
         uint256 maxSupply = uint256(1e9) * 1e18;
 
-        pool.setRate(uint56(minRate));
+        pool.setRate(uint64(minRate));
         assertEq(pool.rewardsRate(), minRate);
 
         address alice = address(12345);
         pool.mint(alice, maxSupply);
 
-        uint144 before = pool.rewardsAccumulator();
+        uint160 before = pool.rewardsAccumulator();
         assertEq(before, 0);
         skip(1); // Accumulator should change even after just 1 second
         assertGt(pool.rewardsAccumulator(), before);
@@ -156,13 +159,13 @@ contract RewardsTest is Test {
         uint256 maxRate = (uint256(1e6) * 1e18) / 365 days;
         uint256 minSupply = 1;
 
-        pool.setRate(uint56(maxRate));
+        pool.setRate(uint64(maxRate));
         assertEq(pool.rewardsRate(), maxRate);
 
         address alice = address(12345);
         pool.mint(alice, minSupply);
 
-        uint144 before = pool.rewardsAccumulator();
+        uint160 before = pool.rewardsAccumulator();
         assertEq(before, 0);
         skip(1); // Accumulator should change even after just 1 second
         assertGt(pool.rewardsAccumulator(), before);
@@ -173,13 +176,13 @@ contract RewardsTest is Test {
         uint256 minRate = (uint256(10) * 1e18) / 365 days;
         uint256 maxSupply = uint256(1e9) * 1e18;
 
-        pool.setRate(uint56(minRate));
+        pool.setRate(uint64(minRate));
         assertEq(pool.rewardsRate(), minRate);
 
         address alice = address(12345);
         pool.mint(alice, maxSupply);
 
-        uint144 before = pool.rewardsAccumulator();
+        uint160 before = pool.rewardsAccumulator();
         assertEq(before, 0);
         skip(365 days);
         assertGt(pool.rewardsAccumulator(), before);
@@ -190,21 +193,21 @@ contract RewardsTest is Test {
         uint256 maxRate = (uint256(1e6) * 1e18) / 365 days;
         uint256 minSupply = 1;
 
-        pool.setRate(uint56(maxRate));
+        pool.setRate(uint64(maxRate));
         assertEq(pool.rewardsRate(), maxRate);
 
         address alice = address(12345);
         pool.mint(alice, minSupply);
 
-        uint144 before = pool.rewardsAccumulator();
+        uint160 before = pool.rewardsAccumulator();
         assertEq(before, 0);
         skip(365 days);
         assertGt(pool.rewardsAccumulator(), before);
         assertLe(pool.rewardsAccumulator() - before, maxRate * 1e18 * 365 days);
     }
 
-    function test_mock_accumulatorPrecision(uint56 rate, uint112 totalSupply, uint32 deltaT) public {
-        rate = uint56(bound(rate, 1e10, type(uint56).max));
+    function test_mock_accumulatorPrecision(uint64 rate, uint96 totalSupply, uint32 deltaT) public {
+        rate = uint64(bound(rate, 1e10, type(uint64).max));
         vm.assume(totalSupply > 0);
         vm.assume(deltaT > 0);
 
@@ -212,12 +215,12 @@ contract RewardsTest is Test {
         address alice = address(12345);
         pool.mint(alice, totalSupply);
 
-        uint144 before = pool.rewardsAccumulator();
+        uint160 before = pool.rewardsAccumulator();
         assertEq(before, 0);
         skip(deltaT);
 
         uint256 actual = pool.rewardsAccumulator() - before;
-        uint256 expected = (1e16 * uint256(deltaT) * rate) / totalSupply;
+        uint256 expected = (1e18 * uint256(deltaT) * rate) / totalSupply;
 
         assertLe(actual, expected);
         if (actual / deltaT > 1e3) assertApproxEqRel(actual, expected, 0.002e18);
@@ -226,7 +229,7 @@ contract RewardsTest is Test {
     function test_mock_spec(address a, address b, address c) public {
         vm.assume(a != b && b != c && c != a);
 
-        pool.setRate(uint56(100));
+        pool.setRate(uint64(100));
 
         pool.mint(a, 4000);
         skip(60);
@@ -242,15 +245,15 @@ contract RewardsTest is Test {
         pool.burn(a, 5000);
         pool.burn(b, 1000);
 
-        assertEq(pool.rewards(a), 8999);
-        assertEq(pool.rewards(b), 2999);
+        assertEq(pool.rewards(a), 9000);
+        assertEq(pool.rewards(b), 3000);
         assertEq(pool.rewards(c), 0);
 
         skip(60);
         pool.burn(b, 4000);
 
-        assertEq(pool.rewards(a), 8999);
-        assertEq(pool.rewards(b), 8999);
+        assertEq(pool.rewards(a), 9000);
+        assertEq(pool.rewards(b), 9000);
         assertEq(pool.rewards(c), 0);
 
         pool.mint(a, 2000);
@@ -260,21 +263,21 @@ contract RewardsTest is Test {
         pool.transfer(c, 2000);
         pool.burn(b, 2000);
 
-        assertEq(pool.rewards(a), 9332);
-        assertEq(pool.rewards(b), 9665);
+        assertEq(pool.rewards(a), 9333);
+        assertEq(pool.rewards(b), 9666);
         assertEq(pool.rewards(c), 0);
 
         skip(1);
         pool.burn(b, 2000);
         pool.burn(c, 2000);
 
-        assertEq(pool.rewards(a), 9332);
-        assertEq(pool.rewards(b), 9715);
+        assertEq(pool.rewards(a), 9333);
+        assertEq(pool.rewards(b), 9716);
         assertEq(pool.rewards(c), 50);
     }
 
     function test_mock_claim() public {
-        pool.setRate(uint56(100));
+        pool.setRate(uint64(100));
 
         address alice = address(12345);
         pool.mint(alice, 4000);

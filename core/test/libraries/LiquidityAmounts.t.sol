@@ -6,7 +6,6 @@ import "forge-std/Test.sol";
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 
 import {LiquidityAmounts} from "src/libraries/LiquidityAmounts.sol";
-import {msb} from "src/libraries/Log2.sol";
 import {TickMath} from "src/libraries/TickMath.sol";
 
 contract LiquidityAmountsTest is Test {

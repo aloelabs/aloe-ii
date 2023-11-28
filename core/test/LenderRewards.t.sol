@@ -14,9 +14,9 @@ contract LenderRewardsTest is Test {
     uint256 private constant REWARDS_RATE_MIN = uint256(1e19) / (365 days);
     uint256 private constant REWARDS_RATE_MAX = uint256(1e24) / (365 days);
 
-    event RewardsRateSet(uint56 rate);
+    event RewardsRateSet(uint64 rate);
 
-    event RewardsClaimed(address indexed user, uint112 amount);
+    event RewardsClaimed(address indexed user, uint96 amount);
 
     MockERC20 rewardsToken;
 
@@ -34,7 +34,7 @@ contract LenderRewardsTest is Test {
         lender = factory.deploySingleLender(asset);
     }
 
-    function test_setRate(uint56 rate, address caller) public {
+    function test_setRate(uint64 rate, address caller) public {
         vm.assume(caller != factory.GOVERNOR());
 
         // Starts at 0
@@ -70,9 +70,9 @@ contract LenderRewardsTest is Test {
         assertEq(earned, 0);
     }
 
-    function test_accounting1Holder(address holder, uint56 rate0, uint56 rate1) public {
-        if (rate0 > 0) rate0 = uint56(bound(rate0, REWARDS_RATE_MIN, REWARDS_RATE_MAX));
-        if (rate1 > 0) rate1 = uint56(bound(rate1, REWARDS_RATE_MIN, REWARDS_RATE_MAX));
+    function test_accounting1Holder(address holder, uint64 rate0, uint64 rate1) public {
+        if (rate0 > 0) rate0 = uint64(bound(rate0, REWARDS_RATE_MIN, REWARDS_RATE_MAX));
+        if (rate1 > 0) rate1 = uint64(bound(rate1, REWARDS_RATE_MIN, REWARDS_RATE_MAX));
 
         // Set `rate0`
         vm.prank(factory.GOVERNOR());
@@ -100,7 +100,7 @@ contract LenderRewardsTest is Test {
         assertApproxEqRel(lender.rewardsOf(holder), (uint256(rate0) + rate1) * (1 days), 0.001e18);
 
         // Check proper claim
-        uint112 earned = lender.rewardsOf(holder);
+        uint96 earned = lender.rewardsOf(holder);
         vm.prank(address(factory));
         vm.expectEmit(true, false, false, true, address(lender));
         emit RewardsClaimed(holder, earned);
@@ -111,9 +111,9 @@ contract LenderRewardsTest is Test {
         assertEq(lender.claimRewards(holder), 0);
     }
 
-    function test_accounting2Holders(address holder0, address holder1, uint56 rate) public {
+    function test_accounting2Holders(address holder0, address holder1, uint64 rate) public {
         vm.assume(holder0 != holder1);
-        if (rate > 0) rate = uint56(bound(rate, REWARDS_RATE_MIN, REWARDS_RATE_MAX));
+        if (rate > 0) rate = uint64(bound(rate, REWARDS_RATE_MIN, REWARDS_RATE_MAX));
 
         // Set `rate`
         vm.prank(factory.GOVERNOR());
@@ -144,7 +144,7 @@ contract LenderRewardsTest is Test {
         assertApproxEqRel(lender.rewardsOf(holder1), (uint256(rate) + rate / 2) * (1 days), 0.001e18);
 
         // Check proper claim for holder0
-        uint112 earned = lender.rewardsOf(holder0);
+        uint96 earned = lender.rewardsOf(holder0);
         vm.prank(address(factory));
         vm.expectEmit(true, false, false, true, address(lender));
         emit RewardsClaimed(holder0, earned);
@@ -158,8 +158,8 @@ contract LenderRewardsTest is Test {
         assertEq(lender.claimRewards(holder1), earned);
     }
 
-    function test_selfTransfer(address holder, uint56 rate) public {
-        if (rate > 0) rate = uint56(bound(rate, REWARDS_RATE_MIN, REWARDS_RATE_MAX));
+    function test_selfTransfer(address holder, uint64 rate) public {
+        if (rate > 0) rate = uint64(bound(rate, REWARDS_RATE_MIN, REWARDS_RATE_MAX));
 
         // Set `rate`
         vm.prank(factory.GOVERNOR());
@@ -187,22 +187,23 @@ contract LenderRewardsTest is Test {
         assertApproxEqRel(lender.rewardsOf(holder), uint256(rate) * (2 days), 0.001e18);
 
         // Check proper claim for holder
-        uint112 earned = lender.rewardsOf(holder);
+        uint96 earned = lender.rewardsOf(holder);
         vm.prank(address(factory));
         vm.expectEmit(true, false, false, true, address(lender));
         emit RewardsClaimed(holder, earned);
         assertEq(lender.claimRewards(holder), earned);
     }
 
-    function test_accountingBehavesAtExtremes(address holder0, address holder1, uint56 rate) public {
+    function test_accountingBehavesAtExtremes(address holder0, address holder1, uint256 rate) public {
         vm.assume(holder0 != holder1);
+        rate = bound(rate, 0, type(uint64).max);
 
         // Set `rate`
         vm.prank(factory.GOVERNOR());
-        factory.governRewardsRate(lender, rate);
+        factory.governRewardsRate(lender, uint64(rate));
 
         // Max absolute error is 2, so we do this for assertLe's to pass
-        if (rate < type(uint56).max - 2) rate += 2;
+        rate += 2;
 
         // Rewards should begin accruing to holder0 after deposit
         asset.mint(address(lender), 1000000e18);
@@ -233,7 +234,7 @@ contract LenderRewardsTest is Test {
         assertLe(lender.rewardsOf(holder1), uint256(rate) * (547.5 days), "excessive C1");
 
         // Check proper claim for holder0
-        uint112 earned = lender.rewardsOf(holder0);
+        uint96 earned = lender.rewardsOf(holder0);
         vm.prank(address(factory));
         vm.expectEmit(true, false, false, true, address(lender));
         emit RewardsClaimed(holder0, earned);
