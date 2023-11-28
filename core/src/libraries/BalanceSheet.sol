@@ -42,6 +42,34 @@ library BalanceSheet {
     using SoladyMath for uint256;
 
     /**
+     * @notice Computes a liquidation incentive that increases as the auction progresses. Reverts if called
+     * during the `LIQUIDATION_GRACE_PERIOD`.
+     * @param auctionTime The `block.timestamp` when `Borrower.warn` was called
+     * @param closeFactor The fraction of shortfall being closed via a swap, expressed in basis points
+     * @param liabilities The value of liabilities at the TWAP, denominated in `TOKEN1`
+     * @return incentive1 The incentive to pay out, denominated in `TOKEN1`
+     */
+    function computeLiquidationIncentive(
+        uint256 auctionTime,
+        uint256 closeFactor,
+        uint256 liabilities
+    ) internal view returns (uint256 incentive1) {
+        assembly ("memory-safe") {
+            // Equivalent: `if (auctionTime != 0) auctionTime = block.timestamp - auctionTime;`
+            auctionTime := mul(gt(auctionTime, 0), sub(timestamp(), auctionTime))
+        }
+        require(auctionTime > LIQUIDATION_GRACE_PERIOD, "Aloe: grace");
+
+        unchecked {
+            incentive1 = 0.08e8 * (auctionTime - LIQUIDATION_GRACE_PERIOD);
+            if (auctionTime > 3 * LIQUIDATION_GRACE_PERIOD) {
+                incentive1 -= 0.07354386e8 * (auctionTime - 3 * LIQUIDATION_GRACE_PERIOD);
+            }
+            incentive1 = (incentive1 * liabilities * closeFactor) / (1e8 * 10 minutes * 10_000);
+        }
+    }
+
+    /**
      * @dev Checks whether a `Borrower` is healthy given the probe prices and its current assets and liabilities.
      * Should be used when `assets` at `prices.a` differ from those at `prices.b` (due to Uniswap positions).
      */
@@ -151,34 +179,6 @@ library BalanceSheet {
 
             a = uint160((sqrtMeanPriceX96 * 1e12).rawDiv(sqrtScaler).max(TickMath.MIN_SQRT_RATIO));
             b = uint160((sqrtMeanPriceX96 * sqrtScaler).rawDiv(1e12).min(TickMath.MAX_SQRT_RATIO));
-        }
-    }
-
-    /**
-     * @notice Computes a liquidation incentive that increases as the auction progresses. Reverts if called
-     * during the `LIQUIDATION_GRACE_PERIOD`.
-     * @param auctionTime The `block.timestamp` when `Borrower.warn` was called
-     * @param closeFactor The fraction of shortfall being closed via a swap, expressed in basis points
-     * @param liabilities The value of liabilities at the TWAP, denominated in `TOKEN1`
-     * @return incentive1 The incentive to pay out, denominated in `TOKEN1`
-     */
-    function computeLiquidationIncentive(
-        uint256 auctionTime,
-        uint256 closeFactor,
-        uint256 liabilities
-    ) internal view returns (uint256 incentive1) {
-        assembly ("memory-safe") {
-            // Equivalent: `if (auctionTime != 0) auctionTime = block.timestamp - auctionTime;`
-            auctionTime := mul(gt(auctionTime, 0), sub(timestamp(), auctionTime))
-        }
-        require(auctionTime > LIQUIDATION_GRACE_PERIOD, "Aloe: grace");
-
-        unchecked {
-            incentive1 = 0.08e8 * (auctionTime - LIQUIDATION_GRACE_PERIOD);
-            if (auctionTime > 3 * LIQUIDATION_GRACE_PERIOD) {
-                incentive1 -= 0.07354386e8 * (auctionTime - 3 * LIQUIDATION_GRACE_PERIOD);
-            }
-            incentive1 = (incentive1 * liabilities * closeFactor) / (1e8 * 10 minutes * 10_000);
         }
     }
 
