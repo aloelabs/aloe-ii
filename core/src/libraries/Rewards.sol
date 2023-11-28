@@ -74,7 +74,7 @@ library Rewards {
     /**
      * @notice Ensures that changes in the pool's `totalSupply` don't mess up rewards accounting. Should
      * be called anytime `totalSupply` changes.
-     * @dev Use `Rewards.pre()` to easily obtain the first two arguments
+     * @dev Use `Rewards.load()` to easily obtain the first two arguments
      * @param store The rewards storage pointer
      * @param accumulated Up-to-date `poolState.accumulated`, i.e. the output of `_accumulate`
      * @param totalSupply The `totalSupply` after any mints/burns
@@ -86,7 +86,7 @@ library Rewards {
     /**
      * @notice Tracks how much reward a `user` earned while holding a particular `balance`. Should be
      * called anytime their balance changes.
-     * @dev Use `Rewards.pre()` to easily obtain the first two arguments
+     * @dev Use `Rewards.load()` to easily obtain the first two arguments
      * @param store The rewards storage pointer
      * @param accumulated Up-to-date `poolState.accumulated`, i.e. the output of `_accumulate`
      * @param user The user whose balance (# of shares) is about to change

@@ -70,10 +70,7 @@ contract LenderInvariantsTest is Test {
             lender.DOMAIN_SEPARATOR()
         );
 
-        thingsThatShouldntShrink = ThingsThatShouldntShrink(
-            lender.lastAccrualTime(),
-            lender.borrowIndex()
-        );
+        thingsThatShouldntShrink = ThingsThatShouldntShrink(lender.lastAccrualTime(), lender.borrowIndex());
     }
 
     function invariant_statsValuesMatchOtherGetters() public {
@@ -186,6 +183,17 @@ contract LenderInvariantsTest is Test {
             address user = lenderHarness.holders(i);
 
             assertLe(lender.maxRedeem(user), lender.balanceOf(user));
+        }
+    }
+
+    function invariant_principleIsZeroWhenBalanceIsZero() public {
+        uint256 count = lenderHarness.getHolderCount();
+        for (uint256 i = 0; i < count; i++) {
+            address user = lenderHarness.holders(i);
+
+            if (lender.balanceOf(user) == 0) {
+                assertEq(lender.principleOf(user), 0);
+            }
         }
     }
 

@@ -77,7 +77,7 @@ contract LenderTest is Test {
 
             // At MAX_RATE, expect growth of +53% per week
             uint72 currIndex = lender.borrowIndex();
-            assertApproxEqRel(uint256(currIndex) * 1e18 / prevIndex, 1.5329e18, 0.0001e18);
+            assertApproxEqRel((uint256(currIndex) * 1e18) / prevIndex, 1.5329e18, 0.0001e18);
             prevIndex = currIndex;
         }
 
@@ -105,14 +105,10 @@ contract LenderTest is Test {
             abi.encode(yieldPerSecond)
         );
 
-        uint256 newInventory = 1e18 + FixedPointMathLib.mulDivDown(
-            1e18,
-            FixedPointMathLib.rpow(ONE + yieldPerSecond, 13, ONE),
-            1e12
-        );
+        uint256 newInventory = 1e18 +
+            FixedPointMathLib.mulDivDown(1e18, FixedPointMathLib.rpow(ONE + yieldPerSecond, 13, ONE), 1e12);
         uint256 interest = newInventory - 2e18;
         uint256 reserves = interest / lender.reserveFactor();
-
         uint256 epsilon = 2;
 
         // Initially, the `lender` holds 1e18 and has lent out 1e18

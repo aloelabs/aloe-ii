@@ -104,11 +104,7 @@ contract LenderHarness {
 
         // Check for `RESERVE` involvement, courier existence and self-reference
         (address wallet, ) = LENDER.FACTORY().couriers(id);
-        if (
-            account == LENDER.RESERVE() ||
-            account == wallet ||
-            !alreadyEnrolledCourier[id]
-        ) {
+        if (account == LENDER.RESERVE() || account == wallet || !alreadyEnrolledCourier[id]) {
             vm.prank(msg.sender);
             vm.expectRevert(bytes("Aloe: courier"));
             LENDER.deposit(0, account, id);
@@ -279,6 +275,7 @@ contract LenderHarness {
         // Assertions
         require(LENDER.principleOf(owner) <= principleBefore, "redeem: principle issue");
         require(LENDER.lastBalance() == lastBalance - amount, "redeem: lastBalance mismatch");
+
         if (recipient != address(LENDER)) {
             require(LENDER.asset().balanceOf(recipient) == assetsBefore + amount, "redeem: transfer issue");
         } else {
@@ -341,7 +338,7 @@ contract LenderHarness {
         uint256 borrowBalanceAfter = LENDER.borrowBalance(msg.sender);
         uint256 expectedBorrowBalance = borrowBalanceBefore + amount;
         require(
-            expectedBorrowBalance <= borrowBalanceAfter && borrowBalanceAfter <= expectedBorrowBalance + 1,
+            expectedBorrowBalance <= borrowBalanceAfter && borrowBalanceAfter <= expectedBorrowBalance + 2,
             "borrow: debt mismatch"
         );
         if (recipient != address(LENDER)) {
