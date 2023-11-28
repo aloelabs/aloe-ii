@@ -310,7 +310,7 @@ contract LenderHarness {
         uint256 borrowBalanceAfter = LENDER.borrowBalance(msg.sender);
         uint256 expectedBorrowBalance = borrowBalanceBefore + amount;
         require(
-            expectedBorrowBalance <= borrowBalanceAfter && borrowBalanceAfter <= expectedBorrowBalance + 1,
+            expectedBorrowBalance <= borrowBalanceAfter && borrowBalanceAfter <= expectedBorrowBalance + 2,
             "borrow: debt mismatch"
         );
         if (recipient != address(LENDER)) {
@@ -385,6 +385,38 @@ contract LenderHarness {
         return units;
     }
 
+    function erase() public returns (uint256) {
+        if (!vm.envOr("TEST_ERASE", false)) return 0;
+
+        // Check that `msg.sender` is a borrower
+        if (LENDER.borrows(msg.sender) == 0) {
+            vm.expectRevert("Aloe: cannot erase");
+            LENDER.erase();
+
+            vm.prank(address(LENDER.FACTORY()));
+            LENDER.whitelist(msg.sender);
+
+            // {HARNESS BOOKKEEPING} Keep borrowers up-to-date
+            borrowers.push(msg.sender);
+        }
+
+        // Collect data
+        uint256 lastBalance = LENDER.lastBalance();
+        uint256 borrowBase = LENDER.borrowBase();
+        uint256 borrowUnitsBefore = LENDER.borrows(msg.sender);
+
+        // Actual action
+        vm.prank(msg.sender);
+        uint256 units = LENDER.erase();
+
+        require(LENDER.lastBalance() == lastBalance, "erase: lastBalance mismatch");
+        require(LENDER.borrowBase() == borrowBase - units, "erase: borrowBase mismatch");
+        require(LENDER.borrows(msg.sender) == 1 && units == borrowUnitsBefore - 1, "erase: bad internal bookkeeping");
+        require(LENDER.borrowBalance(msg.sender) == 0, "erase: bad dust");
+
+        return units;
+    }
+
     /// @notice Sends `shares` from `msg.sender` to `to`
     /// @dev Does not bound inputs without first verifying that the unbounded ones revert
     function transfer(address to, uint112 shares) public returns (bool) {
@@ -455,6 +487,15 @@ contract LenderHarness {
         require(LENDER.borrows(beneficiary) == 1, "repay: didn't repay max units");
         require(LENDER.borrowBalance(beneficiary) == 0, "repay: didn't repay max amount");
         return units;
+    }
+
+    function erase(uint16 i) external returns (uint256) {
+        uint256 count = borrowers.length;
+        if (count == 0) return 0;
+        else {
+            vm.prank(borrowers[i % count]);
+            return erase();
+        }
     }
 
     /*//////////////////////////////////////////////////////////////

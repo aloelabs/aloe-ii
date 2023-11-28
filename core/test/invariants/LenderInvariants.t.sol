@@ -114,6 +114,8 @@ contract LenderInvariantsTest is Test {
     }
 
     function invariant_totalSupplyLessThanTotalAssets() public {
+        if (vm.envOr("TEST_ERASE", false)) return;
+
         (, uint256 totalAssets, , uint256 totalSupply) = lender.stats();
         assertLe(totalSupply, totalAssets);
     }
@@ -174,7 +176,20 @@ contract LenderInvariantsTest is Test {
         }
     }
 
+    function invariant_principleIsZeroWhenBalanceIsZero() public {
+        uint256 count = lenderHarness.getHolderCount();
+        for (uint256 i = 0; i < count; i++) {
+            address user = lenderHarness.holders(i);
+
+            if (lender.balanceOf(user) == 0) {
+                assertEq(lender.principleOf(user), 0);
+            }
+        }
+    }
+
     function invariant_principleLessThanUnderlyingBalance() public {
+        if (vm.envOr("TEST_ERASE", false)) return;
+
         uint256 count = lenderHarness.getHolderCount();
         for (uint256 i = 0; i < count; i++) {
             address user = lenderHarness.holders(i);
