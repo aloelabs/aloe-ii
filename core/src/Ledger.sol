@@ -5,7 +5,6 @@ import {ImmutableArgs} from "clones-with-immutable-args/ImmutableArgs.sol";
 import {IERC165} from "openzeppelin-contracts/contracts/interfaces/IERC165.sol";
 import {IERC2612} from "openzeppelin-contracts/contracts/interfaces/IERC2612.sol";
 import {IERC4626} from "openzeppelin-contracts/contracts/interfaces/IERC4626.sol";
-import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {FixedPointMathLib} from "solmate/utils/FixedPointMathLib.sol";
 import {ERC20} from "solmate/tokens/ERC20.sol";
@@ -149,12 +148,7 @@ contract Ledger {
         (Cache memory cache, uint256 inventory, uint256 newTotalSupply) = _previewInterest(_getCache());
 
         unchecked {
-            return (
-                uint72(cache.borrowIndex),
-                inventory,
-                (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER,
-                newTotalSupply
-            );
+            return (uint72(cache.borrowIndex), inventory, inventory - cache.lastBalance, newTotalSupply);
         }
     }
 
@@ -337,9 +331,6 @@ contract Ledger {
      */
     function _previewInterest(Cache memory cache) internal view returns (Cache memory, uint256, uint256) {
         unchecked {
-            // Guard against reentrancy
-            require(cache.lastAccrualTime != 0, "Aloe: locked");
-
             uint256 oldBorrows = (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
             uint256 oldInventory = cache.lastBalance + oldBorrows;
 
@@ -355,11 +346,15 @@ contract Ledger {
             });
 
             cache.borrowIndex = SoladyMath.min((cache.borrowIndex * accrualFactor) / ONE, type(uint72).max);
-            cache.lastAccrualTime = 0; // 0 in storage means locked to reentrancy; 0 in `cache` means `borrowIndex` was updated
+            cache.lastAccrualTime = 0; // 0 indicates `borrowIndex` was updated
 
             uint256 newInventory = cache.lastBalance + (cache.borrowBase * cache.borrowIndex) / BORROWS_SCALER;
             uint256 newTotalSupply = SoladyMath.min(
-                Math.mulDiv(cache.totalSupply, newInventory, newInventory - (newInventory - oldInventory) / rf),
+                SoladyMath.fullMulDiv(
+                    cache.totalSupply,
+                    newInventory,
+                    newInventory - (newInventory - oldInventory) / rf
+                ),
                 type(uint112).max
             );
             return (cache, newInventory, newTotalSupply);
@@ -411,7 +406,7 @@ contract Ledger {
         }
     }
 
-    function _getCache() private view returns (Cache memory) {
+    function _getCache() internal view returns (Cache memory) {
         return Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
     }
 }

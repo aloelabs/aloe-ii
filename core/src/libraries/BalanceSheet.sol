@@ -6,6 +6,7 @@ import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.so
 import {
     MAX_LEVERAGE,
     LIQUIDATION_INCENTIVE,
+    LIQUIDATION_GRACE_PERIOD,
     PROBE_SQRT_SCALER_MIN,
     PROBE_SQRT_SCALER_MAX,
     LTV_NUMERATOR
@@ -15,18 +16,14 @@ import {square, mulDiv128, mulDiv128Up} from "./MulDiv.sol";
 import {TickMath} from "./TickMath.sol";
 
 struct Assets {
-    // The `Borrower`'s balance of `TOKEN0`, i.e. `TOKEN0.balanceOf(borrower)`
-    uint256 fixed0;
-    // The `Borrower`'s balance of `TOKEN1`, i.e. `TOKEN1.balanceOf(borrower)`
-    uint256 fixed1;
-    // The value of the `Borrower`'s Uniswap liquidity, evaluated at `Prices.a`, denominated in `TOKEN1`
-    uint256 fluid1A;
-    // The value of the `Borrower`'s Uniswap liquidity, evaluated at `Prices.b`, denominated in `TOKEN1`
-    uint256 fluid1B;
-    // The amount of `TOKEN0` underlying the `Borrower`'s Uniswap liquidity, evaluated at `Prices.c`
-    uint256 fluid0C;
-    // The amount of `TOKEN1` underlying the `Borrower`'s Uniswap liquidity, evaluated at `Prices.c`
-    uint256 fluid1C;
+    // `TOKEN0.balanceOf(borrower)`, plus the amount of `TOKEN0` underlying its Uniswap liquidity at `Prices.a`
+    uint256 amount0AtA;
+    // `TOKEN1.balanceOf(borrower)`, plus the amount of `TOKEN1` underlying its Uniswap liquidity at `Prices.a`
+    uint256 amount1AtA;
+    // `TOKEN0.balanceOf(borrower)`, plus the amount of `TOKEN0` underlying its Uniswap liquidity at `Prices.b`
+    uint256 amount0AtB;
+    // `TOKEN1.balanceOf(borrower)`, plus the amount of `TOKEN1` underlying its Uniswap liquidity at `Prices.b`
+    uint256 amount1AtB;
 }
 
 struct Prices {
@@ -44,10 +41,83 @@ struct Prices {
 library BalanceSheet {
     using SoladyMath for uint256;
 
-    /// @dev Checks whether a `Borrower` is healthy given the probe prices and its current assets and liabilities
+    /**
+     * @notice Computes a liquidation incentive that increases as the auction progresses. Reverts if called
+     * during the `LIQUIDATION_GRACE_PERIOD`.
+     * @param auctionTime The `block.timestamp` when `Borrower.warn` was called
+     * @param closeFactor The fraction of shortfall being closed via a swap, expressed in basis points
+     * @param liabilities The value of liabilities at the TWAP, denominated in `TOKEN1`
+     * @return incentive1 The incentive to pay out, denominated in `TOKEN1`
+     */
+    function computeLiquidationIncentive(
+        uint256 auctionTime,
+        uint256 closeFactor,
+        uint256 liabilities
+    ) internal view returns (uint256 incentive1) {
+        assembly ("memory-safe") {
+            // Equivalent: `if (auctionTime != 0) auctionTime = block.timestamp - auctionTime;`
+            auctionTime := mul(gt(auctionTime, 0), sub(timestamp(), auctionTime))
+        }
+        require(auctionTime > LIQUIDATION_GRACE_PERIOD, "Aloe: grace");
+
+        unchecked {
+            incentive1 = 0.08e8 * (auctionTime - LIQUIDATION_GRACE_PERIOD);
+            if (auctionTime > 3 * LIQUIDATION_GRACE_PERIOD) {
+                incentive1 -= 0.07354386e8 * (auctionTime - 3 * LIQUIDATION_GRACE_PERIOD);
+            }
+            incentive1 = (incentive1 * liabilities * closeFactor) / (1e8 * 10 minutes * 10_000);
+        }
+    }
+
+    /**
+     * @dev Checks whether a `Borrower` is healthy given the probe prices and its current assets and liabilities.
+     * Should be used when `assets` at `prices.a` differ from those at `prices.b` (due to Uniswap positions).
+     */
     function isHealthy(
         Prices memory prices,
-        Assets memory mem,
+        Assets memory assets,
+        uint256 liabilities0,
+        uint256 liabilities1
+    ) internal pure returns (bool) {
+        unchecked {
+            uint256 augmented0;
+            uint256 augmented1;
+
+            // The optimizer eliminates the conditional in `divUp`; don't worry about gas golfing that
+            augmented0 =
+                liabilities0 +
+                liabilities0.divUp(MAX_LEVERAGE) +
+                liabilities0.zeroFloorSub(assets.amount0AtA).divUp(LIQUIDATION_INCENTIVE);
+            augmented1 =
+                liabilities1 +
+                liabilities1.divUp(MAX_LEVERAGE) +
+                liabilities1.zeroFloorSub(assets.amount1AtA).divUp(LIQUIDATION_INCENTIVE);
+
+            if (!isSolvent(prices.a, assets.amount0AtA, assets.amount1AtA, augmented0, augmented1)) return false;
+
+            augmented0 =
+                liabilities0 +
+                liabilities0.divUp(MAX_LEVERAGE) +
+                liabilities0.zeroFloorSub(assets.amount0AtB).divUp(LIQUIDATION_INCENTIVE);
+            augmented1 =
+                liabilities1 +
+                liabilities1.divUp(MAX_LEVERAGE) +
+                liabilities1.zeroFloorSub(assets.amount1AtB).divUp(LIQUIDATION_INCENTIVE);
+
+            if (!isSolvent(prices.b, assets.amount0AtB, assets.amount1AtB, augmented0, augmented1)) return false;
+
+            return true;
+        }
+    }
+
+    /**
+     * @dev Checks whether a `Borrower` is healthy given the probe prices and its current assets and liabilities.
+     * Can be used when `assets` at `prices.a` are the same as those at `prices.b` (no Uniswap positions).
+     */
+    function isHealthy(
+        Prices memory prices,
+        uint256 assets0,
+        uint256 assets1,
         uint256 liabilities0,
         uint256 liabilities1
     ) internal pure returns (bool) {
@@ -55,28 +125,28 @@ library BalanceSheet {
             // The optimizer eliminates the conditional in `divUp`; don't worry about gas golfing that
             liabilities0 +=
                 liabilities0.divUp(MAX_LEVERAGE) +
-                liabilities0.zeroFloorSub(mem.fixed0 + mem.fluid0C).divUp(LIQUIDATION_INCENTIVE);
+                liabilities0.zeroFloorSub(assets0).divUp(LIQUIDATION_INCENTIVE);
             liabilities1 +=
                 liabilities1.divUp(MAX_LEVERAGE) +
-                liabilities1.zeroFloorSub(mem.fixed1 + mem.fluid1C).divUp(LIQUIDATION_INCENTIVE);
+                liabilities1.zeroFloorSub(assets1).divUp(LIQUIDATION_INCENTIVE);
+
+            if (!isSolvent(prices.a, assets0, assets1, liabilities0, liabilities1)) return false;
+            if (!isSolvent(prices.b, assets0, assets1, liabilities0, liabilities1)) return false;
+            return true;
         }
+    }
 
-        // combine
-        uint256 priceX128;
-        uint256 liabilities;
-        uint256 assets;
-
-        priceX128 = square(prices.a);
-        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
-        assets = mem.fluid1A + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
-        if (liabilities > assets) return false;
-
-        priceX128 = square(prices.b);
-        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
-        assets = mem.fluid1B + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
-        if (liabilities > assets) return false;
-
-        return true;
+    function isSolvent(
+        uint160 sqrtPriceX96,
+        uint256 assets0,
+        uint256 assets1,
+        uint256 liabilities0,
+        uint256 liabilities1
+    ) internal pure returns (bool) {
+        uint256 priceX128 = square(sqrtPriceX96);
+        uint256 liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+        uint256 assets = assets1 + mulDiv128(assets0, priceX128);
+        return assets >= liabilities;
     }
 
     /**
@@ -109,42 +179,6 @@ library BalanceSheet {
 
             a = uint160((sqrtMeanPriceX96 * 1e12).rawDiv(sqrtScaler).max(TickMath.MIN_SQRT_RATIO));
             b = uint160((sqrtMeanPriceX96 * sqrtScaler).rawDiv(1e12).min(TickMath.MAX_SQRT_RATIO));
-        }
-    }
-
-    /**
-     * @notice Computes the liquidation incentive that would be paid out if a liquidator closes the account
-     * using a swap with `strain = 1`
-     * @param assets0 The amount of `TOKEN0` held/controlled by the `Borrower` at the current TWAP
-     * @param assets1 The amount of `TOKEN1` held/controlled by the `Borrower` at the current TWAP
-     * @param liabilities0 The amount of `TOKEN0` that the `Borrower` owes to `LENDER0`
-     * @param liabilities1 The amount of `TOKEN1` that the `Borrower` owes to `LENDER1`
-     * @param meanPriceX128 The current TWAP
-     * @return incentive1 The incentive to pay out, denominated in `TOKEN1`
-     */
-    function computeLiquidationIncentive(
-        uint256 assets0,
-        uint256 assets1,
-        uint256 liabilities0,
-        uint256 liabilities1,
-        uint256 meanPriceX128
-    ) internal pure returns (uint256 incentive1) {
-        unchecked {
-            if (liabilities0 > assets0) {
-                // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
-                uint256 shortfall = liabilities0 - assets0;
-                // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
-                // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                incentive1 += mulDiv128(shortfall, meanPriceX128) / LIQUIDATION_INCENTIVE;
-            }
-
-            if (liabilities1 > assets1) {
-                // shortfall is the amount that cannot be directly repaid using Borrower assets at this price
-                uint256 shortfall = liabilities1 - assets1;
-                // to cover it, a liquidator may have to use their own assets, taking on inventory risk.
-                // to compensate them for this risk, they're allowed to seize some of the surplus asset.
-                incentive1 += shortfall / LIQUIDATION_INCENTIVE;
-            }
         }
     }
 
