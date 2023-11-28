@@ -218,13 +218,13 @@ contract Lender is Ledger {
 
     /// @notice Sends `amount` of `asset` to `recipient` and increases `msg.sender`'s debt by `units`
     function borrow(uint256 amount, address recipient) external returns (uint256 units) {
-        uint256 b = borrows[msg.sender];
-        require(b != 0, "Aloe: not a borrower");
-
         // Accrue interest and update reserves
         (Cache memory cache, ) = _load();
 
         unchecked {
+            uint256 b = borrows[msg.sender];
+            require(b != 0, "Aloe: not a borrower");
+
             // Convert `amount` to `units`
             units = (amount * BORROWS_SCALER) / cache.borrowIndex;
 
@@ -259,12 +259,12 @@ contract Lender is Ledger {
      * ```
      */
     function repay(uint256 amount, address beneficiary) external returns (uint256 units) {
-        uint256 b = borrows[beneficiary];
-
         // Accrue interest and update reserves
         (Cache memory cache, ) = _load();
 
         unchecked {
+            uint256 b = borrows[beneficiary];
+
             // Convert `amount` to `units`
             units = (amount * BORROWS_SCALER) / cache.borrowIndex;
             if (!(units < b)) {
@@ -513,11 +513,9 @@ contract Lender is Ledger {
     }
 
     function _load() private returns (Cache memory cache, uint256 inventory) {
-        cache = Cache(totalSupply, lastBalance, lastAccrualTime, borrowBase, borrowIndex);
-
         // Accrue interest (only in memory)
         uint256 newTotalSupply;
-        (cache, inventory, newTotalSupply) = _previewInterest(cache); // Reverts if reentrancy guard is active
+        (cache, inventory, newTotalSupply) = _previewInterest(_getCache());
 
         // Update reserves (new `totalSupply` is only in memory, but `balances[RESERVE]` is updated in storage)
         if (newTotalSupply > cache.totalSupply) {
@@ -534,6 +532,6 @@ contract Lender is Ledger {
 
         totalSupply = cache.totalSupply.safeCastTo112();
         lastBalance = cache.lastBalance.safeCastTo112();
-        lastAccrualTime = uint32(block.timestamp); // Disables reentrancy guard if there was one
+        lastAccrualTime = uint32(block.timestamp);
     }
 }

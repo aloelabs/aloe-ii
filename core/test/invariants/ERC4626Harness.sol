@@ -99,7 +99,8 @@ contract ERC4626Harness {
         // Actual action
         // --> Pre-pay or approve
         vm.prank(msg.sender);
-        if (shouldPrepay) asset.transfer(address(VAULT), amount); // MAY support an additional flow
+        if (shouldPrepay)
+            asset.transfer(address(VAULT), amount); // MAY support an additional flow
         else asset.approve(address(VAULT), amount); // MUST support EIP-20 `approve`/`transferFrom` flow
         // --> Make deposit
         if (shares == 0) {
@@ -157,7 +158,8 @@ contract ERC4626Harness {
         // Actual action
         // --> Pre-pay or approve
         vm.prank(msg.sender);
-        if (shouldPrepay) asset.transfer(address(VAULT), amount); // MAY support an additional flow
+        if (shouldPrepay)
+            asset.transfer(address(VAULT), amount); // MAY support an additional flow
         else asset.approve(address(VAULT), amount); // MUST support EIP-20 `approve`/`transferFrom` flow
         // --> Make mint
         if (shares == 0) {
@@ -231,6 +233,7 @@ contract ERC4626Harness {
 
         // Assertions
         require(VAULT.totalAssets() == totalAssets - assets, "redeem: totalAssets mismatch");
+
         if (receiver != address(VAULT)) {
             require(VAULT.asset().balanceOf(receiver) == assetsBefore + assets, "redeem: transfer issue");
         } else {
@@ -285,6 +288,7 @@ contract ERC4626Harness {
 
         // Assertions
         require(VAULT.totalAssets() == totalAssets - assets, "withdraw: totalAssets mismatch");
+
         if (receiver != address(VAULT)) {
             require(VAULT.asset().balanceOf(receiver) == assetsBefore + assets, "withdraw: transfer issue");
         } else {
