@@ -266,7 +266,7 @@ contract Factory {
         rewardsToken = rewardsToken_;
     }
 
-    function governRewardsRate(Lender lender, uint56 rate) external {
+    function governRewardsRate(Lender lender, uint64 rate) external {
         require(msg.sender == GOVERNOR);
         lender.setRewardsRate(rate);
     }

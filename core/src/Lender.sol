@@ -63,13 +63,15 @@ contract Lender is Ledger {
 
     /**
      * @notice Sets the rewards rate. May be 0. Only the `FACTORY` can call this.
-     * @param rate The rewards rate, specified in [token units per second]. If non-zero, keep between 10^19 and
-     * 10^24 token units per year for smooth operation. Assuming `FACTORY.rewardsToken()` has 18 decimals, this is
-     * between 10 and 1 million tokens per year.
+     * @param rate The rewards rate, specified in [token units per second]. If non-zero, keep between 10^17 and
+     * 10^28 token units per year for smooth operation. Assuming `FACTORY.rewardsToken()` has 18 decimals, this is
+     * between 0.1 and 10 billion tokens per year.
      */
-    function setRewardsRate(uint56 rate) external {
+    function setRewardsRate(uint64 rate) external {
         require(msg.sender == address(FACTORY));
-        Rewards.setRate(rate);
+
+        (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply);
+        Rewards.setRate(s, a, rate);
     }
 
     /// @notice Allows `borrower` to call `borrow`. One the `FACTORY` can call this.
@@ -89,11 +91,11 @@ contract Lender is Ledger {
                                 REWARDS
     //////////////////////////////////////////////////////////////*/
 
-    function claimRewards(address owner) external returns (uint112 earned) {
+    function claimRewards(address owner) external returns (uint96 earned) {
         // All claims are made through the `FACTORY`
         require(msg.sender == address(FACTORY));
 
-        (Rewards.Storage storage s, uint144 a) = Rewards.load();
+        (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply);
         earned = Rewards.claim(s, a, owner, balanceOf(owner));
     }
 
@@ -381,7 +383,7 @@ contract Lender is Ledger {
 
     /// @dev Transfers `shares` from `from` to `to`, iff neither of them have a courier
     function _transfer(address from, address to, uint256 shares) private {
-        (Rewards.Storage storage s, uint144 a) = Rewards.load();
+        (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply);
 
         unchecked {
             // From most to least significant...
@@ -429,8 +431,8 @@ contract Lender is Ledger {
             uint256 data = balances[to];
 
             // Get rewards accounting out of the way
-            (Rewards.Storage storage s, uint144 a) = Rewards.load();
-            Rewards.updatePoolState(s, a, newTotalSupply);
+            (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply_);
+            Rewards.updatePoolState(s, a);
             Rewards.updateUserState(s, a, to, data % Q112);
 
             // Only set courier if balance is 0. Otherwise previous courier may be cheated out of fees.
@@ -474,8 +476,8 @@ contract Lender is Ledger {
             uint256 balance = data % Q112;
 
             // Get rewards accounting out of the way
-            (Rewards.Storage storage s, uint144 a) = Rewards.load();
-            Rewards.updatePoolState(s, a, newTotalSupply);
+            (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply_);
+            Rewards.updatePoolState(s, a);
             Rewards.updateUserState(s, a, from, balance);
 
             uint32 id = uint32(data >> 224);
