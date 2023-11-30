@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import "forge-std/Test.sol";
 
+import {LibRLP} from "solady/utils/LibRLP.sol";
 import {ERC721} from "solmate/tokens/ERC721.sol";
 
 import {ERC721Z, SafeSSTORE2, BytesLib} from "src/borrower-nft/ERC721Z.sol";
@@ -267,6 +268,13 @@ contract ERC721ZTest is Test {
         excludeSender(address(mock));
         excludeSender(address(baseline));
         excludeSender(address(harness));
+
+        for (uint256 i = 0; i < 256; i++) {
+            // Workaround for a bug in forge where if an address has been used as a sender,
+            // deploying to that address will fail. We need to make sure that ERC721Z's SSTORE2
+            // deployments will work, so we exclude all those addresses.
+            excludeSender(LibRLP.computeAddress(address(mock), i));
+        }
     }
 
     function invariant_totalSupply() public {
