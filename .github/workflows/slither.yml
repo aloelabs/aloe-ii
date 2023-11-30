@@ -21,14 +21,28 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
+        with:
+          # This is a workaround for the fact that the latest version of crytic-compile
+          # does not respect the `target` argument for foundry compiles. Instead of
+          # telling slither to look inside `core`, we need to copy `core` to the root.
+          #
+          # Should be fixed after: https://github.com/crytic/crytic-compile/pull/515
+          submodules: recursive
+      # workaround (continued)
+      - name: Copy core to root
+        run: |
+          rm -rf docs periphery foundry.toml package.json remappings.txt yarn.lock
+          git mv core/lib lib
+          cp -r ./core/* ./
+          rm -rf core
 
       - name: Run Slither
         uses: crytic/slither-action@v0.3.0
         id: run-slither
         with:
-          target: 'core/'
+          # target: './core/'
           fail-on: none
-          slither-args: --config-file core/slither.config.json
+          # slither-args: --config-file core/slither.config.json
           sarif: slither.results.sarif
 
       - name: Upload SARIF file

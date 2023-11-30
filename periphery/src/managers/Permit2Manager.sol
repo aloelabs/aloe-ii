@@ -40,14 +40,13 @@ contract Permit2Manager is IManager {
         // | value            | start | end | length |
         // | owner            |     0 |  20 |     20 |
         // | permit2 selector |    20 |  24 |      4 |
-        // | permit2 args     |    24 | 248 |    224 |
-        // | permit2 sig      |   248 | 313 |     65 |
-        // | borrower call    |   313 |   ? |      ? |
+        // | permit2 args     |    24 | 408 |    384 |
+        // | borrower call    |   408 |   ? |      ? |
         // -------------------------------------------
 
         // Get references to the calldata for the 2 calls we're going to make
-        bytes calldata dataPermit2 = data[20:313];
-        bytes calldata dataBorrower = data[313:];
+        bytes calldata dataPermit2 = data[20:408];
+        bytes calldata dataBorrower = data[408:];
 
         // Before calling `PERMIT2`, verify
         // (a) correct function selector
@@ -68,6 +67,7 @@ contract Permit2Manager is IManager {
         (success, ) = msg.sender.call(dataBorrower); // solhint-disable-line avoid-low-level-calls
         if (!success) revert BorrowerCallFailed();
 
-        return 0;
+        // Tag Borrower with `Fuse2Borrower()` function selector so we can identify it on the frontend
+        return 0x83ee755b << 144;
     }
 }
