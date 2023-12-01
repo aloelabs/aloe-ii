@@ -59,6 +59,8 @@ contract BalanceSheetTest is Test {
 
     // TODO: (for Borrower) test that liquidate() fails if the liquidator doesn't pay back at least in0 or in1 (for all close factors)
 
+    // TODO: (for Borrower) test that in insolvent case, someone could provide their own assets to make it go through without losing money (and that they get the ante)
+
     function test_healthConcavity(
         uint128 fixed0,
         uint128 fixed1,
