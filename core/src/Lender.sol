@@ -54,9 +54,9 @@ contract Lender is Ledger {
 
     /// @notice Sets the `rateModel` and `reserveFactor`. Only the `FACTORY` can call this.
     function setRateModelAndReserveFactor(IRateModel rateModel_, uint8 reserveFactor_) external {
-        this.accrueInterest();
-
         require(msg.sender == address(FACTORY) && reserveFactor_ > 0);
+
+        accrueInterest();
         rateModel = rateModel_;
         reserveFactor = reserveFactor_;
     }
@@ -290,7 +290,7 @@ contract Lender is Ledger {
         emit Repay(msg.sender, beneficiary, amount, units);
     }
 
-    function accrueInterest() external returns (uint72) {
+    function accrueInterest() public returns (uint72) {
         (Cache memory cache, ) = _load();
         _save(cache, /* didChangeBorrowBase: */ false);
         return uint72(cache.borrowIndex);
@@ -309,6 +309,7 @@ contract Lender is Ledger {
     }
 
     function transfer(address to, uint256 shares) external returns (bool) {
+        accrueInterest();
         _transfer(msg.sender, to, shares);
 
         return true;
@@ -318,6 +319,7 @@ contract Lender is Ledger {
         uint256 allowed = allowance[from][msg.sender];
         if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - shares;
 
+        accrueInterest();
         _transfer(from, to, shares);
 
         return true;
