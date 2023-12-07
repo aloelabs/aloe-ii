@@ -56,19 +56,13 @@ contract Borrower is IUniswapV3MintCallback {
      * nullify the immediate liquidation threat, but they will not clear the warning. This means that next
      * time the account is unhealthy, liquidators might skip `warn` and `liquidate` right away. To clear the
      * warning and return to a "clean" state, make sure to call `modify` -- even if the callback is a no-op.
-     * @dev The deadline for regaining health is given by `slot0.auctionTime + LIQUIDATION_GRACE_PERIOD`.
+     * @dev The deadline for regaining health is given by `slot0.warnTime + LIQUIDATION_GRACE_PERIOD`.
      * If this value is 0, the account is in the aforementioned "clean" state.
      */
     event Warn();
 
-    /**
-     * @notice Emitted when the account gets `liquidate`d
-     * @param repay0 The amount of `TOKEN0` that was repaid
-     * @param repay1 The amount of `TOKEN1` that was repaid
-     * @param auctionTime A reference time for the liquidation incentive growth
-     * @param closeFactor The fraction of liabilities that was repaid, expressed in basis points
-     */
-    event Liquidate(uint256 repay0, uint256 repay1, uint40 auctionTime, uint16 closeFactor);
+    /// @notice Emitted when the account gets `liquidate`d
+    event Liquidate();
 
     enum State {
         Ready,
@@ -132,8 +126,6 @@ contract Borrower is IUniswapV3MintCallback {
 
         TOKEN0 = lender0.asset();
         TOKEN1 = lender1.asset();
-
-        assert(pool.token0() == address(TOKEN0) && pool.token1() == address(TOKEN1));
     }
 
     receive() external payable {}
@@ -155,7 +147,7 @@ contract Borrower is IUniswapV3MintCallback {
      */
     function warn(uint40 oracleSeed) external {
         uint256 slot0_ = slot0;
-        // Essentially `slot0.state == State.Ready && slot0.auctionTime == 0`
+        // Essentially `slot0.state == State.Ready && slot0.warnTime == 0`
         require(slot0_ & (SLOT0_MASK_STATE | SLOT0_MASK_AUCTION) == 0);
 
         // Fetch prices from oracle
@@ -228,7 +220,7 @@ contract Borrower is IUniswapV3MintCallback {
                 shouldSwap := and(shouldSwap, xor(gt(x, 0), gt(y, 0)))
             }
 
-            // Swap using an incentive ∝ (auctionTime, closeFactor, liabilities)
+            // Swap using an incentive ∝ (warnTime, closeFactor, liabilities)
             {
                 uint256 priceX128 = square(prices.c);
                 uint256 liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
@@ -272,7 +264,7 @@ contract Borrower is IUniswapV3MintCallback {
             liabilities0 -= x;
             liabilities1 -= y;
 
-            emit Liquidate(x, y, uint40((slot0_ & SLOT0_MASK_AUCTION) >> 208), uint16(closeFactor));
+            emit Liquidate();
 
             // End auction if healthy
             if (BalanceSheet.isHealthy(prices, assets0, assets1, liabilities0, liabilities1)) {

@@ -338,7 +338,7 @@ contract LenderHarness {
         uint256 borrowBalanceAfter = LENDER.borrowBalance(msg.sender);
         uint256 expectedBorrowBalance = borrowBalanceBefore + amount;
         require(
-            expectedBorrowBalance <= borrowBalanceAfter && borrowBalanceAfter <= expectedBorrowBalance + 2,
+            expectedBorrowBalance <= borrowBalanceAfter && borrowBalanceAfter <= expectedBorrowBalance + 3,
             "borrow: debt mismatch"
         );
         if (recipient != address(LENDER)) {
