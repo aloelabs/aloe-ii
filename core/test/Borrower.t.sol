@@ -112,6 +112,18 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         assertEq((state | 0x80) & 0x7f, state);
     }
 
+    function test_liquidateRequiresValidCloseFactor(
+        ILiquidator callee,
+        bytes memory data,
+        uint256 closeFactor,
+        uint40 oracleSeed
+    ) external {
+        if (closeFactor <= 10000) closeFactor = 0;
+
+        vm.expectRevert(bytes("Aloe: close"));
+        account.liquidate(callee, data, closeFactor, oracleSeed);
+    }
+
     function test_permissionsModify(
         address owner,
         address caller,
@@ -198,8 +210,8 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         vm.selectFork(0);
 
         // `oracleSeed` shouldn't change result
-        (Prices memory pricesA, bool seemsLegitA) = account.getPrices(1 << 32);
-        (Prices memory pricesB, bool seemsLegitB) = account.getPrices(oracleSeed);
+        (Prices memory pricesA, bool seemsLegitA, , ) = account.getPrices(1 << 32);
+        (Prices memory pricesB, bool seemsLegitB, , ) = account.getPrices(oracleSeed);
 
         assertEq(pricesB.a, pricesA.a);
         assertEq(pricesB.b, pricesA.b);
@@ -216,7 +228,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
             abi.encode(uint208(0), uint8(40), uint8(12), uint32(0))
         );
 
-        (Prices memory pricesA, ) = account.getPrices(1 << 32);
+        (Prices memory pricesA, , , ) = account.getPrices(1 << 32);
 
         vm.mockCall(
             address(factory),
@@ -224,7 +236,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
             abi.encode(uint208(0), uint8(80), uint8(12), uint32(0))
         );
 
-        (Prices memory pricesB, ) = account.getPrices(1 << 32);
+        (Prices memory pricesB, , , ) = account.getPrices(1 << 32);
 
         assertEq(pricesB.c, pricesA.c);
         assertLt(pricesB.a, pricesA.a);
@@ -250,14 +262,33 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         account.modify(this, abi.encode(0, borrow1, true), 1 << 32);
     }
 
-    function test_cannotWarnOrLiquidateEmptyAccount() external {
+    function test_cannotWarnEmptyAccount() external {
         vm.selectFork(0);
 
         vm.expectRevert(bytes("Aloe: healthy"));
         account.warn(1 << 32);
+    }
 
-        vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(ILiquidator(payable(address(0))), "", 1, 1 << 32);
+    function test_cannotLiquidateWithoutWarning(
+        ILiquidator callee,
+        bytes memory data,
+        uint256 closeFactor,
+        uint40 oracleSeed
+    ) external {
+        closeFactor = (closeFactor % 10000) + 1;
+
+        vm.expectRevert(bytes(""));
+        account.liquidate(callee, data, closeFactor, oracleSeed);
+
+        vm.store(
+            address(account),
+            bytes32(uint256(0)),
+            bytes32(uint256(block.timestamp << 208))
+        );
+
+        vm.mockCallRevert(address(factory), abi.encodeCall(factory.getParameters, (pool)), bytes("abcdefg"));
+        vm.expectRevert(bytes("abcdefg"));
+        account.liquidate(callee, data, closeFactor, oracleSeed);
     }
 
     function test_cannotBorrow0WithoutCollateral() external {
@@ -351,7 +382,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         vm.selectFork(0);
         _mockIV(account.ORACLE(), pool, ltvMin ? type(uint128).max : 0);
 
-        (Prices memory prices, ) = account.getPrices(1 << 32);
+        (Prices memory prices, , , uint208 ante) = account.getPrices(1 << 32);
 
         uint256 collateral0 = 500e6;
         uint256 collateral1 = 0.5 ether;
@@ -374,8 +405,6 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
 
         deal(address(asset0), address(account), collateral0);
         deal(address(asset1), address(account), collateral1);
-
-        (uint216 ante, , , ) = factory.getParameters(pool);
         deal(address(account), ante);
 
         account.modify(this, abi.encode(borrow0, borrow1, true), 1 << 32);
@@ -405,17 +434,15 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         vm.selectFork(0);
         _mockIV(account.ORACLE(), pool, ltvMin ? type(uint128).max : 0);
 
-        (Prices memory prices, ) = account.getPrices(1 << 32);
+        (Prices memory prices, , , uint208 ante) = account.getPrices(1 << 32);
 
         uint256 collateral0 = 1000e6;
         uint256 borrow1 = mulDiv128((collateral0 * (ltvMin ? LTV_MIN : LTV_MAX)) / 1e12, square(prices.c));
 
         deal(address(asset0), address(account), collateral0);
         deal(address(asset1), address(lender1), 10 * borrow1);
-        lender1.deposit(10 * borrow1, address(this));
-
-        (uint216 ante, , , ) = factory.getParameters(pool);
         deal(address(account), ante);
+        lender1.deposit(10 * borrow1, address(this));
 
         account.modify(this, abi.encode(0, borrow1, true), 1 << 32);
 
@@ -439,7 +466,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         vm.selectFork(0);
         _mockIV(account.ORACLE(), pool, ltvMin ? type(uint128).max : 0);
 
-        (Prices memory prices, ) = account.getPrices(1 << 32);
+        (Prices memory prices, , , uint208 ante) = account.getPrices(1 << 32);
 
         uint256 collateral1 = 1 ether;
         uint256 borrow0 = Math.mulDiv((collateral1 * (ltvMin ? LTV_MIN : LTV_MAX)) / 1e12, 1 << 128, square(prices.c));
@@ -447,10 +474,8 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
 
         deal(address(asset1), address(account), collateral1 + 1);
         deal(address(asset0), address(lender0), 10 * borrow0);
-        lender0.deposit(10 * borrow0, address(this));
-
-        (uint216 ante, , , ) = factory.getParameters(pool);
         deal(address(account), ante);
+        lender0.deposit(10 * borrow0, address(this));
 
         account.modify(this, abi.encode(borrow0, 0, true), 1 << 32);
 
@@ -475,7 +500,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
 
         // Before manipulation, prices should seem legit, even at min IV / max LTV
         _mockIV(account.ORACLE(), pool, 0);
-        (Prices memory prices, bool seemsLegit) = account.getPrices(1 << 32);
+        (Prices memory prices, bool seemsLegit, , ) = account.getPrices(1 << 32);
         assertTrue(seemsLegit);
 
         _assertPercentDiffApproxEq(prices.a, prices.c, 0.0505e9, 1000); // 1 - (PROBE_SQRT_SCALER_MIN/1e12)^-2
@@ -486,7 +511,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         // After manipulation, prices should be sus at min IV / max LTV
         vm.clearMockedCalls();
         _mockIV(account.ORACLE(), pool, 0);
-        (prices, seemsLegit) = account.getPrices(1 << 32);
+        (prices, seemsLegit, , ) = account.getPrices(1 << 32);
         assertFalse(seemsLegit);
 
         // NOTE: The exact amount of manipulation is dependent on chain history. All that really
@@ -519,7 +544,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
 
         // Before manipulation, prices should seem legit, even at min IV / max LTV
         _mockIV(account.ORACLE(), pool, type(uint128).max);
-        (Prices memory prices, bool seemsLegit) = account.getPrices(1 << 32);
+        (Prices memory prices, bool seemsLegit, , ) = account.getPrices(1 << 32);
         assertTrue(seemsLegit);
 
         _assertPercentDiffApproxEq(prices.a, prices.c, 0.8945e9, 1000); // 1 - (PROBE_SQRT_SCALER_MAX/1e12)^-2
@@ -530,7 +555,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         // After manipulation, prices should be sus at min IV / max LTV
         vm.clearMockedCalls();
         _mockIV(account.ORACLE(), pool, type(uint128).max);
-        (prices, seemsLegit) = account.getPrices(1 << 32);
+        (prices, seemsLegit, , ) = account.getPrices(1 << 32);
         assertFalse(seemsLegit);
 
         // NOTE: The exact amount of manipulation is dependent on chain history. All that really
@@ -564,7 +589,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         _mockIV(account.ORACLE(), pool, 0);
 
         {
-            (Prices memory prices, ) = account.getPrices(1 << 32);
+            (Prices memory prices, , , ) = account.getPrices(1 << 32);
             (uint160 current, , , , , , ) = pool.slot0();
             console2.log("Initial State ($1000):");
             console2.log("-> sqrtPrice  TWAP:", prices.c);
@@ -579,7 +604,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
 
         int24 lower;
         {
-            (Prices memory prices, ) = account.getPrices(1 << 32);
+            (Prices memory prices, , , ) = account.getPrices(1 << 32);
             (uint160 current, int24 tick, , , , , ) = pool.slot0();
             console2.log("\nSwapping {1} USDC for {2} WETH to push price to $2000");
             console2.log("(1) ", _swapAmounts[0] / 1e6);
@@ -649,7 +674,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         _recordSwapAmounts = false;
 
         {
-            (Prices memory prices, ) = account.getPrices(1 << 32);
+            (Prices memory prices, ,, ) = account.getPrices(1 << 32);
             (uint160 current, , , , , , ) = pool.slot0();
             console2.log("\nSwapping {1} WETH for {2} USDC to push price back to $1000");
             console2.log("(1) ", _swapAmounts[3] / 1e18);
@@ -687,10 +712,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
             console2.log("In their Borrower, attacker gained:");
             console2.log("-> USDC:", -int256(borrows0 / 1e6 + 100_000));
             console2.log("-> WETH:", eth / 1e18);
-            console2.log(
-                "-> (dollar value) ",
-                int256((eth << 96) / current) - int256(borrows0 / 1e6 + 100_000)
-            );
+            console2.log("-> (dollar value) ", int256((eth << 96) / current) - int256(borrows0 / 1e6 + 100_000));
         }
     }
 

@@ -177,6 +177,42 @@ contract BalanceSheetTest is Test {
         }
     }
 
+    function test_fuzz_auctionCurve(uint256 t) external {
+        t = bound(t, 1, 7 days - 5 minutes - 1);
+        uint256 f = BalanceSheet.auctionCurve(t);
+        assertGt(f, 0);
+        assertLe(f, 103568.839061681797e12);
+    }
+
+    function test_spec_auctionCurveA() public {
+        assertEq(BalanceSheet.auctionCurve(0 seconds), 0);
+        assertEq(BalanceSheet.auctionCurve(12 seconds), 0.415240559229e12);
+        assertEq(BalanceSheet.auctionCurve(24 seconds), 0.606056042223e12);
+        assertEq(BalanceSheet.auctionCurve(36 seconds), 0.715682709971e12);
+        assertEq(BalanceSheet.auctionCurve(48 seconds), 0.786848126590e12);
+        assertEq(BalanceSheet.auctionCurve(60 seconds), 0.836772585073e12);
+        assertEq(BalanceSheet.auctionCurve(2 minutes), 0.958397119151e12);
+        assertEq(BalanceSheet.auctionCurve(168 seconds), 0.999929300389e12);
+        assertEq(BalanceSheet.auctionCurve(3 minutes), 1.007204752788e12);
+        assertEq(BalanceSheet.auctionCurve(4 minutes), 1.033528701917e12);
+        assertEq(BalanceSheet.auctionCurve(5 minutes), 1.050000037841e12);
+        assertEq(BalanceSheet.auctionCurve(10 minutes), 1.084617392593e12);
+        assertEq(BalanceSheet.auctionCurve(710 seconds), 1.090202965242e12);
+        assertEq(BalanceSheet.auctionCurve(15 minutes), 1.096723751201e12);
+    }
+
+    function test_spec_auctionCurveB() public {
+        assertEq(BalanceSheet.auctionCurve(30 minutes), 1.109270590650e12);
+        assertEq(BalanceSheet.auctionCurve(60 minutes), 1.116034555698e12);
+        assertEq(BalanceSheet.auctionCurve(1 days), 1.149634653251e12);
+        assertEq(BalanceSheet.auctionCurve(2 days), 1.189774687552e12);
+        assertEq(BalanceSheet.auctionCurve(3 days), 1.249847696897e12);
+        assertEq(BalanceSheet.auctionCurve(4 days), 1.349964268391e12);
+        assertEq(BalanceSheet.auctionCurve(5 days), 1.550340596798e12);
+        assertEq(BalanceSheet.auctionCurve(6 days), 2.152834947272e12);
+        assertEq(BalanceSheet.auctionCurve(7 days - 5 minutes - 1), 103568.839061681797e12);
+    }
+
     /// @dev See https://www.desmos.com/calculator/l7kp0j3kgl
     function test_spec_computeProbePrices() public {
         bool seemsLegit;
