@@ -158,16 +158,14 @@ contract Borrower is IUniswapV3MintCallback {
         // Essentially `slot0.state == State.Ready && slot0.auctionTime == 0`
         require(slot0_ & (SLOT0_MASK_STATE | SLOT0_MASK_AUCTION) == 0);
 
-        {
-            // Fetch prices from oracle
-            (Prices memory prices, ) = getPrices(oracleSeed);
-            // Tally assets without actually withdrawing Uniswap positions
-            Assets memory assets = _getAssets(slot0_, prices, false);
-            // Fetch liabilities from lenders
-            (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-            // Ensure only unhealthy accounts get warned
-            require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
-        }
+        // Fetch prices from oracle
+        (Prices memory prices, ) = getPrices(oracleSeed);
+        // Tally assets
+        Assets memory assets = _getAssets(slot0_, prices);
+        // Fetch liabilities from lenders
+        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+        // Ensure only unhealthy accounts get warned and liquidated
+        require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
 
         // Start auction
         slot0 = slot0_ | (block.timestamp << 208);
@@ -201,22 +199,19 @@ contract Borrower is IUniswapV3MintCallback {
         require(slot0_ & SLOT0_MASK_STATE == 0);
         slot0 = slot0_ | (uint256(State.Locked) << 248);
 
+        // Withdraw all Uniswap positions
+        _uniswapWithdraw(slot0_);
+
         // Fetch prices from oracle
         (Prices memory prices, ) = getPrices(oracleSeed);
+        // Tally assets
+        (uint256 assets0, uint256 assets1) = (TOKEN0.balanceOf(address(this)), TOKEN1.balanceOf(address(this)));
         // Fetch liabilities from lenders
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
-        {
-            // Withdraw Uniswap positions while tallying assets
-            Assets memory assets = _getAssets(slot0_, prices, true);
-            // Ensure only unhealthy accounts can be liquidated
-            require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
-        }
+        // Ensure only unhealthy accounts can be liquidated
+        require(!BalanceSheet.isHealthy(prices, assets0, assets1, liabilities0, liabilities1), "Aloe: healthy");
 
         unchecked {
-            // Get precise inventory now that we've burned Uniswap positions
-            uint256 assets0 = TOKEN0.balanceOf(address(this));
-            uint256 assets1 = TOKEN1.balanceOf(address(this));
-
             // See what needs to be acquired through swaps
             uint256 x = liabilities0.zeroFloorSub(assets0);
             uint256 y = liabilities1.zeroFloorSub(assets1);
@@ -327,7 +322,7 @@ contract Borrower is IUniswapV3MintCallback {
                 "Aloe: missing ante / sus price"
             );
 
-            Assets memory assets = _getAssets(slot0_, prices, false);
+            Assets memory assets = _getAssets(slot0_, prices);
             require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
         }
     }
@@ -493,7 +488,7 @@ contract Borrower is IUniswapV3MintCallback {
         );
     }
 
-    function _getAssets(uint256 slot0_, Prices memory prices, bool withdraw) private returns (Assets memory assets) {
+    function _getAssets(uint256 slot0_, Prices memory prices) private view returns (Assets memory assets) {
         assets.amount0AtA = assets.amount0AtB = TOKEN0.balanceOf(address(this));
         assets.amount1AtA = assets.amount1AtB = TOKEN1.balanceOf(address(this));
 
@@ -522,11 +517,6 @@ contract Borrower is IUniswapV3MintCallback {
                 (amount0, amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.b, L, U, liquidity);
                 assets.amount0AtB += amount0;
                 assets.amount1AtB += amount1;
-
-                if (!withdraw) continue;
-
-                // Withdraw all `liquidity` from the position
-                _uniswapWithdraw(l, u, liquidity, address(this));
             }
         }
     }
@@ -539,6 +529,25 @@ contract Borrower is IUniswapV3MintCallback {
     /*//////////////////////////////////////////////////////////////
                                  HELPERS
     //////////////////////////////////////////////////////////////*/
+
+    function _uniswapWithdraw(uint256 slot0_) private {
+        int24[] memory positions = extract(slot0_);
+        uint256 count = positions.length;
+        unchecked {
+            for (uint256 i; i < count; i += 2) {
+                // Load lower and upper ticks from the `positions` array
+                int24 l = positions[i];
+                int24 u = positions[i + 1];
+                // Fetch amount of `liquidity` in the position
+                (uint128 liquidity, , , , ) = UNISWAP_POOL.positions(keccak256(abi.encodePacked(address(this), l, u)));
+
+                if (liquidity == 0) continue;
+
+                // Withdraw all `liquidity` from the position
+                _uniswapWithdraw(l, u, liquidity, address(this));
+            }
+        }
+    }
 
     function _uniswapWithdraw(
         int24 lower,
