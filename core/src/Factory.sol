@@ -152,7 +152,7 @@ contract Factory {
     //////////////////////////////////////////////////////////////*/
 
     function pause(IUniswapV3Pool pool, uint40 oracleSeed) external {
-        (, bool seemsLegit) = getMarket[pool].borrowerImplementation.getPrices(oracleSeed);
+        (, bool seemsLegit, , ) = getMarket[pool].borrowerImplementation.getPrices(oracleSeed);
         if (seemsLegit) return;
 
         unchecked {

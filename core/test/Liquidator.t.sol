@@ -265,7 +265,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
             bytes32(uint256((block.timestamp - LIQUIDATION_GRACE_PERIOD - TIME_OF_5_PERCENT) << 208))
         );
 
-        (Prices memory prices, ) = account.getPrices(1 << 32);
+        (Prices memory prices, , , ) = account.getPrices(1 << 32);
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 assets1 = Math.mulDiv(debt, price, Q96);
         assets1 += assets1 / LIQUIDATION_INCENTIVE;
@@ -306,7 +306,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
             bytes32(uint256((block.timestamp - LIQUIDATION_GRACE_PERIOD - TIME_OF_5_PERCENT) << 208))
         );
 
-        (Prices memory prices, ) = account.getPrices(1 << 32);
+        (Prices memory prices, , , ) = account.getPrices(1 << 32);
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 incentive1 = Math.mulDiv(debt / LIQUIDATION_INCENTIVE, price, Q96);
         uint256 assets1 = Math.mulDiv((debt * closeFactor) / 10000, price, Q96) + (incentive1 * closeFactor) / 10000;
@@ -325,7 +325,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         // These tests are forked, so we don't want to spam the RPC with too many fuzzing values
         closeFactor = bound(closeFactor, 1, 10000);
 
-        (Prices memory prices, ) = account.getPrices(1 << 32);
+        (Prices memory prices, , , ) = account.getPrices(1 << 32);
         uint256 borrow1 = 1e18 * ((scale % 4) + 1); // Same concern here
         {
             uint256 effectiveLiabilities1 = borrow1 + borrow1 / 200 + borrow1 / 20;
@@ -376,7 +376,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     function test_spec_priceTriggerRepayDAIUsingSwap() public {
         uint16 closeFactor = 10000;
 
-        (Prices memory prices, ) = account.getPrices(1 << 32);
+        (Prices memory prices, , , ) = account.getPrices(1 << 32);
         uint256 borrow0 = 1000e18;
         {
             uint256 effectiveLiabilities0 = borrow0 + borrow0 / 20 + borrow0 / 200;
@@ -426,7 +426,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
             bytes32(uint256((block.timestamp - LIQUIDATION_GRACE_PERIOD - TIME_OF_5_PERCENT) << 208))
         );
 
-        (prices, ) = account.getPrices(1 << 32);
+        (prices, , , ) = account.getPrices(1 << 32);
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 assets1 = Math.mulDiv((borrow0 * closeFactor) / 10000, price, Q96);
@@ -443,7 +443,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
     function test_spec_warnDoesProtect() public {
         uint16 closeFactor = 10000;
 
-        (Prices memory prices, ) = account.getPrices(1 << 32);
+        (Prices memory prices, , , ) = account.getPrices(1 << 32);
         uint256 borrow0 = 1000e18;
         {
             uint256 effectiveLiabilities0 = borrow0 + borrow0 / 20 + borrow0 / 200;
@@ -497,7 +497,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         skip(TIME_OF_5_PERCENT);
         borrow0 = lender0.borrowBalance(address(account));
 
-        (prices, ) = account.getPrices(1 << 32);
+        (prices, , , ) = account.getPrices(1 << 32);
 
         uint256 price = Math.mulDiv(prices.c, prices.c, Q96);
         uint256 assets1 = Math.mulDiv((borrow0 * closeFactor) / 10000, price, Q96);
