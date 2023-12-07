@@ -159,7 +159,7 @@ contract Borrower is IUniswapV3MintCallback {
         require(slot0_ & (SLOT0_MASK_STATE | SLOT0_MASK_AUCTION) == 0);
 
         // Fetch prices from oracle
-        (Prices memory prices, ) = getPrices(oracleSeed);
+        (Prices memory prices, , , uint208 ante) = getPrices(oracleSeed);
         // Tally assets
         Assets memory assets = _getAssets(slot0_, prices);
         // Fetch liabilities from lenders
@@ -171,7 +171,7 @@ contract Borrower is IUniswapV3MintCallback {
         slot0 = slot0_ | (block.timestamp << 208);
         emit Warn();
 
-        SafeTransferLib.safeTransferETH(msg.sender, address(this).balance / 5);
+        SafeTransferLib.safeTransferETH(msg.sender, address(this).balance.min(ante / 4));
     }
 
     /**
@@ -203,7 +203,7 @@ contract Borrower is IUniswapV3MintCallback {
         _uniswapWithdraw(slot0_);
 
         // Fetch prices from oracle
-        (Prices memory prices, ) = getPrices(oracleSeed);
+        (Prices memory prices, , , ) = getPrices(oracleSeed);
         // Tally assets
         (uint256 assets0, uint256 assets1) = (TOKEN0.balanceOf(address(this)), TOKEN1.balanceOf(address(this)));
         // Fetch liabilities from lenders
@@ -314,13 +314,8 @@ contract Borrower is IUniswapV3MintCallback {
 
         (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
         if (liabilities0 > 0 || liabilities1 > 0) {
-            (uint208 ante, uint8 nSigma, uint8 mtd, uint32 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
-            (Prices memory prices, bool seemsLegit) = _getPrices(oracleSeed, nSigma, mtd);
-
-            require(
-                seemsLegit && (block.timestamp > pausedUntilTime) && (address(this).balance >= ante),
-                "Aloe: missing ante / sus price"
-            );
+            (Prices memory prices, bool seemsLegit, bool isPaused, uint208 ante) = getPrices(oracleSeed);
+            require(seemsLegit && !isPaused && address(this).balance >= ante, "Aloe: missing ante / sus price");
 
             Assets memory assets = _getAssets(slot0_, prices);
             require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
@@ -461,31 +456,25 @@ contract Borrower is IUniswapV3MintCallback {
      * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
      * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
-     * @return prices The probe prices currently being used to evaluate account health
-     * @return seemsLegit Whether the Uniswap TWAP seems to have been manipulated or not
+     * @return The probe prices currently being used to evaluate account health
+     * @return Whether the Uniswap TWAP seems to have been manipulated or not
+     * @return Whether the factory has paused this market
+     * @return The current ante that must be posted before borrowing
      */
-    function getPrices(uint40 oracleSeed) public view returns (Prices memory prices, bool seemsLegit) {
-        (, uint8 nSigma, uint8 manipulationThresholdDivisor, ) = FACTORY.getParameters(UNISWAP_POOL);
-        (prices, seemsLegit) = _getPrices(oracleSeed, nSigma, manipulationThresholdDivisor);
-    }
-
-    function _getPrices(
-        uint40 oracleSeed,
-        uint8 nSigma,
-        uint8 manipulationThresholdDivisor
-    ) private view returns (Prices memory prices, bool seemsLegit) {
+    function getPrices(uint40 oracleSeed) public view returns (Prices memory, bool, bool, uint208) {
+        Prices memory prices;
         uint56 metric;
         uint256 iv;
+        bool seemsLegit;
+
         // compute current price and volatility
         (metric, prices.c, iv) = ORACLE.consult(UNISWAP_POOL, oracleSeed);
+        // get parameters from factory
+        (uint208 ante, uint8 nSigma, uint8 mtd, uint32 pausedUntilTime) = FACTORY.getParameters(UNISWAP_POOL);
         // compute prices at which solvency will be checked
-        (prices.a, prices.b, seemsLegit) = BalanceSheet.computeProbePrices(
-            metric,
-            prices.c,
-            iv,
-            nSigma,
-            manipulationThresholdDivisor
-        );
+        (prices.a, prices.b, seemsLegit) = BalanceSheet.computeProbePrices(metric, prices.c, iv, nSigma, mtd);
+
+        return (prices, seemsLegit, block.timestamp < pausedUntilTime, ante);
     }
 
     function _getAssets(uint256 slot0_, Prices memory prices) private view returns (Assets memory assets) {
