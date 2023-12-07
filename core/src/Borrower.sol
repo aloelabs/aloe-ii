@@ -155,7 +155,7 @@ contract Borrower is IUniswapV3MintCallback {
         // Tally assets
         Assets memory assets = _getAssets(slot0_, prices);
         // Fetch liabilities from lenders
-        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+        (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
         // Ensure only unhealthy accounts get warned and liquidated
         require(!BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: healthy");
 
@@ -199,7 +199,7 @@ contract Borrower is IUniswapV3MintCallback {
         // Tally assets
         (uint256 assets0, uint256 assets1) = (TOKEN0.balanceOf(address(this)), TOKEN1.balanceOf(address(this)));
         // Fetch liabilities from lenders
-        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+        (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
         // Ensure only unhealthy accounts can be liquidated
         require(!BalanceSheet.isHealthy(prices, assets0, assets1, liabilities0, liabilities1), "Aloe: healthy");
 
@@ -304,7 +304,7 @@ contract Borrower is IUniswapV3MintCallback {
         }
         slot0 = (slot0_ & SLOT0_MASK_POSITIONS) | SLOT0_DIRT;
 
-        (uint256 liabilities0, uint256 liabilities1) = _getLiabilities();
+        (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
         if (liabilities0 > 0 || liabilities1 > 0) {
             (Prices memory prices, bool seemsLegit, bool isPaused, uint208 ante) = getPrices(oracleSeed);
             require(seemsLegit && !isPaused && address(this).balance >= ante, "Aloe: missing ante / sus price");
@@ -442,6 +442,16 @@ contract Borrower is IUniswapV3MintCallback {
         return extract(slot0);
     }
 
+    function getAssets() external view returns (Assets memory) {
+        (Prices memory prices, , , ) = getPrices(1 << 32);
+        return _getAssets(slot0, prices);
+    }
+
+    function getLiabilities() public view returns (uint256 amount0, uint256 amount1) {
+        amount0 = LENDER0.borrowBalance(address(this));
+        amount1 = LENDER1.borrowBalance(address(this));
+    }
+
     /**
      * @notice Summarizes all oracle data pertinent to account health
      * @dev If `seemsLegit == false`, you can call `Factory.pause` to temporarily disable borrows
@@ -500,11 +510,6 @@ contract Borrower is IUniswapV3MintCallback {
                 assets.amount1AtB += amount1;
             }
         }
-    }
-
-    function _getLiabilities() private view returns (uint256 amount0, uint256 amount1) {
-        amount0 = LENDER0.borrowBalance(address(this));
-        amount1 = LENDER1.borrowBalance(address(this));
     }
 
     /*//////////////////////////////////////////////////////////////
