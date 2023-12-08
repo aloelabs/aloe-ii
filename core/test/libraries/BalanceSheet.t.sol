@@ -11,12 +11,13 @@ import {
     CONSTRAINT_N_SIGMA_MAX,
     CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MIN,
     CONSTRAINT_MANIPULATION_THRESHOLD_DIVISOR_MAX,
+    LIQUIDATION_GRACE_PERIOD,
     LTV_MIN,
     PROBE_SQRT_SCALER_MIN,
     PROBE_SQRT_SCALER_MAX,
     IV_COLD_START
 } from "src/libraries/constants/Constants.sol";
-import {BalanceSheet, Assets, Prices, TickMath, square} from "src/libraries/BalanceSheet.sol";
+import {BalanceSheet, AuctionAmounts, Assets, Prices, TickMath, square} from "src/libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "src/libraries/LiquidityAmounts.sol";
 
 contract LibraryWrapper {
@@ -53,13 +54,140 @@ contract LibraryWrapper {
 contract BalanceSheetTest is Test {
     function setUp() public {}
 
-    // TODO: test behavior of new computeLiquidationIncentive
-
-    // TODO: (for Borrower) test closeFactor=0
-
     // TODO: (for Borrower) test that liquidate() fails if the liquidator doesn't pay back at least in0 or in1 (for all close factors)
 
-    // TODO: (for Borrower) test that in insolvent case, someone could provide their own assets to make it go through without losing money (and that they get the ante)
+    function test_computeAuctionAmountsBoundaries(
+        Prices memory prices,
+        uint104 assets0,
+        uint104 assets1,
+        uint104 liabilities0,
+        uint104 liabilities1,
+        uint256 warnTime,
+        uint256 closeFactor
+    ) external {
+        vm.assume(assets0 > 0 && assets1 > 0);
+        vm.warp(10000000000);
+
+        warnTime = bound(warnTime, block.timestamp - LIQUIDATION_GRACE_PERIOD + 1, block.timestamp);
+        closeFactor = bound(closeFactor, 0, 10000);
+
+        (AuctionAmounts memory amounts, ) = BalanceSheet.computeAuctionAmounts(
+            prices,
+            assets0,
+            assets1,
+            liabilities0,
+            liabilities1,
+            warnTime,
+            closeFactor
+        );
+        assertEq(amounts.out0, 0);
+        assertEq(amounts.out1, 0);
+        assertEq(amounts.repay0, (liabilities0 * closeFactor) / 10000);
+        assertEq(amounts.repay1, (liabilities1 * closeFactor) / 10000);
+
+        warnTime = block.timestamp - 7 days;
+        (amounts, ) = BalanceSheet.computeAuctionAmounts(
+            prices,
+            assets0,
+            assets1,
+            liabilities0,
+            liabilities1,
+            warnTime,
+            closeFactor
+        );
+        assertEq(amounts.out0, assets0);
+        assertEq(amounts.out1, assets1);
+    }
+
+    function test_computeAuctionAmountsProportionality(
+        Prices memory prices,
+        uint104 assets0,
+        uint104 assets1,
+        uint104 liabilities0,
+        uint104 liabilities1,
+        uint256 warnTime,
+        uint256 closeFactor
+    ) external {
+        assets0 = uint104(bound(assets0, 1 << 32, type(uint104).max));
+        assets1 = uint104(bound(assets1, 1 << 32, type(uint104).max));
+        vm.assume(assets0 > 0 && assets1 > 0);
+        vm.warp(10000000000);
+
+        warnTime = bound(warnTime, block.timestamp - 7 days, block.timestamp);
+        closeFactor = bound(closeFactor, 0, 10000);
+
+        (AuctionAmounts memory amounts, ) = BalanceSheet.computeAuctionAmounts(
+            prices,
+            assets0,
+            assets1,
+            liabilities0,
+            liabilities1,
+            warnTime,
+            closeFactor
+        );
+
+        uint256 denom = assets1 + SoladyMath.fullMulDiv(assets0, square(prices.c), 1 << 128);
+        if (denom == 0) return;
+        uint256 oldRatio = (1e18 * uint256(assets1)) / denom;
+
+        console2.log(assets0, assets1);
+
+        assets0 -= uint104(amounts.out0);
+        assets1 -= uint104(amounts.out1);
+
+        console2.log(assets0, assets1);
+
+        denom = assets1 + SoladyMath.fullMulDiv(assets0, square(prices.c), 1 << 128);
+        if (denom == 0) return;
+        uint256 newRatio = (1e18 * uint256(assets1)) / denom;
+
+        assertApproxEqAbs(newRatio, oldRatio, 0.0001e18);
+    }
+
+    function test_spec_computeAuctionAmounts() external {
+        vm.warp(10000000000);
+
+        Prices memory prices = Prices(0, 0, 1 << 96);
+        AuctionAmounts memory amounts;
+
+        (amounts, ) = BalanceSheet.computeAuctionAmounts(prices, 1e18, 0, 1e18, 0, 0, 0);
+        assertEq(amounts.out0, 1e18);
+        assertEq(amounts.out1, 0);
+        assertEq(amounts.repay0, 0);
+        assertEq(amounts.repay1, 0);
+
+        (amounts, ) = BalanceSheet.computeAuctionAmounts(prices, 1e18, 0, 1e18, 0, 0, 10000);
+        assertEq(amounts.out0, 1e18);
+        assertEq(amounts.out1, 0);
+        assertEq(amounts.repay0, 1e18);
+        assertEq(amounts.repay1, 0);
+
+        (amounts, ) = BalanceSheet.computeAuctionAmounts(
+            prices,
+            1e18,
+            2e18,
+            0.5e18,
+            0.5e18,
+            10000000000 - 8 minutes,
+            10000
+        );
+        assertEq(amounts.out0, 335734917596000000);
+        assertEq(amounts.out1, 671469835192000000);
+        assertEq(amounts.repay0, 0.5e18);
+        assertEq(amounts.repay1, 0.5e18);
+
+        (amounts, ) = BalanceSheet.computeAuctionAmounts(
+            prices,
+            1e18,
+            2e18,
+            0.5e18,
+            0.5e18,
+            10000000000 - 60 minutes,
+            10000
+        );
+        assertEq(amounts.out0, 371792510098000000);
+        assertEq(amounts.out1, 743585020196000000);
+    }
 
     function test_healthConcavity(
         uint128 fixed0,
@@ -175,6 +303,42 @@ contract BalanceSheetTest is Test {
             vm.expectRevert(0xae47f702);
             wrapper.isSolvent(sqrtPriceX96, amount0, amount1, 0, 0);
         }
+    }
+
+    function test_fuzz_auctionCurve(uint256 t) external {
+        t = bound(t, 1, 7 days - 5 minutes - 1);
+        uint256 f = BalanceSheet.auctionCurve(t);
+        assertGt(f, 0);
+        assertLe(f, 103568.839061681797e12);
+    }
+
+    function test_spec_auctionCurveA() public {
+        assertEq(BalanceSheet.auctionCurve(0 seconds), 0);
+        assertEq(BalanceSheet.auctionCurve(12 seconds), 0.415240559229e12);
+        assertEq(BalanceSheet.auctionCurve(24 seconds), 0.606056042223e12);
+        assertEq(BalanceSheet.auctionCurve(36 seconds), 0.715682709971e12);
+        assertEq(BalanceSheet.auctionCurve(48 seconds), 0.786848126590e12);
+        assertEq(BalanceSheet.auctionCurve(60 seconds), 0.836772585073e12);
+        assertEq(BalanceSheet.auctionCurve(2 minutes), 0.958397119151e12);
+        assertEq(BalanceSheet.auctionCurve(168 seconds), 0.999929300389e12);
+        assertEq(BalanceSheet.auctionCurve(3 minutes), 1.007204752788e12);
+        assertEq(BalanceSheet.auctionCurve(4 minutes), 1.033528701917e12);
+        assertEq(BalanceSheet.auctionCurve(5 minutes), 1.050000037841e12);
+        assertEq(BalanceSheet.auctionCurve(10 minutes), 1.084617392593e12);
+        assertEq(BalanceSheet.auctionCurve(710 seconds), 1.090202965242e12);
+        assertEq(BalanceSheet.auctionCurve(15 minutes), 1.096723751201e12);
+    }
+
+    function test_spec_auctionCurveB() public {
+        assertEq(BalanceSheet.auctionCurve(30 minutes), 1.109270590650e12);
+        assertEq(BalanceSheet.auctionCurve(60 minutes), 1.116034555698e12);
+        assertEq(BalanceSheet.auctionCurve(1 days), 1.149634653251e12);
+        assertEq(BalanceSheet.auctionCurve(2 days), 1.189774687552e12);
+        assertEq(BalanceSheet.auctionCurve(3 days), 1.249847696897e12);
+        assertEq(BalanceSheet.auctionCurve(4 days), 1.349964268391e12);
+        assertEq(BalanceSheet.auctionCurve(5 days), 1.550340596798e12);
+        assertEq(BalanceSheet.auctionCurve(6 days), 2.152834947272e12);
+        assertEq(BalanceSheet.auctionCurve(7 days - 5 minutes - 1), 103568.839061681797e12);
     }
 
     /// @dev See https://www.desmos.com/calculator/l7kp0j3kgl

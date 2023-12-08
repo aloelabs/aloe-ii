@@ -7,10 +7,8 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
-import {Q128} from "./libraries/constants/Q.sol";
-import {BalanceSheet, Assets, Prices} from "./libraries/BalanceSheet.sol";
+import {BalanceSheet, AuctionAmounts, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
-import {square, mulDiv128, mulDiv128Up} from "./libraries/MulDiv.sol";
 import {extract} from "./libraries/Positions.sol";
 import {TickMath} from "./libraries/TickMath.sol";
 
@@ -19,11 +17,15 @@ import {Lender} from "./Lender.sol";
 import {VolatilityOracle} from "./VolatilityOracle.sol";
 
 interface ILiquidator {
-    receive() external payable;
-
-    function swap1For0(bytes calldata data, uint256 received1, uint256 expected0) external;
-
-    function swap0For1(bytes calldata data, uint256 received0, uint256 expected1) external;
+    /**
+     * @notice Transfers `amounts.out0` and `amounts.out1` to the liquidator with the expectation that they'll
+     * transfer `amounts.repay0` and `amounts.repay1` to the appropriate `Lender`s, executing swaps if necessary.
+     * The liquidator can keep leftover funds as a reward.
+     * @param data Encoded parameters that were passed to `Borrower.liquidate`
+     * @param caller The address that called `Borrower.liquidate`
+     * @param amounts The key amounts involved in the liquidation
+     */
+    function callback(bytes calldata data, address caller, AuctionAmounts memory amounts) external;
 }
 
 interface IManager {
@@ -48,16 +50,11 @@ contract Borrower is IUniswapV3MintCallback {
     using SafeTransferLib for ERC20;
 
     /**
-     * @notice Most liquidations involve swapping one asset for another. To incentivize such swaps (even in
-     * volatile markets) liquidators are rewarded with a bonus. To avoid paying that bonus to liquidators,
-     * the account owner can listen for this event. Once it's emitted, they have 5 minutes to bring the
-     * account back to health. If they fail, the liquidation will proceed.
-     * @dev Fortuitous price movements and/or direct `Lender.repay` can bring the account back to health and
-     * nullify the immediate liquidation threat, but they will not clear the warning. This means that next
-     * time the account is unhealthy, liquidators might skip `warn` and `liquidate` right away. To clear the
-     * warning and return to a "clean" state, make sure to call `modify` -- even if the callback is a no-op.
-     * @dev The deadline for regaining health is given by `slot0.warnTime + LIQUIDATION_GRACE_PERIOD`.
-     * If this value is 0, the account is in the aforementioned "clean" state.
+     * @notice Emitted when the account gets `warn`ed. The liquidation incentive will be 0 for 5 minutes,
+     * giving the account owner time to regain health on their own. After this `LIQUIDATION_GRACE_PERIOD`,
+     * the incentive starts increasing (following the Dutch Auction curve in `BalanceSheet`).
+     * @dev Simply regaining health is not enough. To clear the warning, you must replenish the `ante` and
+     * call `modify`.
      */
     event Warn();
 
@@ -101,10 +98,9 @@ contract Borrower is IUniswapV3MintCallback {
      * @notice The `Borrower`'s only mutable storage. Lowest 144 bits store the lower/upper bounds of up to 3 Uniswap
      * positions, encoded by `Positions.zip`. Next 64 bits are unused within the `Borrower` and available to users as
      * "free" storage － no additional sstore's. These 208 bits (144 + 64) are passed to `IManager.callback`, and get
-     * updated when the callback returns a non-zero value. The next 40 bits are either 0 or the auction time, as
-     * explained in the `Warn` event docs. The highest 8 bits represent the current `State` enum, plus 128. We add
-     * 128 (i.e. set the highest bit to 1) so that the slot is always non-zero, even in the absence of Uniswap
-     * positions － this saves gas.
+     * updated when the callback returns a non-zero value. The next 40 bits are either 0 or the warning time. The
+     * highest 8 bits represent the current `State` enum, plus 128. We add 128 (i.e. set the highest bit to 1) so that
+     * the slot is always non-zero, even in the absence of Uniswap positions － this saves gas.
      */
     uint256 public slot0;
 
@@ -139,8 +135,7 @@ contract Borrower is IUniswapV3MintCallback {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Warns the borrower that they're about to be liquidated. NOTE: Liquidators are only
-     * forced to call this in cases where a swap bonus is up for grabs.
+     * @notice Warns the borrower that they're about to be liquidated
      * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
      * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
@@ -167,18 +162,15 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /**
-     * @notice Liquidates the borrower, using all available assets to pay down liabilities. If
-     * some or all of the payment cannot be made in-kind, `callee` is expected to swap one asset
-     * for the other at a venue of their choosing. NOTE: Branches involving callbacks will fail
-     * until the borrower has been `warn`ed and the grace period has expired.
-     * @dev As a baseline, `callee` receives `address(this).balance * closeFactor / 10000` ETH (assuming
-     * the liquidation makes the account healthy). This amount is intended to cover transaction fees. If
-     * the liquidation involves a swap callback, `callee` receives an N% bonus denominated in the surplus
-     * token. In other words, if the two numeric callback arguments were denominated in the same asset,
-     * the first argument would be N% larger. N grows as a function of time and hits 8% after 10 minutes.
-     * @param callee A smart contract capable of swapping `TOKEN0` for `TOKEN1` and vice versa
-     * @param data Encoded parameters that get forwarded to `callee` callbacks
-     * @param closeFactor The fraction of shortfall to close via a swap, expressed in basis points
+     * @notice Liquidates the borrower, using all available assets to pay down liabilities. `callee` must
+     * transfer at least `amounts.repay0` and `amounts.repay1` to `LENDER0` and `LENDER1`, respectively.
+     * `amounts.out0` and `amounts.out1` start at 0 and increase over time. Once their value exceeds what
+     * must be repaid, the excess acts as a liquidation incentive.
+     * @dev The amounts out are 0 for the entirety of the `LIQUIDATION_GRACE_PERIOD`. They start rising
+     * afterwards, reaching 105% of the repay value after 5 minutes and 112% after 55 minutes.
+     * @param callee The smart contract responsible for swapping and repaying
+     * @param data Encoded parameters that get forwarded to `callee`
+     * @param closeFactor The fraction of liabilities to repay, expressed in basis points
      * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
      * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
      * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
@@ -187,8 +179,8 @@ contract Borrower is IUniswapV3MintCallback {
         require(closeFactor <= 10000, "Aloe: close");
 
         uint256 slot0_ = slot0;
-        // Essentially `slot0.state == State.Ready`
-        require(slot0_ & SLOT0_MASK_STATE == 0);
+        // Essentially `slot0.state == State.Ready && slot0.warnTime > 0`
+        require(slot0_ & SLOT0_MASK_STATE == 0 && slot0_ & SLOT0_MASK_AUCTION > 0);
         slot0 = slot0_ | (uint256(State.Locked) << 248);
 
         // Withdraw all Uniswap positions
@@ -200,82 +192,32 @@ contract Borrower is IUniswapV3MintCallback {
         (uint256 assets0, uint256 assets1) = (TOKEN0.balanceOf(address(this)), TOKEN1.balanceOf(address(this)));
         // Fetch liabilities from lenders
         (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
-        // Ensure only unhealthy accounts can be liquidated
-        require(!BalanceSheet.isHealthy(prices, assets0, assets1, liabilities0, liabilities1), "Aloe: healthy");
 
-        unchecked {
-            // See what needs to be acquired through swaps
-            uint256 x = liabilities0.zeroFloorSub(assets0);
-            uint256 y = liabilities1.zeroFloorSub(assets1);
+        (AuctionAmounts memory amounts, bool willBeHealthy) = BalanceSheet.computeAuctionAmounts(
+            prices,
+            assets0,
+            assets1,
+            liabilities0,
+            liabilities1,
+            (slot0_ & SLOT0_MASK_AUCTION) >> 208,
+            closeFactor
+        );
 
-            // Decide whether to swap or not
-            bool shouldSwap;
-            assembly ("memory-safe") {
-                // If both are zero or neither is zero, there's nothing more to do
-                shouldSwap := xor(gt(x, 0), gt(y, 0))
-                // Apply `closeFactor` and check again. This second check can generate false positives in cases
-                // where one division (not both) floors to 0, which is why we `and()` with the check above.
-                x := div(mul(x, closeFactor), 10000)
-                y := div(mul(y, closeFactor), 10000)
-                shouldSwap := and(shouldSwap, xor(gt(x, 0), gt(y, 0)))
-            }
+        // End auction if healthy and `closeFactor` is at least 50%
+        if (willBeHealthy && closeFactor >= 5000) slot0_ &= SLOT0_MASK_USERSPACE;
+        // Make sure at least one of the repay values didn't floor to 0
+        require(amounts.repay0 | amounts.repay1 > 0, "Aloe: zero impact");
 
-            // Swap using an incentive ∝ (warnTime, closeFactor, liabilities)
-            {
-                uint256 priceX128 = square(prices.c);
-                uint256 liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+        if (amounts.out0 > 0) TOKEN0.safeTransfer(address(callee), amounts.out0);
+        if (amounts.out1 > 0) TOKEN1.safeTransfer(address(callee), amounts.out1);
 
-                if (shouldSwap) {
-                    uint256 incentive1 = BalanceSheet.computeLiquidationIncentive(
-                        (slot0_ & SLOT0_MASK_AUCTION) >> 208,
-                        closeFactor,
-                        liabilities
-                    );
+        callee.callback(data, msg.sender, amounts);
 
-                    if (x > 0) {
-                        uint256 out1 = (mulDiv128(x, priceX128) + incentive1).min(assets1 - liabilities1);
+        if (amounts.repay0 > 0) LENDER0.repay(amounts.repay0, address(this));
+        if (amounts.repay1 > 0) LENDER1.repay(amounts.repay1, address(this));
 
-                        TOKEN1.safeTransfer(address(callee), out1);
-                        callee.swap1For0(data, out1, x);
-
-                        assets1 -= out1;
-                        assets0 += x;
-                    } else {
-                        uint256 out0 = (y + incentive1).fullMulDiv(Q128, priceX128).min(assets0 - liabilities0);
-
-                        TOKEN0.safeTransfer(address(callee), out0);
-                        callee.swap0For1(data, out0, y);
-
-                        assets0 -= out0;
-                        assets1 += y;
-                    }
-                }
-                // `x` and `y` are now the amounts that will be repaid
-                x = SoladyMath.min(assets0, liabilities0);
-                y = SoladyMath.min(assets1, liabilities1);
-                // Update `closeFactor` to be the fraction of liabilities repaid (regardless of swap amounts)
-                closeFactor = (10000 * (y + mulDiv128Up(x, priceX128))) / liabilities;
-            }
-
-            // Repay as much as possible
-            _repay(x, y);
-            assets0 -= x;
-            assets1 -= y;
-            liabilities0 -= x;
-            liabilities1 -= y;
-
-            emit Liquidate();
-
-            // End auction if healthy
-            if (BalanceSheet.isHealthy(prices, assets0, assets1, liabilities0, liabilities1)) {
-                slot0 = (slot0_ & SLOT0_MASK_USERSPACE) | SLOT0_DIRT;
-            } else {
-                slot0 = (slot0_ & (SLOT0_MASK_USERSPACE | SLOT0_MASK_AUCTION)) | SLOT0_DIRT;
-            }
-
-            // Pay out ante proportional to the updated `closeFactor`
-            SafeTransferLib.safeTransferETH(payable(callee), (address(this).balance * closeFactor) / 10000);
-        }
+        slot0 = (slot0_ & (SLOT0_MASK_USERSPACE | SLOT0_MASK_AUCTION)) | SLOT0_DIRT;
+        emit Liquidate();
     }
 
     /**

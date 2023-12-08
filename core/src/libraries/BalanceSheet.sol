@@ -15,6 +15,17 @@ import {exp1e12} from "./Exp.sol";
 import {square, mulDiv128, mulDiv128Up} from "./MulDiv.sol";
 import {TickMath} from "./TickMath.sol";
 
+struct AuctionAmounts {
+    // The amount of `TOKEN0` sent to the liquidator in exchange for repaying `repay0` and `repay1`
+    uint256 out0;
+    // The amount of `TOKEN1` sent to the liquidator in exchange for repaying `repay0` and `repay1`
+    uint256 out1;
+    // The amount of `TOKEN0` the liquidator must send to `LENDER0` in order to complete the liquidation
+    uint256 repay0;
+    // The amount of `TOKEN1` the liquidator must send to `LENDER1` in order to complete the liquidation
+    uint256 repay1;
+}
+
 struct Assets {
     // `TOKEN0.balanceOf(borrower)`, plus the amount of `TOKEN0` underlying its Uniswap liquidity at `Prices.a`
     uint256 amount0AtA;
@@ -41,31 +52,82 @@ struct Prices {
 library BalanceSheet {
     using SoladyMath for uint256;
 
-    /**
-     * @notice Computes a liquidation incentive that increases as the auction progresses. Reverts if called
-     * during the `LIQUIDATION_GRACE_PERIOD`.
-     * @param auctionTime The `block.timestamp` when `Borrower.warn` was called
-     * @param closeFactor The fraction of shortfall being closed via a swap, expressed in basis points
-     * @param liabilities The value of liabilities at the TWAP, denominated in `TOKEN1`
-     * @return incentive1 The incentive to pay out, denominated in `TOKEN1`
-     */
-    function computeLiquidationIncentive(
-        uint256 auctionTime,
-        uint256 closeFactor,
-        uint256 liabilities
-    ) internal view returns (uint256 incentive1) {
-        assembly ("memory-safe") {
-            // Equivalent: `if (auctionTime != 0) auctionTime = block.timestamp - auctionTime;`
-            auctionTime := mul(gt(auctionTime, 0), sub(timestamp(), auctionTime))
-        }
-        require(auctionTime > LIQUIDATION_GRACE_PERIOD, "Aloe: grace");
+    // During liquidation auctions, the usable fraction is given by S + (R / (N - t)) - (Q / (M + 1000000t)),
+    // where `t` is the time elapsed since the end of the `LIQUIDATION_GRACE_PERIOD`.
+    //
+    // | time since warning |      t | usable fraction |
+    // | ------------------ | ------ | --------------- |
+    // | 0 minutes          |      0 |              0% |
+    // | 1 minute           |      0 |              0% |
+    // | 4 minutes          |      0 |              0% |
+    // | 5 minutes          |      0 |              0% |
+    // | 5 minutes + 12 sec |     12 |             42% |
+    // | 5 minutes + 24 sec |     24 |             61% |
+    // | 6 minutes          |     60 |             84% |
+    // | 7 minutes          |    132 |             96% |
+    // | 10 minutes         |    300 |            105% |
+    // | 60 minutes         |   3300 |            112% |
+    // | ~1 days            |  86100 |            115% |
+    // | ~3 days            | 258900 |            125% |
+    // | ~7 days            | 604500 |               ∞ |
+    //
+    uint256 private constant _Q = 22.8811827075e18;
+    uint256 private constant _R = 103567.889099532e12;
+    uint256 private constant _S = 0.95e12;
+    uint256 private constant _M = 20.405429e6;
+    uint256 private constant _N = 7 days - LIQUIDATION_GRACE_PERIOD;
+
+    function computeAuctionAmounts(
+        Prices memory prices,
+        uint256 assets0,
+        uint256 assets1,
+        uint256 liabilities0,
+        uint256 liabilities1,
+        uint256 warnTime,
+        uint256 closeFactor
+    ) internal view returns (AuctionAmounts memory amounts, bool willBeHealthy) {
+        // Compute `assets` and `liabilities` like in `BalanceSheet.isSolvent`, except we round up `assets`
+        uint256 priceX128 = square(prices.c);
+        uint256 liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+        uint256 assets = assets1 + mulDiv128Up(assets0, priceX128);
 
         unchecked {
-            incentive1 = 0.08e8 * (auctionTime - LIQUIDATION_GRACE_PERIOD);
-            if (auctionTime > 3 * LIQUIDATION_GRACE_PERIOD) {
-                incentive1 -= 0.07354386e8 * (auctionTime - 3 * LIQUIDATION_GRACE_PERIOD);
+            uint256 t = _auctionTime(warnTime);
+            // If it's been less than 7 days since the `Warn`ing, the available incentives (`out0` and `out1`)
+            // scale with `closeFactor` and increase over time according to `auctionCurve`.
+            if (t < _N) {
+                liabilities *= auctionCurve(t) * closeFactor;
+                assets *= 1e16;
+
+                amounts.out0 = liabilities.fullMulDiv(assets0, assets).min(assets0);
+                amounts.out1 = liabilities.fullMulDiv(assets1, assets).min(assets1);
             }
-            incentive1 = (incentive1 * liabilities * closeFactor) / (1e8 * 10 minutes * 10_000);
+            // After 7 days, `auctionCurve` is essentially infinite. Assuming `closeFactor != 0`, their product
+            // would _also_ be infinite, so incentives are set to their maximum values. NOTE: The caller should
+            // validate this assumption.
+            else {
+                amounts.out0 = assets0;
+                amounts.out1 = assets1;
+            }
+
+            // Expected repay amounts always scale with `closeFactor`
+            amounts.repay0 = (liabilities0 * closeFactor) / 10000;
+            amounts.repay1 = (liabilities1 * closeFactor) / 10000;
+
+            // Check if the account will end up healthy, assuming transfers/repays are successful
+            willBeHealthy = isHealthy(
+                prices,
+                assets0 - amounts.out0,
+                assets1 - amounts.out1,
+                liabilities0 - amounts.repay0,
+                liabilities1 - amounts.repay1
+            );
+        }
+    }
+
+    function auctionCurve(uint256 t) internal pure returns (uint256) {
+        unchecked {
+            return _S + (_R / (_N - t)) - (_Q / (_M + 1e6 * t));
         }
     }
 
@@ -179,6 +241,12 @@ library BalanceSheet {
 
             a = uint160((sqrtMeanPriceX96 * 1e12).rawDiv(sqrtScaler).max(TickMath.MIN_SQRT_RATIO));
             b = uint160((sqrtMeanPriceX96 * sqrtScaler).rawDiv(1e12).min(TickMath.MAX_SQRT_RATIO));
+        }
+    }
+
+    function _auctionTime(uint256 warnTime) private view returns (uint256 auctionTime) {
+        unchecked {
+            return block.timestamp.zeroFloorSub(warnTime + LIQUIDATION_GRACE_PERIOD);
         }
     }
 
