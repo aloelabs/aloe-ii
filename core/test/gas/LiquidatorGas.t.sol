@@ -62,18 +62,17 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
 
         assertEq(lender0.borrowBalance(address(account)), 200e18);
 
-        vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), 10000, oracleSeed);
-
         setInterest(lender0, 10010);
 
         assertGt(lender0.borrowBalance(address(account)), 200e18);
         assertLt(lender0.borrowBalance(address(account)), 201e18);
 
+        account.warn(oracleSeed);
+        skip(LIQUIDATION_GRACE_PERIOD + 5 minutes);
         vm.resumeGasMetering();
 
         // MARK: actual command
-        account.liquidate(this, bytes(""), 1, oracleSeed);
+        account.liquidate(this, bytes(""), 10000, oracleSeed);
 
         vm.pauseGasMetering();
         assertEq(lender0.borrowBalance(address(account)), 0);
@@ -94,9 +93,6 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         assertEq(lender0.borrowBalance(address(account)), 200e18);
         assertEq(lender1.borrowBalance(address(account)), 20e18);
 
-        vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), 10000, oracleSeed);
-
         setInterest(lender0, 10010);
         setInterest(lender1, 10010);
 
@@ -105,6 +101,8 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         assertGt(lender1.borrowBalance(address(account)), 20e18);
         assertLt(lender1.borrowBalance(address(account)), 20.1e18);
 
+        account.warn(oracleSeed);
+        skip(LIQUIDATION_GRACE_PERIOD + 5 minutes);
         vm.resumeGasMetering();
 
         // MARK: actual command
@@ -136,6 +134,8 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         setInterest(lender0, 10010);
         setInterest(lender1, 10010);
 
+        account.warn(oracleSeed);
+        skip(LIQUIDATION_GRACE_PERIOD + 5 minutes);
         vm.resumeGasMetering();
 
         // MARK: actual command
@@ -167,9 +167,6 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
 
         account.warn(oracleSeed);
         skip(LIQUIDATION_GRACE_PERIOD + 5 minutes);
-        lender0.accrueInterest();
-        lender1.accrueInterest();
-
         vm.resumeGasMetering();
 
         // MARK: actual command
@@ -229,28 +226,26 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
     // ILiquidator
     receive() external payable {}
 
-    function swap1For0(
-        bytes calldata,
-        uint256,
-        uint256 expected0
-    ) external {
-        pool.swap(msg.sender, false, -int256(expected0), TickMath.MAX_SQRT_RATIO - 1, bytes(""));
-    }
+    function callback(bytes calldata, address, AuctionAmounts memory amounts) external {
+        int256 x = int256(amounts.out0) - int256(amounts.repay0);
+        int256 y = int256(amounts.out1) - int256(amounts.repay1);
 
-    function swap0For1(
-        bytes calldata,
-        uint256,
-        uint256 expected1
-    ) external {
-        pool.swap(msg.sender, true, -int256(expected1), TickMath.MIN_SQRT_RATIO + 1, bytes(""));
+        if (x >= 0 && y >= 0) {
+            // Don't need to do anything here
+        } else if (y < 0) {
+            pool.swap(address(this), true, y, TickMath.MIN_SQRT_RATIO + 1, bytes(""));
+        } else if (x < 0) {
+            pool.swap(address(this), false, x, TickMath.MAX_SQRT_RATIO - 1, bytes(""));
+        } else {
+            // Can't do much unless we want to donate
+        }
+
+        if (amounts.repay0 > 0) asset0.transfer(address(lender0), amounts.repay0);
+        if (amounts.repay1 > 0) asset1.transfer(address(lender1), amounts.repay1);
     }
 
     // IUniswapV3SwapCallback
-    function uniswapV3SwapCallback(
-        int256 amount0Delta,
-        int256 amount1Delta,
-        bytes calldata
-    ) external {
+    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata) external {
         if (amount0Delta > 0) asset0.transfer(msg.sender, uint256(amount0Delta));
         if (amount1Delta > 0) asset1.transfer(msg.sender, uint256(amount1Delta));
     }
@@ -269,7 +264,7 @@ contract LiquidatorGasTest is Test, IManager, ILiquidator {
         uint256 borrowBase = slot1 % (1 << 184);
         uint256 borrowIndex = slot1 >> 184;
 
-        uint256 newSlot1 = borrowBase + ((borrowIndex * amount / 10_000) << 184);
+        uint256 newSlot1 = borrowBase + (((borrowIndex * amount) / 10_000) << 184);
         vm.store(address(lender), ID, bytes32(newSlot1));
     }
 }

@@ -55,6 +55,52 @@ contract AttackingManager is IManager {
     }
 }
 
+contract Liquidator is ILiquidator {
+    receive() external payable {}
+
+    function callback(bytes calldata data, address, AuctionAmounts memory amounts) external {
+        (bool check, uint256 o0, uint256 o1, uint256 r0, uint256 r1) = abi.decode(
+            data,
+            (bool, uint256, uint256, uint256, uint256)
+        );
+        if (check) {
+            bool a = o0 <= amounts.out0 && o0 + 20 >= amounts.out0;
+            bool b = o1 <= amounts.out1 && o1 + 20 >= amounts.out1;
+            bool c = r0 <= amounts.repay0 && r0 + 10 >= amounts.repay0;
+            bool d = r1 <= amounts.repay1 && r1 + 10 >= amounts.repay1;
+
+            if (a && b && c && d) revert("AuctionAmounts matched!");
+            console2.log(o0, amounts.out0);
+            console2.log(o1, amounts.out1);
+            console2.log(r0, amounts.repay0);
+            console2.log(r1, amounts.repay1);
+            revert("AuctionAmounts mismatch");
+        }
+
+        int256 x = int256(amounts.out0) - int256(amounts.repay0);
+        int256 y = int256(amounts.out1) - int256(amounts.repay1);
+
+        IUniswapV3Pool pool = Borrower(payable(msg.sender)).UNISWAP_POOL();
+        ERC20 asset0 = Borrower(payable(msg.sender)).TOKEN0();
+        ERC20 asset1 = Borrower(payable(msg.sender)).TOKEN1();
+        address lender0 = address(Borrower(payable(msg.sender)).LENDER0());
+        address lender1 = address(Borrower(payable(msg.sender)).LENDER1());
+
+        if (x >= 0 && y >= 0) {
+            // Don't need to do anything here
+        } else if (y < 0) {
+            pool.swap(address(this), true, y, TickMath.MIN_SQRT_RATIO + 1, bytes(""));
+        } else if (x < 0) {
+            pool.swap(address(this), false, x, TickMath.MAX_SQRT_RATIO - 1, bytes(""));
+        } else {
+            // Can't do much unless we want to donate
+        }
+
+        if (amounts.repay0 > 0) asset0.transfer(address(lender0), amounts.repay0);
+        if (amounts.repay1 > 0) asset1.transfer(address(lender1), amounts.repay1);
+    }
+}
+
 contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
     uint256 constant BLOCK_TIME = 12 seconds;
 
@@ -67,9 +113,12 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
     Lender lender1;
     Borrower impl;
     Borrower account;
+    Liquidator liquidator;
 
     int256[] private _swapAmounts;
     bool private _recordSwapAmounts;
+
+    receive() external payable {}
 
     function setUp() public {
         vm.createSelectFork(vm.rpcUrl("mainnet"), 15_348_451);
@@ -81,6 +130,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         factory.createMarket(pool);
         (lender0, lender1, impl) = factory.getMarket(pool);
         account = factory.createBorrower(pool, address(this), bytes12(0));
+        liquidator = new Liquidator();
 
         // Warmup storage
         pool.slot0();
@@ -96,6 +146,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         vm.makePersistent(address(account));
         vm.makePersistent(address(oracle));
         vm.makePersistent(address(rateModel));
+        vm.makePersistent(address(liquidator));
 
         string[] memory cmd = new string[](4);
         cmd[0] = "tmux";
@@ -110,6 +161,27 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         state = uint8(bound(state, 0, 127));
         assertEq(state | 0x80, state + 128);
         assertEq((state | 0x80) & 0x7f, state);
+    }
+
+    function test_liquidateRequiresValidCloseFactor(
+        ILiquidator callee,
+        bytes memory data,
+        uint256 closeFactor,
+        uint40 oracleSeed
+    ) external {
+        if (closeFactor <= 10000) {
+            vm.selectFork(0);
+            vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(block.timestamp << 208)));
+
+            deal(address(asset1), address(account), 1);
+
+            vm.expectRevert(bytes("Aloe: zero impact"));
+            account.liquidate(callee, data, 0, 1 << 32);
+            return;
+        }
+
+        vm.expectRevert(bytes("Aloe: close"));
+        account.liquidate(callee, data, closeFactor, oracleSeed);
     }
 
     function test_permissionsModify(
@@ -250,14 +322,29 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         account.modify(this, abi.encode(0, borrow1, true), 1 << 32);
     }
 
-    function test_cannotWarnOrLiquidateEmptyAccount() external {
+    function test_cannotWarnEmptyAccount() external {
         vm.selectFork(0);
 
         vm.expectRevert(bytes("Aloe: healthy"));
         account.warn(1 << 32);
+    }
 
-        vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(ILiquidator(payable(address(0))), "", 1, 1 << 32);
+    function test_cannotLiquidateWithoutWarning(
+        ILiquidator callee,
+        bytes memory data,
+        uint256 closeFactor,
+        uint40 oracleSeed
+    ) external {
+        closeFactor = (closeFactor % 10000) + 1;
+
+        vm.expectRevert(bytes(""));
+        account.liquidate(callee, data, closeFactor, oracleSeed);
+
+        vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(block.timestamp << 208)));
+
+        vm.mockCallRevert(address(factory), abi.encodeCall(factory.getParameters, (pool)), bytes("abcdefg"));
+        vm.expectRevert(bytes("abcdefg"));
+        account.liquidate(callee, data, closeFactor, oracleSeed);
     }
 
     function test_cannotBorrow0WithoutCollateral() external {
@@ -411,7 +498,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         deal(address(asset0), address(account), collateral0);
         deal(address(asset1), address(lender1), 10 * borrow1);
         deal(address(account), ante);
-        lender1.deposit(10 * borrow1, address(this));        
+        lender1.deposit(10 * borrow1, address(this));
 
         account.modify(this, abi.encode(0, borrow1, true), 1 << 32);
 
@@ -538,6 +625,140 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         factory.pause(pool, 1 << 32);
         (, , , uint32 pausedUntilTime) = factory.getParameters(pool);
         assertGt(pausedUntilTime, block.timestamp);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                              LIQUIDATION
+    //////////////////////////////////////////////////////////////*/
+
+    uint256[] private liquidationTimes = [
+        0 minutes,
+        2 minutes,
+        5 minutes,
+        5 minutes + 12 seconds,
+        5 minutes + 24 seconds,
+        5 minutes + 36 seconds,
+        5 minutes + 48 seconds,
+        6 minutes,
+        7 minutes,
+        5 minutes + 168 seconds,
+        8 minutes,
+        9 minutes,
+        10 minutes,
+        5 minutes + 1 days,
+        5 minutes + 2 days,
+        5 minutes + 5 days,
+        7 days
+    ];
+
+    uint256[] private liquidationIncentives = [
+        0,
+        0,
+        0,
+        0.415240559229e12,
+        0.606056042223e12,
+        0.715682709971e12,
+        0.786848126590e12,
+        0.836772585073e12,
+        0.958397119151e12,
+        0.999929300389e12,
+        1.007204752788e12,
+        1.033528701917e12,
+        1.050000037841e12,
+        1.149634653251e12,
+        1.189774687552e12,
+        1.550340596798e12,
+        1000000e12
+    ];
+
+    function test_liquidateToken0Token0(uint256 closeFactor) external {
+        closeFactor = bound(closeFactor, 1, 10_000);
+        vm.selectFork(0);
+
+        // Minimize IV, maximize LTV
+        _mockIV(account.ORACLE(), pool, 0);
+
+        // Prepare lender0 to be borrowed from
+        deal(address(asset0), address(lender0), 10000e6);
+        lender0.deposit(10000e6, address(0));
+
+        uint256 collateral0 = 100e6;
+        uint256 borrow0 = 99.50248e6;
+
+        // Give the account 100e6 token0 collateral and borrow 99e6 token0
+        deal(address(asset0), address(account), collateral0);
+        deal(address(account), DEFAULT_ANTE);
+        bytes memory data = abi.encode(borrow0, 0, true);
+        account.modify(this, data, 1 << 32);
+
+        // Accrue interest so the account is unhealthy
+        uint256 inflation = 10001;
+        _setInterest(lender0, inflation);
+
+        account.warn(1 << 32);
+        uint256 snapshot = vm.snapshot();
+
+        for (uint256 i; i < liquidationTimes.length; i++) {
+            skip(liquidationTimes[i]);
+            borrow0 = lender0.borrowBalance(address(account));
+
+            uint256 out0Expected = (borrow0 * liquidationIncentives[i] * closeFactor) / 1e16;
+            if (out0Expected > collateral0) {
+                out0Expected = collateral0;
+            }
+            uint256 repay0Expected = (borrow0 * closeFactor) / 10_000;
+
+            data = abi.encode(true, out0Expected, 0, repay0Expected, 0);
+            vm.expectRevert(bytes("AuctionAmounts matched!"));
+            account.liquidate(liquidator, data, closeFactor, 1 << 32);
+
+            vm.revertTo(snapshot);
+        }
+    }
+
+    function test_liquidateToken1Token1(uint256 closeFactor) external {
+        closeFactor = bound(closeFactor, 1, 10_000);
+        vm.selectFork(0);
+
+        // Minimize IV, maximize LTV
+        _mockIV(account.ORACLE(), pool, 0);
+
+        // Prepare lender1 to be borrowed from
+        deal(address(asset1), address(lender1), 10000e18);
+        lender1.deposit(10000e18, address(0));
+
+        uint256 collateral1 = 10e18;
+        uint256 borrow1 = 9.950248e18;
+
+        // Give the account 10e18 token1 collateral and borrow 9.9e18 token1
+        deal(address(asset1), address(account), collateral1);
+        deal(address(account), DEFAULT_ANTE);
+        bytes memory data = abi.encode(0, borrow1, true);
+        account.modify(this, data, 1 << 32);
+
+        // Accrue interest so the account is unhealthy
+        uint256 inflation = 10001;
+        _setInterest(lender1, inflation);
+
+        account.warn(1 << 32);
+        uint256 snapshot = vm.snapshot();
+
+        for (uint256 i; i < liquidationTimes.length; i++) {
+            skip(liquidationTimes[i]);
+            borrow1 = lender1.borrowBalance(address(account));
+
+            uint256 out1Expected = (borrow1 * liquidationIncentives[i] * closeFactor) / 1e16;
+            if (out1Expected > collateral1) {
+                out1Expected = collateral1;
+            }
+            uint256 repay1Expected = (borrow1 * closeFactor) / 10_000;
+
+            data = abi.encode(true, 0, out1Expected, 0, repay1Expected);
+            vm.expectRevert(bytes("AuctionAmounts matched!"));
+            account.liquidate(liquidator, data, closeFactor, 1 << 32);
+
+            vm.revertTo(snapshot);
+        }
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -681,16 +902,24 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
             console2.log("In their Borrower, attacker gained:");
             console2.log("-> USDC:", -int256(borrows0 / 1e6 + 100_000));
             console2.log("-> WETH:", eth / 1e18);
-            console2.log(
-                "-> (dollar value) ",
-                int256((eth << 96) / current) - int256(borrows0 / 1e6 + 100_000)
-            );
+            console2.log("-> (dollar value) ", int256((eth << 96) / current) - int256(borrows0 / 1e6 + 100_000));
         }
     }
 
     /*//////////////////////////////////////////////////////////////
                                 HELPERS
     //////////////////////////////////////////////////////////////*/
+
+    function _setInterest(Lender lender, uint256 bips) private {
+        bytes32 ID = bytes32(uint256(1));
+        uint256 slot1 = uint256(vm.load(address(lender), ID));
+
+        uint256 borrowBase = slot1 % (1 << 184);
+        uint256 borrowIndex = ((slot1 >> 184) * bips) / 10_000;
+
+        uint256 newSlot1 = borrowBase + (borrowIndex << 184);
+        vm.store(address(lender), ID, bytes32(newSlot1));
+    }
 
     function _swapTo(uint160 sqrtPriceX96) private {
         (uint160 current, , , , , , ) = pool.slot0();
