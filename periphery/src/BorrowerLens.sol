@@ -7,9 +7,7 @@ import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
 import {MAX_LEVERAGE, LIQUIDATION_INCENTIVE} from "aloe-ii-core/libraries/constants/Constants.sol";
 import {Assets, Prices} from "aloe-ii-core/libraries/BalanceSheet.sol";
-import {LiquidityAmounts} from "aloe-ii-core/libraries/LiquidityAmounts.sol";
 import {square, mulDiv128, mulDiv128Up} from "aloe-ii-core/libraries/MulDiv.sol";
-import {TickMath} from "aloe-ii-core/libraries/TickMath.sol";
 import {Borrower} from "aloe-ii-core/Borrower.sol";
 import {Factory} from "aloe-ii-core/Factory.sol";
 
@@ -37,38 +35,38 @@ contract BorrowerLens {
     }
 
     /// @dev Mirrors the logic in `BalanceSheet.isHealthy`, but returns numbers instead of a boolean
-    function getHealth(
-        Borrower account,
-        bool previewInterest
-    ) external view returns (uint256 healthA, uint256 healthB) {
-        (Prices memory prices, ) = account.getPrices(1 << 32);
-        Assets memory mem = _getAssets(account, account.getUniswapPositions(), prices);
-        (uint256 liabilities0, uint256 liabilities1) = getLiabilities(account, previewInterest);
+    function getHealth(Borrower account) external view returns (uint256 healthA, uint256 healthB) {
+        (Prices memory prices, , , ) = account.getPrices(1 << 32);
+        Assets memory assets = account.getAssets();
+        (uint256 liabilities0, uint256 liabilities1) = account.getLiabilities();
 
         unchecked {
+            uint256 augmented0;
+            uint256 augmented1;
+
             // The optimizer eliminates the conditional in `divUp`; don't worry about gas golfing that
-            liabilities0 +=
+            augmented0 =
+                liabilities0 +
                 liabilities0.divUp(MAX_LEVERAGE) +
-                liabilities0.zeroFloorSub(mem.fixed0 + mem.fluid0C).divUp(LIQUIDATION_INCENTIVE);
-            liabilities1 +=
+                liabilities0.zeroFloorSub(assets.amount0AtA).divUp(LIQUIDATION_INCENTIVE);
+            augmented1 =
+                liabilities1 +
                 liabilities1.divUp(MAX_LEVERAGE) +
-                liabilities1.zeroFloorSub(mem.fixed1 + mem.fluid1C).divUp(LIQUIDATION_INCENTIVE);
+                liabilities1.zeroFloorSub(assets.amount1AtA).divUp(LIQUIDATION_INCENTIVE);
+
+            healthA = _health(prices.a, assets.amount0AtA, assets.amount1AtA, augmented0, augmented1);
+
+            augmented0 =
+                liabilities0 +
+                liabilities0.divUp(MAX_LEVERAGE) +
+                liabilities0.zeroFloorSub(assets.amount0AtB).divUp(LIQUIDATION_INCENTIVE);
+            augmented1 =
+                liabilities1 +
+                liabilities1.divUp(MAX_LEVERAGE) +
+                liabilities1.zeroFloorSub(assets.amount1AtB).divUp(LIQUIDATION_INCENTIVE);
+
+            healthB = _health(prices.b, assets.amount0AtB, assets.amount1AtB, augmented0, augmented1);
         }
-
-        // combine
-        uint256 priceX128;
-        uint256 liabilities;
-        uint256 assets;
-
-        priceX128 = square(prices.a);
-        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
-        assets = mem.fluid1A + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
-        healthA = liabilities > 0 ? (assets * 1e18) / liabilities : 1000e18;
-
-        priceX128 = square(prices.b);
-        liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
-        assets = mem.fluid1B + mem.fixed1 + mulDiv128(mem.fixed0, priceX128);
-        healthB = liabilities > 0 ? (assets * 1e18) / liabilities : 1000e18;
     }
 
     function isInUse(Borrower borrower) external view returns (bool, IUniswapV3Pool) {
@@ -113,63 +111,17 @@ contract BorrowerLens {
         }
     }
 
-    function getAssets(Borrower account) external view returns (Assets memory) {
-        (Prices memory prices, ) = account.getPrices(1 << 32);
-        return _getAssets(account, account.getUniswapPositions(), prices);
+    function _health(
+        uint160 sqrtPriceX96,
+        uint256 assets0,
+        uint256 assets1,
+        uint256 liabilities0,
+        uint256 liabilities1
+    ) private pure returns (uint256 health) {
+        uint256 priceX128 = square(sqrtPriceX96);
+        uint256 liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+        uint256 assets = assets1 + mulDiv128(assets0, priceX128);
+
+        health = liabilities > 0 ? (assets * 1e18) / liabilities : 1000e18;
     }
-
-    function getLiabilities(
-        Borrower account,
-        bool previewInterest
-    ) public view returns (uint256 amount0, uint256 amount1) {
-        if (previewInterest) {
-            amount0 = account.LENDER0().borrowBalance(address(account));
-            amount1 = account.LENDER1().borrowBalance(address(account));
-        } else {
-            amount0 = account.LENDER0().borrowBalanceStored(address(account));
-            amount1 = account.LENDER1().borrowBalanceStored(address(account));
-        }
-    }
-
-    /* solhint-disable code-complexity */
-
-    /// @dev Mirrors the logic in `Borrower._getAssets`
-    function _getAssets(
-        Borrower account,
-        int24[] memory positions,
-        Prices memory prices
-    ) private view returns (Assets memory assets) {
-        assets.fixed0 = account.TOKEN0().balanceOf(address(account));
-        assets.fixed1 = account.TOKEN1().balanceOf(address(account));
-
-        IUniswapV3Pool pool = account.UNISWAP_POOL();
-
-        uint256 count = positions.length;
-        unchecked {
-            for (uint256 i; i < count; i += 2) {
-                // Load lower and upper ticks from the `positions` array
-                int24 l = positions[i];
-                int24 u = positions[i + 1];
-                // Fetch amount of `liquidity` in the position
-                (uint128 liquidity, , , , ) = pool.positions(keccak256(abi.encodePacked(address(account), l, u)));
-
-                if (liquidity == 0) continue;
-
-                // Compute lower and upper sqrt ratios
-                uint160 L = TickMath.getSqrtRatioAtTick(l);
-                uint160 U = TickMath.getSqrtRatioAtTick(u);
-
-                // Compute the value of `liquidity` (in terms of token1) at both probe prices
-                assets.fluid1A += LiquidityAmounts.getValueOfLiquidity(prices.a, L, U, liquidity);
-                assets.fluid1B += LiquidityAmounts.getValueOfLiquidity(prices.b, L, U, liquidity);
-
-                // Compute what amounts underlie `liquidity` at the current TWAP
-                (uint256 amount0, uint256 amount1) = LiquidityAmounts.getAmountsForLiquidity(prices.c, L, U, liquidity);
-                assets.fluid0C += amount0;
-                assets.fluid1C += amount1;
-            }
-        }
-    }
-
-    /* solhint-enable code-complexity */
 }
