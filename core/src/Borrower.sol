@@ -366,6 +366,17 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /**
+     * @notice Allows the `owner()` to transfer an `amount` of ETH to any `recipient` they want. Only works within
+     * the `modify` callback.
+     * @param amount The amount of ETH to transfer
+     * @param recipient Receives the ETH
+     */
+    function transferEth(uint256 amount, address payable recipient) external onlyInModifyCallback {
+        // WARNING: External call to user-specified address
+        SafeTransferLib.safeTransferETH(recipient, amount);
+    }
+
+    /**
      * @notice Allows the `owner()` to borrow funds from `LENDER0` and `LENDER1`. Only works within the `modify`
      * callback.
      * @dev If `amount0 > 0` and interest hasn't yet accrued in this block for `LENDER0`, it will accrue
@@ -390,15 +401,6 @@ contract Borrower is IUniswapV3MintCallback {
      */
     function repay(uint256 amount0, uint256 amount1) external onlyInModifyCallback {
         _repay(amount0, amount1);
-    }
-
-    /**
-     * @notice Allows the `owner()` to withdraw their ante. Only works within the `modify` callback.
-     * @param recipient Receives the ante (as Ether)
-     */
-    function withdrawAnte(address payable recipient) external onlyInModifyCallback {
-        // WARNING: External call to user-specified address
-        SafeTransferLib.safeTransferETH(recipient, address(this).balance);
     }
 
     /**
