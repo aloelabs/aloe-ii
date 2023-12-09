@@ -21,6 +21,27 @@ import {BalanceSheet, AuctionAmounts, Assets, Prices, TickMath, square} from "sr
 import {LiquidityAmounts} from "src/libraries/LiquidityAmounts.sol";
 
 contract LibraryWrapper {
+    function computeAuctionAmounts(
+        Prices memory prices,
+        uint256 assets0,
+        uint256 assets1,
+        uint256 liabilities0,
+        uint256 liabilities1,
+        uint256 warnTime,
+        uint256 closeFactor
+    ) external view returns (AuctionAmounts memory, bool) {
+        return
+            BalanceSheet.computeAuctionAmounts(
+                prices,
+                assets0,
+                assets1,
+                liabilities0,
+                liabilities1,
+                warnTime,
+                closeFactor
+            );
+    }
+
     function isHealthy(
         Prices memory prices,
         Assets memory mem,
@@ -52,7 +73,11 @@ contract LibraryWrapper {
 }
 
 contract BalanceSheetTest is Test {
-    function setUp() public {}
+    LibraryWrapper wrapper;
+
+    function setUp() public {
+        wrapper = new LibraryWrapper();
+    }
 
     // TODO: (for Borrower) test that liquidate() fails if the liquidator doesn't pay back at least in0 or in1 (for all close factors)
 
@@ -71,7 +96,8 @@ contract BalanceSheetTest is Test {
         warnTime = bound(warnTime, block.timestamp - LIQUIDATION_GRACE_PERIOD + 1, block.timestamp);
         closeFactor = bound(closeFactor, 0, 10000);
 
-        (AuctionAmounts memory amounts, ) = BalanceSheet.computeAuctionAmounts(
+        vm.expectRevert(bytes("Aloe: grace"));
+        (AuctionAmounts memory amounts, ) = wrapper.computeAuctionAmounts(
             prices,
             assets0,
             assets1,
@@ -80,10 +106,6 @@ contract BalanceSheetTest is Test {
             warnTime,
             closeFactor
         );
-        assertEq(amounts.out0, 0);
-        assertEq(amounts.out1, 0);
-        assertEq(amounts.repay0, (liabilities0 * closeFactor) / 10000);
-        assertEq(amounts.repay1, (liabilities1 * closeFactor) / 10000);
 
         warnTime = block.timestamp - 7 days;
         (amounts, ) = BalanceSheet.computeAuctionAmounts(
@@ -113,7 +135,7 @@ contract BalanceSheetTest is Test {
         vm.assume(assets0 > 0 && assets1 > 0);
         vm.warp(10000000000);
 
-        warnTime = bound(warnTime, block.timestamp - 7 days, block.timestamp);
+        warnTime = bound(warnTime, block.timestamp - 7 days, block.timestamp - LIQUIDATION_GRACE_PERIOD);
         closeFactor = bound(closeFactor, 0, 10000);
 
         (AuctionAmounts memory amounts, ) = BalanceSheet.computeAuctionAmounts(
@@ -150,13 +172,13 @@ contract BalanceSheetTest is Test {
         Prices memory prices = Prices(0, 0, 1 << 96);
         AuctionAmounts memory amounts;
 
-        (amounts, ) = BalanceSheet.computeAuctionAmounts(prices, 1e18, 0, 1e18, 0, 0, 0);
+        (amounts, ) = BalanceSheet.computeAuctionAmounts(prices, 1e18, 0, 1e18, 0, 10000000000 - 7 days, 0);
         assertEq(amounts.out0, 1e18);
         assertEq(amounts.out1, 0);
         assertEq(amounts.repay0, 0);
         assertEq(amounts.repay1, 0);
 
-        (amounts, ) = BalanceSheet.computeAuctionAmounts(prices, 1e18, 0, 1e18, 0, 0, 10000);
+        (amounts, ) = BalanceSheet.computeAuctionAmounts(prices, 1e18, 0, 1e18, 0, 10000000000 - 7 days, 10000);
         assertEq(amounts.out0, 1e18);
         assertEq(amounts.out1, 0);
         assertEq(amounts.repay0, 1e18);
@@ -207,8 +229,6 @@ contract BalanceSheetTest is Test {
 
         p[4] = uint160(bound(p[4], TickMath.MIN_SQRT_RATIO + 1, p[0]));
         p[5] = uint160(bound(p[5], p[4], p[1]));
-
-        LibraryWrapper wrapper = new LibraryWrapper();
 
         uint256 i;
         while (i < 32) {
@@ -279,7 +299,6 @@ contract BalanceSheetTest is Test {
         Assets memory assets = Assets(amount0AtA, amount1AtA, amount0AtB, amount1AtB);
         Prices memory prices = Prices(a, b, c);
 
-        LibraryWrapper wrapper = new LibraryWrapper();
         try wrapper.isHealthy(prices, assets, 0, 0) returns (bool isHealthy) {
             assertTrue(isHealthy);
         } catch {
@@ -296,7 +315,6 @@ contract BalanceSheetTest is Test {
     }
 
     function test_fuzz_alwaysSolventWhenLiabilitiesAre0(uint160 sqrtPriceX96, uint128 amount0, uint128 amount1) public {
-        LibraryWrapper wrapper = new LibraryWrapper();
         try wrapper.isSolvent(sqrtPriceX96, amount0, amount1, 0, 0) returns (bool isHealthy) {
             assertTrue(isHealthy);
         } catch {

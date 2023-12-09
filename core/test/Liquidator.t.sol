@@ -129,16 +129,19 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(asset0.balanceOf(address(account)), 201e18 + 1750);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
+        account.warn(1 << 32);
 
         _setInterest(lender0, 10010);
         assertEq(lender0.borrowBalance(address(account)), 200.2e18);
 
+        account.warn(1 << 32);
+        skip(LIQUIDATION_GRACE_PERIOD + 170 seconds);
+
         // MARK: actual command
-        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
+        account.liquidate(this, abi.encode(uint256(0)), closeFactor, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 0);
-        assertEq(asset0.balanceOf(address(account)), 0.8e18 + 1750);
+        assertEq(asset0.balanceOf(address(account)), 0.558651792067358746e18);
     }
 
     function test_spec_repayETH() public {
@@ -154,16 +157,19 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(asset1.balanceOf(address(account)), 20.1e18);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
+        account.warn(1 << 32);
 
         _setInterest(lender1, 10010);
         assertEq(lender1.borrowBalance(address(account)), 20.02e18);
 
+        account.warn(1 << 32);
+        skip(LIQUIDATION_GRACE_PERIOD + 170 seconds);
+
         // MARK: actual command
-        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
+        account.liquidate(this, abi.encode(uint256(0)), closeFactor, (1 << 32));
 
         assertEq(lender1.borrowBalance(address(account)), 0);
-        assertEq(asset1.balanceOf(address(account)), 0.08e18);
+        assertEq(asset1.balanceOf(address(account)), 0.055865282831508020e18);
     }
 
     function test_spec_repayDAIAndETH() public {
@@ -182,20 +188,23 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(asset1.balanceOf(address(account)), 20.1e18 + 1);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
+        account.warn(1 << 32);
 
         _setInterest(lender0, 10010);
         _setInterest(lender1, 10010);
         assertEq(lender0.borrowBalance(address(account)), 200.2e18);
         assertEq(lender1.borrowBalance(address(account)), 20.02e18);
 
+        account.warn(1 << 32);
+        skip(LIQUIDATION_GRACE_PERIOD + 170 seconds);
+
         // MARK: actual command
-        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
+        account.liquidate(this, abi.encode(uint256(0)), closeFactor, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 0);
         assertEq(lender1.borrowBalance(address(account)), 0);
-        assertEq(asset0.balanceOf(address(account)), 0.8e18);
-        assertEq(asset1.balanceOf(address(account)), 0.08e18 + 1);
+        assertEq(asset0.balanceOf(address(account)), 0.558652822916151063e18);
+        assertEq(asset1.balanceOf(address(account)), 0.055865282291615107e18);
     }
 
     function test_spec_repayDAIAndETHWithUniswapPosition() public {
@@ -216,20 +225,23 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(lender1.borrowBalance(address(account)), 20e18);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
+        account.warn(1 << 32);
 
         _setInterest(lender0, 10010);
         _setInterest(lender1, 10010);
         assertEq(lender0.borrowBalance(address(account)), 200.2e18);
         assertEq(lender1.borrowBalance(address(account)), 20.02e18);
 
+        account.warn(1 << 32);
+        skip(LIQUIDATION_GRACE_PERIOD + 170 seconds);
+
         // MARK: actual command
-        account.liquidate(this, bytes(""), closeFactor, (1 << 32));
+        account.liquidate(this, abi.encode(uint256(0)), closeFactor, (1 << 32));
 
         assertEq(lender0.borrowBalance(address(account)), 0);
         assertEq(lender1.borrowBalance(address(account)), 0);
-        assertEq(asset0.balanceOf(address(account)), 899999999999999999);
-        assertEq(asset1.balanceOf(address(account)), 79999999999999999);
+        assertEq(asset0.balanceOf(address(account)), 559450576288129311);
+        assertEq(asset1.balanceOf(address(account)), 55917238107366481);
 
         (uint128 liquidity, , , , ) = pool.positions(
             keccak256(abi.encodePacked(address(account), int24(-75600), int24(-75540)))
@@ -261,7 +273,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(asset0.balanceOf(address(account)), 0);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), 1, (1 << 32));
+        account.warn(1 << 32);
 
         _setInterest(lender0, 10010);
         debt = lender0.borrowBalance(address(account));
@@ -357,7 +369,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(asset1.balanceOf(address(account)), 0);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), 10000, (1 << 32));
+        account.warn(1 << 32);
 
         _setInterest(lender1, 10010);
         borrow1 = (borrow1 * 10010) / 10000;
@@ -408,7 +420,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(asset0.balanceOf(address(account)), 0);
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), 10000, (1 << 32));
+        account.warn(1 << 32);
 
         // increase price of DAI by 1 tick
         {
@@ -470,7 +482,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         account.modify(this, data, (1 << 32));
 
         vm.expectRevert(bytes("Aloe: healthy"));
-        account.liquidate(this, bytes(""), 10000, (1 << 32));
+        account.warn(1 << 32);
 
         // increase price of DAI by 1 tick
         {
@@ -490,20 +502,20 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
             );
         }
 
-        vm.expectRevert(bytes("Aloe: grace"));
-        account.liquidate(this, bytes(""), 10000, (1 << 32));
+        vm.expectRevert();
+        account.liquidate(this, bytes(""), 10000, 1 << 32);
 
-        account.warn((1 << 32));
-
-        vm.expectRevert(bytes("Aloe: grace"));
-        account.liquidate(this, bytes(""), 10000, (1 << 32));
-
-        skip(LIQUIDATION_GRACE_PERIOD); // `(1 << 32)` will be a bit off after this
+        account.warn(1 << 32);
 
         vm.expectRevert(bytes("Aloe: grace"));
-        account.liquidate(this, bytes(""), 10000, (1 << 32));
+        account.liquidate(this, bytes(""), 10000, 1 << 32);
 
-        skip(TIME_OF_5_PERCENT);
+        skip(LIQUIDATION_GRACE_PERIOD - 1);
+
+        vm.expectRevert(bytes("Aloe: grace"));
+        account.liquidate(this, bytes(""), 10000, 1 << 32);
+
+        skip(TIME_OF_5_PERCENT + 1);
         borrow0 = lender0.borrowBalance(address(account));
 
         (prices, , , ) = account.getPrices(1 << 32);
@@ -568,7 +580,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         if (expected == type(uint256).max) {
             Borrower(payable(msg.sender)).liquidate(this, data, 1, (1 << 32));
         } else if (expected > 0) {
-            assertApproxEqAbs(x > 0 ? amounts.out0 : amounts.out1, expected, 1);
+            assertApproxEqRel(x > 0 ? amounts.out0 : amounts.out1, expected, 0.0001e18);
         }
     }
 

@@ -12,6 +12,7 @@ import {
     MAX_LEVERAGE,
     PROBE_SQRT_SCALER_MIN,
     PROBE_SQRT_SCALER_MAX,
+    LIQUIDATION_GRACE_PERIOD,
     LTV_MIN,
     LTV_MAX,
     UNISWAP_AVG_WINDOW
@@ -171,7 +172,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
     ) external {
         if (closeFactor <= 10000) {
             vm.selectFork(0);
-            vm.store(address(account), bytes32(uint256(0)), bytes32(uint256(block.timestamp << 208)));
+            vm.store(address(account), bytes32(uint256(0)), bytes32(uint256((block.timestamp - LIQUIDATION_GRACE_PERIOD) << 208)));
 
             deal(address(asset1), address(account), 1);
 
@@ -313,7 +314,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         deal(address(asset1), address(lender1), 10 * borrow1);
         lender1.deposit(10 * borrow1, address(this));
 
-        vm.expectRevert(bytes("Aloe: missing ante / sus price"));
+        vm.expectRevert(bytes("Aloe: conditions"));
         account.modify(this, abi.encode(0, borrow1, true), 1 << 32);
 
         (uint216 ante, , , ) = factory.getParameters(pool);
