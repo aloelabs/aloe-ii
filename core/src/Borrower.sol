@@ -400,7 +400,14 @@ contract Borrower is IUniswapV3MintCallback {
      * @param amount1 The amount of `TOKEN1` to repay
      */
     function repay(uint256 amount0, uint256 amount1) external onlyInModifyCallback {
-        _repay(amount0, amount1);
+        if (amount0 > 0) {
+            TOKEN0.safeTransfer(address(LENDER0), amount0);
+            LENDER0.repay(amount0, address(this));
+        }
+        if (amount1 > 0) {
+            TOKEN1.safeTransfer(address(LENDER1), amount1);
+            LENDER1.repay(amount1, address(this));
+        }
     }
 
     /**
@@ -524,16 +531,5 @@ contract Borrower is IUniswapV3MintCallback {
     ) private returns (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) {
         (burned0, burned1) = UNISWAP_POOL.burn(lower, upper, liquidity);
         (collected0, collected1) = UNISWAP_POOL.collect(recipient, lower, upper, type(uint128).max, type(uint128).max);
-    }
-
-    function _repay(uint256 amount0, uint256 amount1) private {
-        if (amount0 > 0) {
-            TOKEN0.safeTransfer(address(LENDER0), amount0);
-            LENDER0.repay(amount0, address(this));
-        }
-        if (amount1 > 0) {
-            TOKEN1.safeTransfer(address(LENDER1), amount1);
-            LENDER1.repay(amount1, address(this));
-        }
     }
 }
