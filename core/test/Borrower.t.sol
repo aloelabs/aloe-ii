@@ -234,7 +234,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         subCommands[2] = abi.encodeCall(Borrower.transfer, (0, 0, address(0)));
         subCommands[3] = abi.encodeCall(Borrower.borrow, (0, 0, address(0)));
         subCommands[4] = abi.encodeCall(Borrower.repay, (0, 0));
-        subCommands[5] = abi.encodeCall(Borrower.withdrawAnte, payable(address(0)));
+        subCommands[5] = abi.encodeCall(Borrower.transferEth, (address(account).balance, payable(address(0))));
 
         for (uint256 i = 0; i < subCommands.length; i++) {
             vm.expectRevert(bytes(""));
