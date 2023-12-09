@@ -246,7 +246,8 @@ library BalanceSheet {
 
     function _auctionTime(uint256 warnTime) private view returns (uint256 auctionTime) {
         unchecked {
-            return block.timestamp.zeroFloorSub(warnTime + LIQUIDATION_GRACE_PERIOD);
+            require(warnTime > 0 && block.timestamp >= warnTime + LIQUIDATION_GRACE_PERIOD, "Aloe: grace");
+            return block.timestamp - (warnTime + LIQUIDATION_GRACE_PERIOD);
         }
     }
 

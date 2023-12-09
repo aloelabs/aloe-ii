@@ -702,15 +702,21 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
             skip(liquidationTimes[i]);
             borrow0 = lender0.borrowBalance(address(account));
 
-            uint256 out0Expected = (borrow0 * liquidationIncentives[i] * closeFactor) / 1e16;
-            if (out0Expected > collateral0) {
-                out0Expected = collateral0;
-            }
-            uint256 repay0Expected = (borrow0 * closeFactor) / 10_000;
+            if (i < 2) {
+                data = abi.encode(false, 0, 0, 0, 0);
+                vm.expectRevert(bytes("Aloe: grace"));
+                account.liquidate(liquidator, data, closeFactor, 1 << 32);
+            } else {
+                uint256 out0Expected = (borrow0 * liquidationIncentives[i] * closeFactor) / 1e16;
+                if (out0Expected > collateral0) {
+                    out0Expected = collateral0;
+                }
+                uint256 repay0Expected = (borrow0 * closeFactor) / 10_000;
 
-            data = abi.encode(true, out0Expected, 0, repay0Expected, 0);
-            vm.expectRevert(bytes("AuctionAmounts matched!"));
-            account.liquidate(liquidator, data, closeFactor, 1 << 32);
+                data = abi.encode(true, out0Expected, 0, repay0Expected, 0);
+                vm.expectRevert(bytes("AuctionAmounts matched!"));
+                account.liquidate(liquidator, data, closeFactor, 1 << 32);
+            }
 
             vm.revertTo(snapshot);
         }
@@ -747,15 +753,21 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
             skip(liquidationTimes[i]);
             borrow1 = lender1.borrowBalance(address(account));
 
-            uint256 out1Expected = (borrow1 * liquidationIncentives[i] * closeFactor) / 1e16;
-            if (out1Expected > collateral1) {
-                out1Expected = collateral1;
-            }
-            uint256 repay1Expected = (borrow1 * closeFactor) / 10_000;
+            if (i < 2) {
+                data = abi.encode(false, 0, 0, 0, 0);
+                vm.expectRevert(bytes("Aloe: grace"));
+                account.liquidate(liquidator, data, closeFactor, 1 << 32);
+            } else {
+                uint256 out1Expected = (borrow1 * liquidationIncentives[i] * closeFactor) / 1e16;
+                if (out1Expected > collateral1) {
+                    out1Expected = collateral1;
+                }
+                uint256 repay1Expected = (borrow1 * closeFactor) / 10_000;
 
-            data = abi.encode(true, 0, out1Expected, 0, repay1Expected);
-            vm.expectRevert(bytes("AuctionAmounts matched!"));
-            account.liquidate(liquidator, data, closeFactor, 1 << 32);
+                data = abi.encode(true, 0, out1Expected, 0, repay1Expected);
+                vm.expectRevert(bytes("AuctionAmounts matched!"));
+                account.liquidate(liquidator, data, closeFactor, 1 << 32);
+            }
 
             vm.revertTo(snapshot);
         }

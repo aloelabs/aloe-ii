@@ -17,6 +17,8 @@ import {Lender} from "./Lender.sol";
 import {VolatilityOracle} from "./VolatilityOracle.sol";
 
 interface ILiquidator {
+    receive() external payable;
+
     /**
      * @notice Transfers `amounts.out0` and `amounts.out1` to the liquidator with the expectation that they'll
      * transfer `amounts.repay0` and `amounts.repay1` to the appropriate `Lender`s, executing swaps if necessary.
@@ -162,6 +164,34 @@ contract Borrower is IUniswapV3MintCallback {
     }
 
     /**
+     * @notice Clears the warning state if the account is healthy and has a full ante
+     * @dev If you bring the account back to health via a `modify` call, the warning state is cleared
+     * automatically. However, if borrowing is paused and `modify` is restricted, you may want to repay
+     * the `Lender`(s) directly and use this to clear the warning.
+     * @param oracleSeed The indices of `UNISWAP_POOL.observations` where we start our search for
+     * the 30-minute-old (lowest 16 bits) and 60-minute-old (next 16 bits) observations when getting
+     * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
+     */
+    function clear(uint40 oracleSeed) external payable {
+        uint256 slot0_ = slot0;
+        // Essentially `slot0.state == State.Ready && slot0.warnTime > 0`
+        require(slot0_ & SLOT0_MASK_STATE == 0 && slot0_ & SLOT0_MASK_AUCTION > 0);
+
+        // Fetch prices from oracle
+        (Prices memory prices, , , uint208 ante) = getPrices(oracleSeed);
+        // Tally assets
+        Assets memory assets = _getAssets(slot0_, prices);
+        // Fetch liabilities from lenders
+        (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
+        // Ensure the warning can only be cleared for healthy accounts with replenished ante
+        require(address(this).balance >= ante, "Aloe: conditions");
+        require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
+
+        // End auction
+        slot0 = slot0_ & ~SLOT0_MASK_AUCTION;
+    }
+
+    /**
      * @notice Liquidates the borrower, using all available assets to pay down liabilities. `callee` must
      * transfer at least `amounts.repay0` and `amounts.repay1` to `LENDER0` and `LENDER1`, respectively.
      * `amounts.out0` and `amounts.out1` start at 0 and increase over time. Once their value exceeds what
@@ -218,6 +248,11 @@ contract Borrower is IUniswapV3MintCallback {
 
         slot0 = (slot0_ & (SLOT0_MASK_USERSPACE | SLOT0_MASK_AUCTION)) | SLOT0_DIRT;
         emit Liquidate();
+
+        // Pay out remaining ante if `closeFactor` is 100% (otherwise keep it, since we may need to `warn` again)
+        if (closeFactor == 10000) {
+            SafeTransferLib.safeTransferETH(payable(callee), address(this).balance);
+        }
     }
 
     /**
@@ -248,10 +283,12 @@ contract Borrower is IUniswapV3MintCallback {
 
         (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
         if (liabilities0 > 0 || liabilities1 > 0) {
+            // Fetch prices from oracle
             (Prices memory prices, bool seemsLegit, bool isPaused, uint208 ante) = getPrices(oracleSeed);
-            require(seemsLegit && !isPaused && address(this).balance >= ante, "Aloe: missing ante / sus price");
-
+            // Tally assets
             Assets memory assets = _getAssets(slot0_, prices);
+            // Ensure account is healthy and meets the conditions for borrowing
+            require(seemsLegit && !isPaused && address(this).balance >= ante, "Aloe: conditions");
             require(BalanceSheet.isHealthy(prices, assets, liabilities0, liabilities1), "Aloe: unhealthy");
         }
     }
