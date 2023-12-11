@@ -59,10 +59,16 @@ contract AttackingManager is IManager {
 contract Liquidator is ILiquidator {
     receive() external payable {}
 
+    function uniswapV3SwapCallback(int256 amount0Delta, int256 amount1Delta, bytes calldata data) external {
+        (ERC20 asset0, ERC20 asset1) = abi.decode(data, (ERC20, ERC20));
+        if (amount0Delta > 0) asset0.transfer(msg.sender, uint256(amount0Delta));
+        if (amount1Delta > 0) asset1.transfer(msg.sender, uint256(amount1Delta));
+    }
+
     function callback(bytes calldata data, address, AuctionAmounts memory amounts) external {
-        (bool check, uint256 o0, uint256 o1, uint256 r0, uint256 r1) = abi.decode(
+        (bool less, bool check, uint256 o0, uint256 o1, uint256 r0, uint256 r1) = abi.decode(
             data,
-            (bool, uint256, uint256, uint256, uint256)
+            (bool, bool, uint256, uint256, uint256, uint256)
         );
         if (check) {
             bool a = o0 <= amounts.out0 && o0 + 20 >= amounts.out0;
@@ -90,15 +96,15 @@ contract Liquidator is ILiquidator {
         if (x >= 0 && y >= 0) {
             // Don't need to do anything here
         } else if (y < 0) {
-            pool.swap(address(this), true, y, TickMath.MIN_SQRT_RATIO + 1, bytes(""));
+            pool.swap(address(this), true, y, TickMath.MIN_SQRT_RATIO + 1, abi.encode(asset0, asset1));
         } else if (x < 0) {
-            pool.swap(address(this), false, x, TickMath.MAX_SQRT_RATIO - 1, bytes(""));
+            pool.swap(address(this), false, x, TickMath.MAX_SQRT_RATIO - 1, abi.encode(asset0, asset1));
         } else {
             // Can't do much unless we want to donate
         }
 
-        if (amounts.repay0 > 0) asset0.transfer(address(lender0), amounts.repay0);
-        if (amounts.repay1 > 0) asset1.transfer(address(lender1), amounts.repay1);
+        if (amounts.repay0 > 0) asset0.transfer(address(lender0), amounts.repay0 - (less ? 1 : 0));
+        if (amounts.repay1 > 0) asset1.transfer(address(lender1), amounts.repay1 - (less ? 1 : 0));
     }
 }
 
@@ -170,16 +176,7 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
         uint256 closeFactor,
         uint40 oracleSeed
     ) external {
-        if (closeFactor <= 10000) {
-            vm.selectFork(0);
-            vm.store(address(account), bytes32(uint256(0)), bytes32(uint256((block.timestamp - LIQUIDATION_GRACE_PERIOD) << 208)));
-
-            deal(address(asset1), address(account), 1);
-
-            vm.expectRevert(bytes("Aloe: zero impact"));
-            account.liquidate(callee, data, 0, 1 << 32);
-            return;
-        }
+        if (closeFactor <= 10000) closeFactor = 0;
 
         vm.expectRevert(bytes("Aloe: close"));
         account.liquidate(callee, data, closeFactor, oracleSeed);
@@ -704,19 +701,39 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
             borrow0 = lender0.borrowBalance(address(account));
 
             if (i < 2) {
-                data = abi.encode(false, 0, 0, 0, 0);
+                data = abi.encode(false, false, 0, 0, 0, 0);
                 vm.expectRevert(bytes("Aloe: grace"));
                 account.liquidate(liquidator, data, closeFactor, 1 << 32);
             } else {
-                uint256 out0Expected = (borrow0 * liquidationIncentives[i] * closeFactor) / 1e16;
+                uint256 out0Expected = (borrow0 * liquidationIncentives[i]) / 1e12;
                 if (out0Expected > collateral0) {
                     out0Expected = collateral0;
                 }
+                out0Expected = (out0Expected * closeFactor) / 10_000;
                 uint256 repay0Expected = (borrow0 * closeFactor) / 10_000;
 
-                data = abi.encode(true, out0Expected, 0, repay0Expected, 0);
+                data = abi.encode(false, true, out0Expected, 0, repay0Expected, 0);
                 vm.expectRevert(bytes("AuctionAmounts matched!"));
                 account.liquidate(liquidator, data, closeFactor, 1 << 32);
+
+                if (out0Expected >= repay0Expected) {
+                    assertLe(out0Expected - repay0Expected, repay0Expected / MAX_LEVERAGE);
+
+                    data = abi.encode(true, false, out0Expected, 0, repay0Expected, 0);
+                    vm.expectRevert(bytes("Aloe: insufficient pre-pay"));
+                    account.liquidate(liquidator, data, closeFactor, 1 << 32);
+
+                    data = abi.encode(false, false, out0Expected, 0, repay0Expected, 0);
+                    account.liquidate(liquidator, data, closeFactor, 1 << 32);
+
+                    uint256 slot0 = account.slot0();
+                    assertEq(uint144(slot0), 0);
+                    if (closeFactor == 10000) {
+                        assertEq(uint40(slot0 >> 208), 0);
+                    } else if (closeFactor <= TERMINATING_CLOSE_FACTOR) {
+                        assertEq(uint40(slot0 >> 208), 1660599905);
+                    }
+                }
             }
 
             vm.revertTo(snapshot);
@@ -759,15 +776,35 @@ contract BorrowerTest is Test, IManager, IUniswapV3SwapCallback {
                 vm.expectRevert(bytes("Aloe: grace"));
                 account.liquidate(liquidator, data, closeFactor, 1 << 32);
             } else {
-                uint256 out1Expected = (borrow1 * liquidationIncentives[i] * closeFactor) / 1e16;
+                uint256 out1Expected = (borrow1 * liquidationIncentives[i]) / 1e12;
                 if (out1Expected > collateral1) {
                     out1Expected = collateral1;
                 }
+                out1Expected = (out1Expected * closeFactor) / 10_000;
                 uint256 repay1Expected = (borrow1 * closeFactor) / 10_000;
 
-                data = abi.encode(true, 0, out1Expected, 0, repay1Expected);
+                data = abi.encode(false, true, 0, out1Expected, 0, repay1Expected);
                 vm.expectRevert(bytes("AuctionAmounts matched!"));
                 account.liquidate(liquidator, data, closeFactor, 1 << 32);
+
+                if (out1Expected >= repay1Expected) {
+                    assertLe(out1Expected - repay1Expected, repay1Expected / MAX_LEVERAGE);
+
+                    data = abi.encode(true, false, 0, out1Expected, 0, repay1Expected);
+                    vm.expectRevert(bytes("Aloe: insufficient pre-pay"));
+                    account.liquidate(liquidator, data, closeFactor, 1 << 32);
+
+                    data = abi.encode(false, false, 0, out1Expected, 0, repay1Expected);
+                    account.liquidate(liquidator, data, closeFactor, 1 << 32);
+
+                    uint256 slot0 = account.slot0();
+                    assertEq(uint144(slot0), 0);
+                    if (closeFactor == 10000) {
+                        assertEq(uint40(slot0 >> 208), 0);
+                    } else if (closeFactor <= TERMINATING_CLOSE_FACTOR) {
+                        assertEq(uint40(slot0 >> 208), 1660599905);
+                    }
+                }
             }
 
             vm.revertTo(snapshot);
