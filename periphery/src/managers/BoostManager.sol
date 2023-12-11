@@ -178,7 +178,7 @@ contract BoostManager is IManager, IUniswapV3SwapCallback {
 
         unchecked {
             borrower.transfer(assets0 - liabilities0, assets1 - liabilities1, owner);
-            borrower.withdrawAnte(payable(owner));
+            borrower.transferEth(address(borrower).balance, payable(owner));
         }
 
         return zip([int24(1), 1, 0, 0, 0, 0]);
