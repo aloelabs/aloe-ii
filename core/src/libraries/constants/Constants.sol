@@ -28,7 +28,7 @@ uint256 constant MAX_RATE = 706354;
 //////////////////////////////////////////////////////////////*/
 
 /// @dev The default amount of Ether required to take on debt in a `Borrower`. The `Factory` can override this value
-/// on a per-market basis.
+/// on a per-market basis. Incentivizes calls to `Borrower.warn`.
 uint208 constant DEFAULT_ANTE = 0.01 ether;
 
 /// @dev The default number of standard deviations of price movement used to determine probe prices for `Borrower`
@@ -84,12 +84,21 @@ uint216 constant CONSTRAINT_ANTE_MAX = 0.5 ether;
 /// `accrualFactor` so that liquidators have time to respond to interest updates
 uint256 constant MAX_LEVERAGE = 200;
 
-/// @dev The discount that liquidators receive when swapping assets. Expressed as reciprocal, e.g. 20 → 5%
+/// @dev The minimum discount that a healthy `Borrower` should be able to offer a liquidator when swapping
+/// assets. Expressed as reciprocal, e.g. 20 → 5%
 uint256 constant LIQUIDATION_INCENTIVE = 20;
 
-/// @dev The minimum time that must pass between `Borrower.warn` and `Borrower.liquidate` for any liquidation that
-/// involves the swap callbacks (`swap1For0` and `swap0For1`). There is no grace period for in-kind liquidations.
+/// @dev The minimum time that must pass between calls to `Borrower.warn` and `Borrower.liquidate`.
 uint256 constant LIQUIDATION_GRACE_PERIOD = 5 minutes;
+
+/// @dev The minimum `closeFactor` necessary to conclude a liquidation auction. To actually conclude the auction,
+/// `Borrower.liquidate` must result in a healthy balance sheet (in addition to this `closeFactor` requirement).
+/// Expressed in basis points.
+/// NOTE: The ante is depleted after just 4 `Borrower.warn`ings. By requiring that each auction repay at least
+/// 68%, we ensure that after 4 auctions, no more than 1% of debt remains ((1 - 0.6838)^4). Increasing the threshold
+/// would reduce that further, but we don't want to prolong individual auctions unnecessarily since the incentive
+/// (and loss to `Borrower`s) increases with time.
+uint256 constant TERMINATING_CLOSE_FACTOR = 6837;
 
 /// @dev The minimum scaling factor by which `sqrtMeanPriceX96` is multiplied or divided to get probe prices
 uint256 constant PROBE_SQRT_SCALER_MIN = 1.026248453011e12;
