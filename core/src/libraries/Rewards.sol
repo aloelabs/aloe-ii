@@ -37,17 +37,13 @@ library Rewards {
 
     /**
      * @notice Sets the pool's rewards rate. May be 0.
+     * @param store The rewards storage pointer
+     * @param accumulated Up-to-date `poolState.accumulated`, i.e. the output of `_accumulate`
      * @param rate The rewards rate, specified as [token units per second]. Keep between 10^17 and 10^28
      * token units per year for smooth operation -- between 0.1 and 10 billion tokens, assuming 18 decimals.
      */
     function setRate(Storage storage store, uint160 accumulated, uint64 rate) internal {
-        PoolState memory poolState = store.poolState;
-
-        poolState.accumulated = accumulated;
-        poolState.lastUpdated = uint32(block.timestamp);
-        poolState.rate = rate;
-
-        store.poolState = poolState;
+        store.poolState = PoolState(accumulated, uint32(block.timestamp), rate);
         emit RewardsRateSet(rate);
     }
 
@@ -111,13 +107,13 @@ library Rewards {
     }
 
     function getRate() internal view returns (uint64) {
-        return _getStorage().poolState.rate;
+        return _storage().poolState.rate;
     }
 
     /// @dev Returns arguments to be used in `updatePoolState` and `updateUserState`. No good semantic
     /// meaning here, just a coincidence that both functions need this information.
     function load(uint256 totalSupply) internal view returns (Storage storage store, uint160 accumulator) {
-        store = _getStorage();
+        store = _storage();
         accumulator = _accumulate(store.poolState, totalSupply);
     }
 
@@ -130,7 +126,7 @@ library Rewards {
     }
 
     /// @dev Diamond-pattern-style storage getter
-    function _getStorage() private pure returns (Storage storage store) {
+    function _storage() private pure returns (Storage storage store) {
         bytes32 position = _REWARDS_SLOT;
         assembly ("memory-safe") {
             store.slot := position
