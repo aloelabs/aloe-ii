@@ -21,23 +21,27 @@ import {BalanceSheet, AuctionAmounts, Assets, Prices, TickMath, square} from "sr
 import {LiquidityAmounts} from "src/libraries/LiquidityAmounts.sol";
 
 contract LibraryWrapper {
+    function auctionTime(uint256 warnTime) external view returns (uint256) {
+        return BalanceSheet.auctionTime(warnTime);
+    }
+
     function computeAuctionAmounts(
-        Prices memory prices,
+        uint160 sqrtPriceX96,
         uint256 assets0,
         uint256 assets1,
         uint256 liabilities0,
         uint256 liabilities1,
-        uint256 warnTime,
+        uint256 t,
         uint256 closeFactor
-    ) external view returns (AuctionAmounts memory, bool) {
+    ) external pure returns (AuctionAmounts memory) {
         return
             BalanceSheet.computeAuctionAmounts(
-                prices,
+                sqrtPriceX96,
                 assets0,
                 assets1,
                 liabilities0,
                 liabilities1,
-                warnTime,
+                t,
                 closeFactor
             );
     }
@@ -82,7 +86,7 @@ contract BalanceSheetTest is Test {
     // TODO: (for Borrower) test that liquidate() fails if the liquidator doesn't pay back at least in0 or in1 (for all close factors)
 
     function test_computeAuctionAmountsBoundaries(
-        Prices memory prices,
+        uint160 sqrtPriceX96,
         uint104 assets0,
         uint104 assets1,
         uint104 liabilities0,
@@ -97,32 +101,24 @@ contract BalanceSheetTest is Test {
         closeFactor = bound(closeFactor, 0, 10000);
 
         vm.expectRevert(bytes("Aloe: grace"));
-        (AuctionAmounts memory amounts, ) = wrapper.computeAuctionAmounts(
-            prices,
-            assets0,
-            assets1,
-            liabilities0,
-            liabilities1,
-            warnTime,
-            closeFactor
-        );
+        wrapper.auctionTime(warnTime);
 
         warnTime = block.timestamp - 7 days;
-        (amounts, ) = BalanceSheet.computeAuctionAmounts(
-            prices,
+        AuctionAmounts memory amounts = BalanceSheet.computeAuctionAmounts(
+            sqrtPriceX96,
             assets0,
             assets1,
             liabilities0,
             liabilities1,
-            warnTime,
+            BalanceSheet.auctionTime(warnTime),
             closeFactor
         );
-        assertEq(amounts.out0, assets0);
-        assertEq(amounts.out1, assets1);
+        assertEq(amounts.out0, (assets0 * closeFactor) / 10_000);
+        assertEq(amounts.out1, (assets1 * closeFactor) / 10_000);
     }
 
     function test_computeAuctionAmountsProportionality(
-        Prices memory prices,
+        uint160 sqrtPriceX96,
         uint104 assets0,
         uint104 assets1,
         uint104 liabilities0,
@@ -138,17 +134,17 @@ contract BalanceSheetTest is Test {
         warnTime = bound(warnTime, block.timestamp - 7 days, block.timestamp - LIQUIDATION_GRACE_PERIOD);
         closeFactor = bound(closeFactor, 0, 10000);
 
-        (AuctionAmounts memory amounts, ) = BalanceSheet.computeAuctionAmounts(
-            prices,
+        AuctionAmounts memory amounts = BalanceSheet.computeAuctionAmounts(
+            sqrtPriceX96,
             assets0,
             assets1,
             liabilities0,
             liabilities1,
-            warnTime,
+            BalanceSheet.auctionTime(warnTime),
             closeFactor
         );
 
-        uint256 denom = assets1 + SoladyMath.fullMulDiv(assets0, square(prices.c), 1 << 128);
+        uint256 denom = assets1 + SoladyMath.fullMulDiv(assets0, square(sqrtPriceX96), 1 << 128);
         if (denom == 0) return;
         uint256 oldRatio = (1e18 * uint256(assets1)) / denom;
 
@@ -159,7 +155,7 @@ contract BalanceSheetTest is Test {
 
         console2.log(assets0, assets1);
 
-        denom = assets1 + SoladyMath.fullMulDiv(assets0, square(prices.c), 1 << 128);
+        denom = assets1 + SoladyMath.fullMulDiv(assets0, square(sqrtPriceX96), 1 << 128);
         if (denom == 0) return;
         uint256 newRatio = (1e18 * uint256(assets1)) / denom;
 
@@ -169,44 +165,27 @@ contract BalanceSheetTest is Test {
     function test_spec_computeAuctionAmounts() external {
         vm.warp(10000000000);
 
-        Prices memory prices = Prices(0, 0, 1 << 96);
         AuctionAmounts memory amounts;
 
-        (amounts, ) = BalanceSheet.computeAuctionAmounts(prices, 1e18, 0, 1e18, 0, 10000000000 - 7 days, 0);
-        assertEq(amounts.out0, 1e18);
+        amounts = BalanceSheet.computeAuctionAmounts(1 << 96, 1e18, 0, 1e18, 0, 7 days - 5 minutes, 0);
+        assertEq(amounts.out0, 0);
         assertEq(amounts.out1, 0);
         assertEq(amounts.repay0, 0);
         assertEq(amounts.repay1, 0);
 
-        (amounts, ) = BalanceSheet.computeAuctionAmounts(prices, 1e18, 0, 1e18, 0, 10000000000 - 7 days, 10000);
+        amounts = BalanceSheet.computeAuctionAmounts(1 << 96, 1e18, 0, 1e18, 0, 7 days - 5 minutes, 10000);
         assertEq(amounts.out0, 1e18);
         assertEq(amounts.out1, 0);
         assertEq(amounts.repay0, 1e18);
         assertEq(amounts.repay1, 0);
 
-        (amounts, ) = BalanceSheet.computeAuctionAmounts(
-            prices,
-            1e18,
-            2e18,
-            0.5e18,
-            0.5e18,
-            10000000000 - 8 minutes,
-            10000
-        );
+        amounts = BalanceSheet.computeAuctionAmounts(1 << 96, 1e18, 2e18, 0.5e18, 0.5e18, 3 minutes, 10000);
         assertEq(amounts.out0, 335734917596000000);
         assertEq(amounts.out1, 671469835192000000);
         assertEq(amounts.repay0, 0.5e18);
         assertEq(amounts.repay1, 0.5e18);
 
-        (amounts, ) = BalanceSheet.computeAuctionAmounts(
-            prices,
-            1e18,
-            2e18,
-            0.5e18,
-            0.5e18,
-            10000000000 - 60 minutes,
-            10000
-        );
+        amounts = BalanceSheet.computeAuctionAmounts(1 << 96, 1e18, 2e18, 0.5e18, 0.5e18, 55 minutes, 10000);
         assertEq(amounts.out0, 371792510098000000);
         assertEq(amounts.out1, 743585020196000000);
     }

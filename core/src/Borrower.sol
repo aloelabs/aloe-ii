@@ -7,6 +7,7 @@ import {ERC20, SafeTransferLib} from "solmate/utils/SafeTransferLib.sol";
 import {IUniswapV3MintCallback} from "v3-core/contracts/interfaces/callback/IUniswapV3MintCallback.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 
+import {TERMINATING_CLOSE_FACTOR} from "./libraries/constants/Constants.sol";
 import {BalanceSheet, AuctionAmounts, Assets, Prices} from "./libraries/BalanceSheet.sol";
 import {LiquidityAmounts} from "./libraries/LiquidityAmounts.sol";
 import {extract} from "./libraries/Positions.sol";
@@ -191,6 +192,7 @@ contract Borrower is IUniswapV3MintCallback {
         slot0 = slot0_ & ~SLOT0_MASK_AUCTION;
     }
 
+    /* solhint-disable code-complexity */
     /**
      * @notice Liquidates the borrower, using all available assets to pay down liabilities. `callee` must
      * transfer at least `amounts.repay0` and `amounts.repay1` to `LENDER0` and `LENDER1`, respectively.
@@ -206,7 +208,7 @@ contract Borrower is IUniswapV3MintCallback {
      * TWAPs. If any of the highest 8 bits are set, we fallback to onchain binary search.
      */
     function liquidate(ILiquidator callee, bytes calldata data, uint256 closeFactor, uint40 oracleSeed) external {
-        require(closeFactor <= 10000, "Aloe: close");
+        require(0 < closeFactor && closeFactor <= 10000, "Aloe: close");
 
         uint256 slot0_ = slot0;
         // Essentially `slot0.state == State.Ready && slot0.warnTime > 0`
@@ -222,21 +224,21 @@ contract Borrower is IUniswapV3MintCallback {
         (uint256 assets0, uint256 assets1) = (TOKEN0.balanceOf(address(this)), TOKEN1.balanceOf(address(this)));
         // Fetch liabilities from lenders
         (uint256 liabilities0, uint256 liabilities1) = getLiabilities();
+        // Sanity check
+        {
+            (uint160 sqrtPriceX96, , , , , , ) = UNISWAP_POOL.slot0();
+            require(prices.a < sqrtPriceX96 && sqrtPriceX96 < prices.b);
+        }
 
-        (AuctionAmounts memory amounts, bool willBeHealthy) = BalanceSheet.computeAuctionAmounts(
-            prices,
+        AuctionAmounts memory amounts = BalanceSheet.computeAuctionAmounts(
+            prices.c,
             assets0,
             assets1,
             liabilities0,
             liabilities1,
-            (slot0_ & SLOT0_MASK_AUCTION) >> 208,
+            BalanceSheet.auctionTime((slot0_ & SLOT0_MASK_AUCTION) >> 208),
             closeFactor
         );
-
-        // End auction if healthy and `closeFactor` is at least 50%
-        if (willBeHealthy && closeFactor >= 5000) slot0_ &= SLOT0_MASK_USERSPACE;
-        // Make sure at least one of the repay values didn't floor to 0
-        require(amounts.repay0 | amounts.repay1 > 0, "Aloe: zero impact");
 
         if (amounts.out0 > 0) TOKEN0.safeTransfer(address(callee), amounts.out0);
         if (amounts.out1 > 0) TOKEN1.safeTransfer(address(callee), amounts.out1);
@@ -246,14 +248,29 @@ contract Borrower is IUniswapV3MintCallback {
         if (amounts.repay0 > 0) LENDER0.repay(amounts.repay0, address(this));
         if (amounts.repay1 > 0) LENDER1.repay(amounts.repay1, address(this));
 
+        if (closeFactor == 10000) {
+            // Everything was repaid → no need to `warn` again → can pay out remaining ETH as incentive
+            SafeTransferLib.safeTransferETH(payable(callee), address(this).balance);
+            // End auction since account is definitely healthy
+            slot0_ &= ~SLOT0_MASK_AUCTION;
+        } else if (closeFactor > TERMINATING_CLOSE_FACTOR) {
+            // End auction if account is healthy
+            if (
+                BalanceSheet.isHealthy(
+                    prices,
+                    assets0 - amounts.out0,
+                    assets1 - amounts.out1,
+                    liabilities0 - amounts.repay0,
+                    liabilities1 - amounts.repay1
+                )
+            ) slot0_ &= ~SLOT0_MASK_AUCTION;
+        }
+
         slot0 = (slot0_ & (SLOT0_MASK_USERSPACE | SLOT0_MASK_AUCTION)) | SLOT0_DIRT;
         emit Liquidate();
-
-        // Pay out remaining ante if `closeFactor` is 100% (otherwise keep it, since we may need to `warn` again)
-        if (closeFactor == 10000) {
-            SafeTransferLib.safeTransferETH(payable(callee), address(this).balance);
-        }
     }
+
+    /* solhint-enable code-complexity */
 
     /**
      * @notice Allows the owner to manage their account by handing control to some `callee`. Inside the

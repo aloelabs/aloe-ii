@@ -77,57 +77,48 @@ library BalanceSheet {
     uint256 private constant _M = 20.405429e6;
     uint256 private constant _N = 7 days - LIQUIDATION_GRACE_PERIOD;
 
-    function computeAuctionAmounts(
-        Prices memory prices,
-        uint256 assets0,
-        uint256 assets1,
-        uint256 liabilities0,
-        uint256 liabilities1,
-        uint256 warnTime,
-        uint256 closeFactor
-    ) internal view returns (AuctionAmounts memory amounts, bool willBeHealthy) {
-        // Compute `assets` and `liabilities` like in `BalanceSheet.isSolvent`, except we round up `assets`
-        uint256 priceX128 = square(prices.c);
-        uint256 liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
-        uint256 assets = assets1 + mulDiv128Up(assets0, priceX128);
-
+    function auctionTime(uint256 warnTime) internal view returns (uint256) {
         unchecked {
-            uint256 t = _auctionTime(warnTime);
-            // If it's been less than 7 days since the `Warn`ing, the available incentives (`out0` and `out1`)
-            // scale with `closeFactor` and increase over time according to `auctionCurve`.
-            if (t < _N) {
-                liabilities *= auctionCurve(t) * closeFactor;
-                assets *= 1e16;
-
-                amounts.out0 = liabilities.fullMulDiv(assets0, assets).min(assets0);
-                amounts.out1 = liabilities.fullMulDiv(assets1, assets).min(assets1);
-            }
-            // After 7 days, `auctionCurve` is essentially infinite. Assuming `closeFactor != 0`, their product
-            // would _also_ be infinite, so incentives are set to their maximum values. NOTE: The caller should
-            // validate this assumption.
-            else {
-                amounts.out0 = assets0;
-                amounts.out1 = assets1;
-            }
-
-            // Expected repay amounts always scale with `closeFactor`
-            amounts.repay0 = (liabilities0 * closeFactor) / 10000;
-            amounts.repay1 = (liabilities1 * closeFactor) / 10000;
-
-            // Check if the account will end up healthy, assuming transfers/repays are successful
-            willBeHealthy = isHealthy(
-                prices,
-                assets0 - amounts.out0,
-                assets1 - amounts.out1,
-                liabilities0 - amounts.repay0,
-                liabilities1 - amounts.repay1
-            );
+            require(warnTime > 0 && block.timestamp >= warnTime + LIQUIDATION_GRACE_PERIOD, "Aloe: grace");
+            return block.timestamp - (warnTime + LIQUIDATION_GRACE_PERIOD);
         }
     }
 
     function auctionCurve(uint256 t) internal pure returns (uint256) {
         unchecked {
-            return _S + (_R / (_N - t)) - (_Q / (_M + 1e6 * t));
+            return _S + _R.rawDiv(_N - t) - _Q.rawDiv(_M + 1e6 * t);
+        }
+    }
+
+    function computeAuctionAmounts(
+        uint160 sqrtPriceX96,
+        uint256 assets0,
+        uint256 assets1,
+        uint256 liabilities0,
+        uint256 liabilities1,
+        uint256 t,
+        uint256 closeFactor
+    ) internal pure returns (AuctionAmounts memory amounts) {
+        uint256 priceX128 = square(sqrtPriceX96);
+        uint256 liabilities = liabilities1 + mulDiv128Up(liabilities0, priceX128);
+        uint256 assets = assets1 + mulDiv128Up(assets0, priceX128);
+
+        unchecked {
+            if (t < _N) {
+                liabilities *= auctionCurve(t);
+                assets *= 1e12;
+
+                if (liabilities < assets) {
+                    assets0 = assets0.fullMulDiv(liabilities, assets);
+                    assets1 = assets1.fullMulDiv(liabilities, assets);
+                }
+            }
+
+            // All amounts scale with `closeFactor`
+            amounts.out0 = (assets0 * closeFactor) / 10000;
+            amounts.out1 = (assets1 * closeFactor) / 10000;
+            amounts.repay0 = (liabilities0 * closeFactor).divUp(10000);
+            amounts.repay1 = (liabilities1 * closeFactor).divUp(10000);
         }
     }
 
@@ -241,13 +232,6 @@ library BalanceSheet {
 
             a = uint160((sqrtMeanPriceX96 * 1e12).rawDiv(sqrtScaler).max(TickMath.MIN_SQRT_RATIO));
             b = uint160((sqrtMeanPriceX96 * sqrtScaler).rawDiv(1e12).min(TickMath.MAX_SQRT_RATIO));
-        }
-    }
-
-    function _auctionTime(uint256 warnTime) private view returns (uint256 auctionTime) {
-        unchecked {
-            require(warnTime > 0 && block.timestamp >= warnTime + LIQUIDATION_GRACE_PERIOD, "Aloe: grace");
-            return block.timestamp - (warnTime + LIQUIDATION_GRACE_PERIOD);
         }
     }
 
