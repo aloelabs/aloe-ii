@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 pragma solidity 0.8.17;
 
-import {msb} from "./Log2.sol";
+import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 
 /// @title Math library for computing sqrt prices from ticks and vice versa
 /// @notice Computes sqrt price for ticks of size 1.0001, i.e. \\(\sqrt{1.0001^{tick}}\\) as fixed point Q64.96 numbers. Supports
@@ -140,7 +140,7 @@ library TickMath {
 
         // Compute the integer part of the logarithm
         // n ∈ [32, 160) so it could fit in uint8 if we wanted
-        uint256 n = msb(sqrtPriceX96);
+        uint256 n = SoladyMath.log2(sqrtPriceX96);
 
         int256 log_2;
         assembly ("memory-safe") {

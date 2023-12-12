@@ -153,13 +153,13 @@ contract Ledger {
     }
 
     /// @notice The rewards rate, specified as [token units per second]
-    function rewardsRate() external view returns (uint56 rate) {
+    function rewardsRate() external view returns (uint64 rate) {
         rate = Rewards.getRate();
     }
 
     /// @notice All rewards earned by `account` that have not yet been paid out
-    function rewardsOf(address account) external view returns (uint112) {
-        (Rewards.Storage storage s, uint144 a) = Rewards.load();
+    function rewardsOf(address account) external view returns (uint96) {
+        (Rewards.Storage storage s, uint160 a) = Rewards.load(totalSupply);
         return Rewards.previewUserState(s, a, account, balanceOf(account)).earned;
     }
 
