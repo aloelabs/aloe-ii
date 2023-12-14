@@ -7,10 +7,11 @@ libs = ['lib']
 out = 'build'
 cache_path = 'cache'
 
-solc_version = '0.8.17'
+solc_version = '0.8.23'
+evm_version = 'paris'
 via_ir = true
 optimizer = true
-optimizer_runs = 4294967295
+optimizer_runs = 100000000
 gas_reports = []
 
 auto_detect_remappings = false

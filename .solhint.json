@@ -36,7 +36,7 @@
     "ordering": "warn",
     "visibility-modifier-order": "error",
 
-    "compiler-version": ["error", "0.8.17"],
+    "compiler-version": ["error", "0.8.23"],
     "func-visibility": ["error", { "ignoreConstructors": true }],
     "no-inline-assembly": "off",
     "not-rely-on-time": "off"

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity 0.8.17;
+pragma solidity 0.8.23;
 
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
 import {IUniswapV3Pool} from "v3-core/contracts/interfaces/IUniswapV3Pool.sol";

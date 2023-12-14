@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity 0.8.23;
 
 /// @dev Returns \\( 10^{12} \cdot e^{\frac{x}{10^{12}}} \\) or `type(int256).max`, whichever is smaller
 /// @custom:author Modified from [Solady](https://github.com/Vectorized/solady/blob/main/src/utils/FixedPointMathLib.sol#L113)

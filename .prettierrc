@@ -3,7 +3,7 @@
     {
       "files": "*.sol",
       "options": {
-        "compiler": "0.8.17",
+        "compiler": "0.8.23",
         "printWidth": 120,
         "tabWidth": 4,
         "useTabs": false,
