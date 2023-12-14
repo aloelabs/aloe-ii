@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 
 import {Factory, IUniswapV3Pool} from "../src/Factory.sol";
 
-Factory constant FACTORY = Factory(0x0000000000000000000000000000000000000000);
+Factory constant FACTORY = Factory(0x000000009efdB26b970bCc0085E126C9dfc16ee8);
 
 contract CreateMarketsScript is Script {
     address[] poolsMainnet = [
@@ -23,7 +23,7 @@ contract CreateMarketsScript is Script {
         0x1d42064Fc4Beb5F8aAF85F4617AE8b3b5B8Bd801, // UNI/WETH 0.30%
         0x290A6a7460B308ee3F19023D2D00dE604bcf5B42, // MATIC/WETH 0.30%
         0xe42318eA3b998e8355a3Da364EB9D48eC725Eb45, // WETH/RPL 0.30%
-        0xAc4b3DacB91461209Ae9d41EC517c2B9Cb1B7DAF // APE/WETH 30%
+        0xAc4b3DacB91461209Ae9d41EC517c2B9Cb1B7DAF // APE/WETH 0.30%
     ];
 
     address[] poolsOptimism = [
@@ -45,7 +45,8 @@ contract CreateMarketsScript is Script {
 
     address[] poolsBase = [
         0x4C36388bE6F416A29C8d8Eee81C771cE6bE14B18, // WETH/USDbC 0.05%
-        0x10648BA41B8565907Cfa1496765fA4D95390aa0d // cbETH/WETH 0.05%
+        0x10648BA41B8565907Cfa1496765fA4D95390aa0d, // cbETH/WETH 0.05%
+        0x9E37cb775a047Ae99FC5A24dDED834127c4180cD // BALD/WETH 1.0%
     ];
 
     function run() external {
