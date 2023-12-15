@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity 0.8.23;
 
 function pack(uint256[] memory items, uint256 chunkSize) pure returns (bytes memory newList) {
     uint256 shift;

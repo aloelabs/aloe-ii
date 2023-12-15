@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity 0.8.17;
+pragma solidity 0.8.23;
 
 /// @dev Equivalent to `fullMulDiv(x, x, 1 << 64)`
 function square(uint160 x) pure returns (uint256 result) {

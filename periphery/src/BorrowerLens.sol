@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity 0.8.17;
+pragma solidity 0.8.23;
 
 import {ClonesWithImmutableArgs} from "clones-with-immutable-args/ClonesWithImmutableArgs.sol";
 import {FixedPointMathLib as SoladyMath} from "solady/utils/FixedPointMathLib.sol";
