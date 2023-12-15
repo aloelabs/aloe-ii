@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity 0.8.23;
 
 import {IManager} from "aloe-ii-core/Borrower.sol";
 import {Factory} from "aloe-ii-core/Factory.sol";

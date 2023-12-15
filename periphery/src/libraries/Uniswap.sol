@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-pragma solidity 0.8.17;
+pragma solidity 0.8.23;
 
 import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeCastLib} from "solmate/utils/SafeCastLib.sol";
