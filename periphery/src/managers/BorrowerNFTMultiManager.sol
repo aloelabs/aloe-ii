@@ -3,10 +3,10 @@ pragma solidity 0.8.23;
 
 import {IManager} from "aloe-ii-core/Borrower.sol";
 
-contract MultiManager is IManager {
+contract BorrowerNFTMultiManager is IManager {
     function callback(bytes calldata data, address, uint208) external override returns (uint208) {
         unchecked {
-            bytes[] memory calls = abi.decode(data, (bytes[]));
+            bytes[] memory calls = abi.decode(data[20:], (bytes[]));
 
             uint256 count = calls.length;
             for (uint256 i; i < count; i++) {

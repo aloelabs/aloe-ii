@@ -13,9 +13,9 @@ import {BorrowerNFT, IBorrowerURISource} from "src/borrower-nft/BorrowerNFT.sol"
 
 import {IUniswapPositionNFT} from "src/interfaces/IUniswapPositionNFT.sol";
 import {BoostManager} from "src/managers/BoostManager.sol";
+import {BorrowerNFTMultiManager} from "src/managers/BorrowerNFTMultiManager.sol";
 import {BorrowerNFTSimpleManager} from "src/managers/BorrowerNFTSimpleManager.sol";
 import {FrontendManager} from "src/managers/FrontendManager.sol";
-import {MultiManager} from "src/managers/MultiManager.sol";
 import {Permit2Manager} from "src/managers/Permit2Manager.sol";
 import {SimpleManager} from "src/managers/SimpleManager.sol";
 import {UniswapNFTManager} from "src/managers/UniswapNFTManager.sol";
@@ -57,13 +57,13 @@ contract DeployScript is Script {
         BorrowerNFT borrowerNft = new BorrowerNFT{salt: saltB}(FACTORY, BORROWER_URI_SOURCE);
 
         // BorrowerNFT-style managers
+        new BorrowerNFTMultiManager{salt: TAG}();
         new BorrowerNFTSimpleManager{salt: TAG}();
         new BoostManager{salt: TAG}(FACTORY, address(borrowerNft), uniswapPositionNft);
         new Permit2Manager{salt: TAG}(PERMIT2, FACTORY, address(borrowerNft));
 
         // Plain managers
         new FrontendManager{salt: TAG}(FACTORY);
-        new MultiManager{salt: TAG}();
         new SimpleManager{salt: TAG}();
         new UniswapNFTManager{salt: TAG}(FACTORY, uniswapPositionNft);
 
