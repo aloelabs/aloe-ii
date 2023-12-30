@@ -1,15 +1,16 @@
 | Contract Name                    | Commit Hash                              | Salt                                                               | Address                                      |
 | -------------------------------- | ---------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------- |
-| **VolatilityOracle**             | a4b9786d79e2e16fcf6612e8ce699bfb599e0c8d | bytes32(uint256(0xA10EBE1A))                                       | `0xcA91bb5e6F98BD99b9Ca8aED1B9c5d12e139DB3d` |
-| **RateModel**                    | a4b9786d79e2e16fcf6612e8ce699bfb599e0c8d | bytes32(uint256(0xA10EBE1A))                                       | `0xBD477956Ad74329664f45978A3876B024E3da73d` |
-| **Factory**                      | a4b9786d79e2e16fcf6612e8ce699bfb599e0c8d | bytes32(uint256(0xA10EBE1A))                                       | `0x95110C9806833d3D3C250112fac73c5A6f631E80` |
-| **Lender**                       | a4b9786d79e2e16fcf6612e8ce699bfb599e0c8d | created by factory                                                 | `0x62eAa8b180faebfBb0627dBd07E23f27379c147e` |
-| BorrowerLens                     | fad036d4a34b95441beca1ed7ea36738111b6045 | bytes32(uint256(0xA10EBE1A2))                                      | `0x8A15bfEBff7BF9ffaBBeAe49112Dc2E6C4E73Eaf` |
-| LenderLens                       | fad036d4a34b95441beca1ed7ea36738111b6045 | bytes32(uint256(0xA10EBE1A2))                                      | `0x0d41292FCdF2569816a3b20d81765F1300f477E4` |
-| LenderAccrualHelper              | ec45040adf10da901aaf9e6394d6ece2d8095e3b | bytes32(uint256(0xA10EBE1A2))                                      | `0x49b7C197468b5E8Eb345768280B554B39Dc9F64b` |
-| OracleUpdateHelper               | b3864fc9c8b3299920fc2d73bedd7f906d64f999 | bytes32(uint256(0xA10EBE1A2))                                      | `0xB93d750Cc6CA3d1F494DC25e7375860feef74870` |
-| Router                           | 50d81b55600d30ec2d18ffa4c83aad579b20a96a | bytes32(uint256(0xA10EBE1A2))                                      | `0x1E395864B96c3C04467153c1666d2AaA03a86fa8` |
-| FrontendManager                  | 3b6e3329654fcb809b597a3cc9518fd3a8874d1c | bytes32(uint256(0xA10EBE1A2))                                      | `0x2d3A430Bd0F36cdb3911431a5e487a59c349Ca4d` |
-| SimpleManager                    | 40863c0562cdfeee0a38e7eb5eb68bb7d33525cc | bytes32(uint256(0xA10EBE1A2))                                      | `0x760a9356dE7dfF4387a7f87A7563Be72b7F34Bb6` |
-| UniswapNFTManager                | 203442e3b3f825523f41542132057de962a5886e | bytes32(uint256(0xA10EBE1A2))                                      | `0xd6D4277bCCEEE3d9825D503dC23f0976992540e6` |
-| WithdrawManager                  | e67ebdf3fb0507232370c5b0daa2d68b7c4d4813 | bytes32(uint256(0xA10EBE1A2))                                      | `0xEEAFdacc266900107155298Da34e9b8264f2eCbA` |
+| **VolatilityOracle**             | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x000000000000000000000000000000000000000072d2b1e41bc2400020241d9b | `0x0000000030d51e39a2dDDb5Db50F9d74a289DFc3` |
+| **RateModel**                    | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x000000000000000000000000000000000000000029a4b92da42120001626d608 | `0x000000006b66E36407c709aD4808370d963F2aAB` |
+| **BorrowerDeployer**             | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x000000000000000000000000000000000000000091b1b6c2b3d408003c519fc1 | `0x0000000033CB32b42feD5df3555293fB299365bA` |
+| **Factory**                      | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x0000000000000000000000000000000000000000cb94eb7800f858003d6aca1f | `0x000000009efdB26b970bCc0085E126C9dfc16ee8` |
+| BorrowerLens                     | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x0000000000000000000000000000000000000000A10EA10EA10EA10EA10EA10E | `0x46AeD741F9a329c0721519D6E66fA47Bb17B0986` |
+| LenderLens                       | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x0000000000000000000000000000000000000000A10EA10EA10EA10EA10EA10E | `0x2a1591e54315766e943382beF5E5C8e55c1b9C6C` |
+| Router                           | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x0000000000000000000000000000000000000000f789d06098b1a000019efd68 | `0x672605730D8F75006C37582189999637Dc16fE7C` |
+| BorrowerNFT                      | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x0000000000000000000000000000000000000000122d0a2ff5b481009316e38f | `0x00000000000078b629B7C06f5339060648468AA6` |
+| BorrowerNFTSimpleManager         | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x0000000000000000000000000000000000000000A10EA10EA10EA10EA10EA10E | `0xA07FD687882FfE7380A044e7542bDAc6F8672Bf7` |
+| BoostManager                     | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x0000000000000000000000000000000000000000A10EA10EA10EA10EA10EA10E | eth/opt/arb: `0xB6B7521cd3bd116432FeD94c2262Dd02BA616Db4` base: `0x8E287b280671700EBE66A908A56C648f930b73b4` |
+| Permit2Manager                   | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x0000000000000000000000000000000000000000A10EA10EA10EA10EA10EA10E | `0x6BDa468b1d473028938585a04eC3c62dcFF5309B` |
+| FrontendManager                  | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x0000000000000000000000000000000000000000A10EA10EA10EA10EA10EA10E | `0x3Bb9F64b0e6b15dD5792A008c06E5c4Dc9d23D8f` |
+| SimpleManager                    | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x0000000000000000000000000000000000000000A10EA10EA10EA10EA10EA10E | `0xBb5A35B80b15A8E5933fDC11646A20f6159Dd061` |
+| UniswapNFTManager                | 2c6e694336639d04849beb54cc0642f21e2ded04 | 0x0000000000000000000000000000000000000000A10EA10EA10EA10EA10EA10E | eth/opt/arb: `0x7516735395134BB9EbF75d908103b48eDF238B9f` base: `0xf46e04796185322485314Dd607DA1cb69028d731` |

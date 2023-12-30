@@ -142,6 +142,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         assertEq(lender0.borrowBalance(address(account)), 0);
         assertEq(asset0.balanceOf(address(account)), 0.558651792067358746e18);
+        assertEq(account.slot0(), uint256(0x800000000000f0f0f0f0f0f0f0f0000000000000000000000000000000000000));
     }
 
     function test_spec_repayETH() public {
@@ -170,6 +171,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         assertEq(lender1.borrowBalance(address(account)), 0);
         assertEq(asset1.balanceOf(address(account)), 0.055865282831508020e18);
+        assertEq(account.slot0(), uint256(0x800000000000f0f0f0f0f0f0f0f0000000000000000000000000000000000000));
     }
 
     function test_spec_repayDAIAndETH() public {
@@ -205,6 +207,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertEq(lender1.borrowBalance(address(account)), 0);
         assertEq(asset0.balanceOf(address(account)), 0.558652822916151063e18);
         assertEq(asset1.balanceOf(address(account)), 0.055865282291615107e18);
+        assertEq(account.slot0(), uint256(0x800000000000f0f0f0f0f0f0f0f0000000000000000000000000000000000000));
     }
 
     function test_spec_repayDAIAndETHWithUniswapPosition() public {
@@ -247,6 +250,7 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
             keccak256(abi.encodePacked(address(account), int24(-75600), int24(-75540)))
         );
         assertEq(liquidity, 0);
+        assertEq(account.slot0(), uint256(0x800000000000f0f0f0f0f0f0f0f0000000000000000000000000000000000000));
     }
 
     /// forge-config: default.fuzz.runs = 16
@@ -280,10 +284,11 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
         assertLe(debt - (1595e18 * 10010) / 10000, 1);
 
         // Disable warn() requirement by setting auctionTime
+        uint256 warnTime = block.timestamp - LIQUIDATION_GRACE_PERIOD - TIME_OF_5_PERCENT;
         vm.store(
             address(account),
             bytes32(uint256(0)),
-            bytes32(uint256((block.timestamp - LIQUIDATION_GRACE_PERIOD - TIME_OF_5_PERCENT) << 208))
+            bytes32(uint256(warnTime << 208))
         );
 
         (Prices memory prices, , , ) = account.getPrices(1 << 32);
@@ -298,6 +303,9 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
 
         assertLe(lender0.borrowBalance(address(account)) - (debt - (debt * closeFactor) / 10000), 1);
         assertGt(asset1.balanceOf(address(this)), 0);
+        if (closeFactor <= TERMINATING_CLOSE_FACTOR) {
+            assertEq(account.slot0(), uint256(0x8000000000000000000000000000000000000000000000000000000000000000) + (warnTime << 208));
+        }
     }
 
     /// forge-config: default.fuzz.runs = 16
@@ -552,6 +560,8 @@ contract LiquidatorTest is Test, IManager, ILiquidator {
             account.uniswapDeposit(-75600, -75540, 200000000000000000);
             positions = zip([-75600, -75540, 0, 0, 0, 0]);
         }
+
+        positions |= 0xf0f0f0f0f0f0f0f0 << 144;
     }
 
     // ILiquidator

@@ -8,6 +8,7 @@ cp -R ../core/lib lib/core/lib
 cp ../core/foundry.toml lib/core/
 
 source .env
+source .env.deploy
 # forge clean
 forge build
 forge script script/Deploy.s.sol:DeployScript --chain mainnet --rpc-url mainnet --broadcast --verify --slow --delay 10 --etherscan-api-key $ETHERSCAN_API_KEY
