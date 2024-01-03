@@ -61,11 +61,11 @@ contract DeployScript is Script {
         new BorrowerNFTSimpleManager{salt: TAG}();
         new BoostManager{salt: TAG}(FACTORY, address(borrowerNft), uniswapPositionNft);
         new Permit2Manager{salt: TAG}(PERMIT2, FACTORY, address(borrowerNft));
+        new UniswapNFTManager{salt: TAG}(FACTORY, address(borrowerNft), uniswapPositionNft);
 
         // Plain managers
         new FrontendManager{salt: TAG}(FACTORY);
         new SimpleManager{salt: TAG}();
-        new UniswapNFTManager{salt: TAG}(FACTORY, uniswapPositionNft);
 
         vm.stopBroadcast();
     }

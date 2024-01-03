@@ -13,15 +13,26 @@ contract UniswapNFTManager is IManager {
 
     Factory public immutable FACTORY;
 
+    address public immutable BORROWER_NFT;
+
     IUniswapPositionNFT public immutable UNISWAP_NFT;
 
-    constructor(Factory factory, IUniswapPositionNFT uniswapNft) {
+    constructor(Factory factory, address borrowerNft, IUniswapPositionNFT uniswapNft) {
         FACTORY = factory;
+        BORROWER_NFT = borrowerNft;
         UNISWAP_NFT = uniswapNft;
     }
 
     function callback(bytes calldata data, address owner, uint208) external override returns (uint208 positions) {
+        // We cast `msg.sender` as a `Borrower`, but it could really be anything. DO NOT TRUST!
         Borrower borrower = Borrower(payable(msg.sender));
+
+        // Need to check that `msg.sender` is really a borrower and that its owner is `BORROWER_NFT`
+        // in order to be sure that incoming `data` is in the expected format
+        require(FACTORY.isBorrower(msg.sender) && owner == BORROWER_NFT, "Aloe: bad caller");
+
+        // Now `owner` is the true owner of the borrower
+        owner = address(bytes20(data[:20]));
 
         // The ID of the NFT to which liquidity will be added/removed
         uint256 tokenId;
@@ -31,12 +42,12 @@ contract UniswapNFTManager is IManager {
         int24 upper;
         // The change in the NFT's liquidity. Negative values move NFT-->Borrower, positives do the opposite
         int128 liquidity;
-        (tokenId, lower, upper, liquidity, positions) = abi.decode(data, (uint256, int24, int24, int128, uint144));
+        (tokenId, lower, upper, liquidity, positions) = abi.decode(data[20:], (uint256, int24, int24, int128, uint144));
 
         // move position from NonfungiblePositionManager to Borrower
         if (liquidity < 0) {
             // safety checks since this contract will be approved to manager users' positions
-            require(FACTORY.isBorrower(msg.sender) && owner == UNISWAP_NFT.ownerOf(tokenId));
+            require(owner == UNISWAP_NFT.ownerOf(tokenId));
 
             _withdrawFromNFT(tokenId, uint128(-liquidity), msg.sender);
             borrower.uniswapDeposit(lower, upper, uint128(-liquidity));
