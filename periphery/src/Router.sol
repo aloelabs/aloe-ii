@@ -27,6 +27,7 @@ contract Router {
     function depositWithPermit2(
         Lender lender,
         uint256 amount,
+        uint16 transmittance,
         uint256 nonce,
         uint256 deadline,
         bytes calldata signature,
@@ -61,11 +62,15 @@ contract Router {
         );
 
         shares = lender.deposit(amount, msg.sender, courierId);
+        unchecked {
+            require(lender.convertToAssets(shares) > (amount * transmittance) / 10_000, "bad rounding");
+        }
     }
 
     function depositWithPermit2(
         Lender lender,
         uint256 amount,
+        uint16 transmittance,
         uint256 nonce,
         uint256 deadline,
         bytes calldata signature
@@ -90,6 +95,9 @@ contract Router {
         );
 
         shares = lender.deposit(amount, msg.sender);
+        unchecked {
+            require(lender.convertToAssets(shares) > (amount * transmittance) / 10_000, "bad rounding");
+        }
     }
 
     function repayWithPermit2(
