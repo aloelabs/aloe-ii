@@ -18,7 +18,8 @@ contract LenderLens {
             uint256 inventory,
             uint256 totalBorrows,
             uint256 totalSupply,
-            uint8 reserveFactor
+            uint8 reserveFactor,
+            uint64 rewardsRate
         )
     {
         asset = lender.asset();
@@ -27,6 +28,7 @@ contract LenderLens {
         if (inventory > 0) utilization = (1e18 * totalBorrows) / inventory;
         interestRate = lender.rateModel().getYieldPerSecond(utilization, address(lender));
         reserveFactor = lender.reserveFactor();
+        rewardsRate = lender.rewardsRate();
     }
 
     /**
