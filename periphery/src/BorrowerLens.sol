@@ -81,7 +81,9 @@ contract BorrowerLens {
         return (false, pool);
     }
 
-    function getUniswapFees(Borrower account) external view returns (bytes32[] memory keys, uint256[] memory fees) {
+    function getUniswapPositions(
+        Borrower account
+    ) external view returns (int24[] memory positions, uint128[] memory liquidity, uint256[] memory fees) {
         IUniswapV3Pool pool = account.UNISWAP_POOL();
         Uniswap.FeeComputationCache memory c;
         {
@@ -89,8 +91,8 @@ contract BorrowerLens {
             c = Uniswap.FeeComputationCache(tick, pool.feeGrowthGlobal0X128(), pool.feeGrowthGlobal1X128());
         }
 
-        int24[] memory positions = account.getUniswapPositions();
-        keys = new bytes32[](positions.length >> 1);
+        positions = account.getUniswapPositions();
+        liquidity = new uint128[](positions.length >> 1);
         fees = new uint256[](positions.length);
 
         unchecked {
@@ -104,7 +106,7 @@ contract BorrowerLens {
 
                 (uint256 temp0, uint256 temp1) = position.fees(pool, info, c);
 
-                keys[i >> 1] = keccak256(abi.encodePacked(address(account), l, u));
+                liquidity[i >> 1] = info.liquidity;
                 fees[i] = temp0;
                 fees[i + 1] = temp1;
             }
