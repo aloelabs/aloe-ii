@@ -42,7 +42,7 @@ contract UniswapNFTManager is IManager {
         int24 upper;
         // The change in the NFT's liquidity. Negative values move NFT-->Borrower, positives do the opposite
         int128 liquidity;
-        (tokenId, lower, upper, liquidity, positions) = abi.decode(data[20:], (uint256, int24, int24, int128, uint144));
+        (tokenId, lower, upper, liquidity, positions) = abi.decode(data[20:], (uint256, int24, int24, int128, uint208));
 
         // move position from NonfungiblePositionManager to Borrower
         if (liquidity < 0) {
@@ -50,14 +50,14 @@ contract UniswapNFTManager is IManager {
             require(owner == UNISWAP_NFT.ownerOf(tokenId));
 
             _withdrawFromNFT(tokenId, uint128(-liquidity), msg.sender);
-            borrower.uniswapDeposit(lower, upper, uint128(-liquidity));
+            borrower.uniswapDeposit(lower, upper, uint128((uint256(uint128(-liquidity)) * 999) / 1000));
         }
         // move position from Borrower to NonfungiblePositionManager (position must exist already)
         else {
             ERC20 token0 = borrower.TOKEN0();
             ERC20 token1 = borrower.TOKEN1();
 
-            (uint256 burned0, uint256 burned1, uint256 collected0, uint256 collected1) = borrower.uniswapWithdraw(
+            (uint256 burned0, uint256 burned1, , ) = borrower.uniswapWithdraw(
                 lower,
                 upper,
                 uint128(liquidity),
@@ -77,8 +77,8 @@ contract UniswapNFTManager is IManager {
                 })
             );
 
-            token0.safeTransfer(owner, collected0 - burned0);
-            token1.safeTransfer(owner, collected1 - burned1);
+            token0.safeTransfer(owner, token0.balanceOf(address(this)));
+            token1.safeTransfer(owner, token1.balanceOf(address(this)));
         }
     }
 
