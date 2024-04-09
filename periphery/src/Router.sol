@@ -35,18 +35,19 @@ contract Router {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) external returns (uint256 shares) {
+    ) external payable returns (uint256 shares) {
         lender.permit(msg.sender, address(this), type(uint256).max, deadline, v, r, s);
 
         if (lender.balanceOf(msg.sender) > 0) {
             lender.redeem(type(uint256).max, msg.sender, msg.sender);
         }
 
+        ERC20 asset = lender.asset();
         // Transfer tokens from the caller to the lender.
         PERMIT2.permitTransferFrom(
             // The permit message.
             IPermit2.PermitTransferFrom({
-                permitted: IPermit2.TokenPermissions({token: lender.asset(), amount: amount}),
+                permitted: IPermit2.TokenPermissions({token: asset, amount: amount}),
                 nonce: nonce,
                 deadline: deadline
             }),
@@ -60,6 +61,12 @@ contract Router {
             // the EIP712 hash of `permit`.
             signature
         );
+
+        if (msg.value > 0) {
+            address(asset).call{value: msg.value}(abi.encodeWithSignature("deposit()"));
+            asset.safeTransfer(address(lender), msg.value);
+            amount += msg.value;
+        }
 
         shares = lender.deposit(amount, msg.sender, courierId);
         unchecked {
@@ -74,12 +81,13 @@ contract Router {
         uint256 nonce,
         uint256 deadline,
         bytes calldata signature
-    ) external returns (uint256 shares) {
+    ) external payable returns (uint256 shares) {
+        ERC20 asset = lender.asset();
         // Transfer tokens from the caller to the lender.
         PERMIT2.permitTransferFrom(
             // The permit message.
             IPermit2.PermitTransferFrom({
-                permitted: IPermit2.TokenPermissions({token: lender.asset(), amount: amount}),
+                permitted: IPermit2.TokenPermissions({token: asset, amount: amount}),
                 nonce: nonce,
                 deadline: deadline
             }),
@@ -93,6 +101,12 @@ contract Router {
             // the EIP712 hash of `permit`.
             signature
         );
+
+        if (msg.value > 0) {
+            address(asset).call{value: msg.value}(abi.encodeWithSignature("deposit()"));
+            asset.safeTransfer(address(lender), msg.value);
+            amount += msg.value;
+        }
 
         shares = lender.deposit(amount, msg.sender);
         unchecked {

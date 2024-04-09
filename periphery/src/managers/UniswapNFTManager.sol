@@ -64,8 +64,8 @@ contract UniswapNFTManager is IManager {
                 address(this)
             );
 
-            token0.safeApprove(address(UNISWAP_NFT), burned0);
-            token1.safeApprove(address(UNISWAP_NFT), burned1);
+            token0.safeApprove(address(UNISWAP_NFT), burned0 + 1);
+            token1.safeApprove(address(UNISWAP_NFT), burned1 + 1);
             UNISWAP_NFT.increaseLiquidity(
                 IUniswapPositionNFT.IncreaseLiquidityParams({
                     tokenId: tokenId,
