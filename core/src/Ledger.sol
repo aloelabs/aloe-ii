@@ -101,7 +101,7 @@ contract Ledger {
 
     /// @notice The name of the banknote.
     function name() external view returns (string memory) {
-        return string.concat("Aloe ", asset().name(), unicode" ⚭ [", Ledger(peer()).asset().symbol(), "]");
+        return string.concat("Aloe ", asset().symbol(), "-[", Ledger(peer()).asset().symbol(), "]");
     }
 
     /// @notice The symbol of the banknote.

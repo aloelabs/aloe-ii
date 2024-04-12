@@ -41,7 +41,7 @@ contract VolatilityOracle {
 
         if (lastWrites[pool].time == 0) {
             feeGrowthGlobals[pool][0] = _getFeeGrowthGlobalsNow(pool);
-            lastWrites[pool] = LastWrite(0, uint40(block.timestamp), IV_COLD_START, IV_COLD_START);
+            lastWrites[pool] = LastWrite(0, uint40(block.timestamp), IV_COLD_START, IV_COLD_START); // TODO: Warmup period
         }
     }
 
@@ -66,7 +66,7 @@ contract VolatilityOracle {
             Volatility.FeeGrowthGlobals memory b = _getFeeGrowthGlobalsNow(pool);
 
             // Bring `lastWrite` forward so it's essentially "currentWrite"
-            lastWrite.index = uint8((lastWrite.index + 1) % FEE_GROWTH_ARRAY_LENGTH);
+            lastWrite.index = (lastWrite.index + 1) % FEE_GROWTH_ARRAY_LENGTH;
             lastWrite.time = uint40(block.timestamp);
             lastWrite.oldIV = lastWrite.newIV;
             // lastWrite.newIV is updated below, iff feeGrowthGlobals samples are ≈`FEE_GROWTH_AVG_WINDOW` hours apart
@@ -96,7 +96,7 @@ contract VolatilityOracle {
             arr[lastWrite.index] = b;
             lastWrites[pool] = lastWrite;
 
-            emit Update(pool, sqrtMeanPriceX96, lastWrite.newIV);
+            emit Update(pool, sqrtMeanPriceX96, lastWrite.newIV); // TODO: Better event
             return (metric, sqrtMeanPriceX96, lastWrite.oldIV); // `lastWrite.oldIV == _interpolateIV(lastWrite)` here
         }
     }
