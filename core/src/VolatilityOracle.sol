@@ -66,7 +66,7 @@ contract VolatilityOracle {
             Volatility.FeeGrowthGlobals memory b = _getFeeGrowthGlobalsNow(pool);
 
             // Bring `lastWrite` forward so it's essentially "currentWrite"
-            lastWrite.index = uint8((lastWrite.index + 1) % FEE_GROWTH_ARRAY_LENGTH);
+            lastWrite.index = (lastWrite.index + 1) % FEE_GROWTH_ARRAY_LENGTH;
             lastWrite.time = uint40(block.timestamp);
             lastWrite.oldIV = lastWrite.newIV;
             // lastWrite.newIV is updated below, iff feeGrowthGlobals samples are ≈`FEE_GROWTH_AVG_WINDOW` hours apart
