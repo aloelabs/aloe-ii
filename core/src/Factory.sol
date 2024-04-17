@@ -228,7 +228,7 @@ contract Factory {
             for (uint256 i = 0; i < count; i++) {
                 // Make sure it is, in fact, a `Lender`
                 require(peer[address(lenders[i])] != address(0));
-                earned += lenders[i].claimRewards(msg.sender);
+                earned += lenders[i].claimRewards(beneficiary);
             }
         }
 
