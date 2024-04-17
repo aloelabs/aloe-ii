@@ -418,10 +418,12 @@ contract Borrower is IUniswapV3MintCallback {
      */
     function repay(uint256 amount0, uint256 amount1) external onlyInModifyCallback {
         if (amount0 > 0) {
+            if (amount0 == type(uint256).max) amount0 = LENDER0.borrowBalance(address(this));
             TOKEN0.safeTransfer(address(LENDER0), amount0);
             LENDER0.repay(amount0, address(this));
         }
         if (amount1 > 0) {
+            if (amount1 == type(uint256).max) amount1 = LENDER1.borrowBalance(address(this));
             TOKEN1.safeTransfer(address(LENDER1), amount1);
             LENDER1.repay(amount1, address(this));
         }
