@@ -214,7 +214,7 @@ contract LenderReferralsTest is Test {
     ) public {
         // MARK: Start by doing everything that `test_depositDoesIncreasePrinciple` does
 
-        vm.assume(amount > 1);
+        amount = uint104(bound(amount, 1e10, type(uint104).max));
         (id, wallet, cut) = _enroll(id, wallet, cut);
         address to = caller;
 

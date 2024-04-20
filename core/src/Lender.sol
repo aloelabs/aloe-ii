@@ -197,6 +197,7 @@ contract Lender is Ledger {
 
         // Burn shares, track rewards, and (if applicable) handle courier accounting
         cache.totalSupply = _burn(owner, shares, inventory, cache.totalSupply);
+        require(cache.totalSupply == 0 || cache.totalSupply > 1e5);
         // Assume tokens are transferred
         cache.lastBalance -= amount;
 

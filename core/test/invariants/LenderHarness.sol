@@ -233,6 +233,17 @@ contract LenderHarness {
             shares = uint112(shares % (maxRedeem + 1));
         }
 
+        uint256 totalSupply = LENDER.totalSupply();
+        if (totalSupply <= 1e5) {
+            if (maxRedeem == totalSupply) {
+                shares = uint112(maxRedeem);
+            } else {
+                shares = 0;
+            }
+        } else if (totalSupply - shares <= 1e5) {
+            shares = uint112(totalSupply - 1e5 - 1);
+        }
+
         // Check that `msg.sender` has permission to burn `owner`'s shares
         if (owner != msg.sender) {
             vm.prank(msg.sender);
@@ -246,7 +257,6 @@ contract LenderHarness {
         // Collect data
         amount = LENDER.previewRedeem(shares);
         uint256 lastBalance = LENDER.lastBalance();
-        uint256 totalSupply = LENDER.totalSupply();
         uint256 sharesBefore = LENDER.balanceOf(owner);
         uint256 reservesBefore = LENDER.balanceOf(LENDER.RESERVE());
         uint256 assetsBefore = LENDER.asset().balanceOf(recipient);

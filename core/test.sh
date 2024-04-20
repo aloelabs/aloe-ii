@@ -65,7 +65,7 @@ fi
 
 # Ensure that `Ledger` has only view & pure functions
 if [ "$CHECK_LEDGER_PURITY" = true ]; then
-    forge build
+    forge build --ast
     (node 'test.js')
     modifies_state=$?
     if [ "${modifies_state}" != "0" ]; then
@@ -99,6 +99,7 @@ if [ "$CHECK_COVERAGE" = true ]; then
     mv "test/libraries/Volatility.t.sol" "test/libraries/Volatility.ignore"
     mv "test/invariants/LenderHarness.sol" "test/invariants/LenderHarness.ignore"
     mv "test/invariants/LenderInvariants.t.sol" "test/invariants/LenderInvariants.ignore"
+    mv "test/Borrower.t.sol" "test/Borrower.ignore"
     mv "test/VolatilityOracle.t.sol" "test/VolatilityOracle.ignore"
 
     if [ "$CI" = true ]; then
@@ -113,5 +114,6 @@ if [ "$CHECK_COVERAGE" = true ]; then
     mv "test/libraries/Volatility.ignore" "test/libraries/Volatility.t.sol"
     mv "test/invariants/LenderHarness.ignore" "test/invariants/LenderHarness.sol"
     mv "test/invariants/LenderInvariants.ignore" "test/invariants/LenderInvariants.t.sol"
+    mv "test/Borrower.ignore" "test/Borrower.t.sol"
     mv "test/VolatilityOracle.ignore" "test/VolatilityOracle.t.sol"
 fi
