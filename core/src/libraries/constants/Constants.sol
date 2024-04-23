@@ -159,7 +159,7 @@ uint256 constant FEE_GROWTH_AVG_WINDOW = 72 hours;
 /// @dev The length of the circular buffer that stores feeGrowthGlobals samples.
 /// Must be in interval
 /// \\( \left[ \frac{\text{FEE_GROWTH_AVG_WINDOW}}{\text{FEE_GROWTH_SAMPLE_PERIOD}}, 256 \right) \\)
-uint256 constant FEE_GROWTH_ARRAY_LENGTH = 32;
+uint8 constant FEE_GROWTH_ARRAY_LENGTH = 32;
 
 /// @dev The minimum number of seconds that must elapse before a new feeGrowthGlobals sample will be stored. This
 /// controls how often the oracle can update IV.

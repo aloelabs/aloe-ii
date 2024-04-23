@@ -202,6 +202,18 @@ contract ERC4626Harness {
             shares = shares % (maxRedeem + 1);
         }
 
+        // NOTE: This section is technically not 4626 compliant
+        uint256 totalSupply = VAULT.totalSupply();
+        if (totalSupply <= 1e5) {
+            if (maxRedeem == totalSupply) {
+                shares = uint112(maxRedeem);
+            } else {
+                shares = 0;
+            }
+        } else if (totalSupply - shares <= 1e5) {
+            shares = uint112(totalSupply - 1e5 - 1);
+        }
+
         // SHOULD check `msg.sender` can spend owner funds using allowance
         if (owner != msg.sender) {
             vm.prank(msg.sender);

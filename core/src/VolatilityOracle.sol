@@ -66,7 +66,7 @@ contract VolatilityOracle {
             Volatility.FeeGrowthGlobals memory b = _getFeeGrowthGlobalsNow(pool);
 
             // Bring `lastWrite` forward so it's essentially "currentWrite"
-            lastWrite.index = uint8((lastWrite.index + 1) % FEE_GROWTH_ARRAY_LENGTH);
+            lastWrite.index = (lastWrite.index + 1) % FEE_GROWTH_ARRAY_LENGTH;
             lastWrite.time = uint40(block.timestamp);
             lastWrite.oldIV = lastWrite.newIV;
             // lastWrite.newIV is updated below, iff feeGrowthGlobals samples are ≈`FEE_GROWTH_AVG_WINDOW` hours apart
@@ -128,10 +128,10 @@ contract VolatilityOracle {
     function _getPoolMetadata(IUniswapV3Pool pool) private view returns (Volatility.PoolMetadata memory metadata) {
         (, , uint16 observationIndex, uint16 observationCardinality, , uint8 feeProtocol, ) = pool.slot0();
         // We want observations from `UNISWAP_AVG_WINDOW` and `UNISWAP_AVG_WINDOW * 2` seconds ago. Since observation
-        // frequency varies with `pool` usage, we apply an extra 3x safety factor. If `pool` usage increases,
+        // frequency varies with `pool` usage, we apply an extra 4x safety factor. If `pool` usage increases,
         // oracle cardinality may need to be increased as well. This should be monitored off-chain.
         require(
-            Oracle.getMaxSecondsAgo(pool, observationIndex, observationCardinality) > UNISWAP_AVG_WINDOW * 6,
+            Oracle.getMaxSecondsAgo(pool, observationIndex, observationCardinality) > UNISWAP_AVG_WINDOW * 8,
             "Aloe: cardinality"
         );
 
