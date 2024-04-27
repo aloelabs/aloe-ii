@@ -34,6 +34,31 @@ contract BorrowerLens {
         );
     }
 
+    function getSummary(
+        Borrower account
+    )
+        external
+        view
+        returns (
+            uint256 balanceEth,
+            uint256 balance0,
+            uint256 balance1,
+            uint256 liabilities0,
+            uint256 liabilities1,
+            int24[] memory positions,
+            uint128[] memory liquidity,
+            Prices memory prices
+        )
+    {
+        balanceEth = address(account).balance;
+        balance0 = account.TOKEN0().balanceOf(address(account));
+        balance1 = account.TOKEN1().balanceOf(address(account));
+
+        (liabilities0, liabilities1) = account.getLiabilities();
+        (positions, liquidity, ) = getUniswapPositions(account);
+        (prices, , , ) = account.getPrices(1 << 32);
+    }
+
     /// @dev Mirrors the logic in `BalanceSheet.isHealthy`, but returns numbers instead of a boolean
     function getHealth(Borrower account) external view returns (uint256 healthA, uint256 healthB) {
         (Prices memory prices, , , ) = account.getPrices(1 << 32);
@@ -83,7 +108,7 @@ contract BorrowerLens {
 
     function getUniswapPositions(
         Borrower account
-    ) external view returns (int24[] memory positions, uint128[] memory liquidity, uint256[] memory fees) {
+    ) public view returns (int24[] memory positions, uint128[] memory liquidity, uint256[] memory fees) {
         IUniswapV3Pool pool = account.UNISWAP_POOL();
         Uniswap.FeeComputationCache memory c;
         {

@@ -5,7 +5,7 @@ import "forge-std/Script.sol";
 
 import {Factory, IUniswapV3Pool} from "../src/Factory.sol";
 
-Factory constant FACTORY = Factory(0x000000009efdB26b970bCc0085E126C9dfc16ee8);
+Factory constant FACTORY = Factory(0x00000000333288eBA83426245D144B966Fd7e82E);
 
 contract CreateMarketsScript is Script {
     address[] poolsMainnet = [
@@ -57,6 +57,18 @@ contract CreateMarketsScript is Script {
         0xc9034c3E7F58003E6ae0C8438e7c8f4598d5ACAA // WETH/DEGEN 0.30%
     ];
 
+    address[] poolsLinea = [
+        0xc48622190a6B91d64ee7459C62fadE9AbE61b48a, // USDC/WETH 0.05%
+        0xa22206521A460aA6B21a089c3b48FFd0C79d5fD5, // WBTC/WETH 0.05%
+        0x5856EDF9212bdceC74301ec78AFc573B62D6A283 // USDC/USDT 0.01%
+    ];
+
+    address[] poolsScroll = [
+        0xf1783F3377b3A70465C193eF33942c0803121ba0, // USDC/USDT 0.01%
+        0x813Df550a32d4A9d42010D057386429ad2328ED9, // USDC/WETH 0.05%
+        0x3Cc5375F08D5DF15611C3a446D31fA99a08BD182 // WBTC/WETH 0.05%
+    ];
+
     function run() external {
         vm.createSelectFork(vm.rpcUrl("mainnet"));
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
@@ -83,6 +95,20 @@ contract CreateMarketsScript is Script {
         vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
         for (uint256 i = 0; i < poolsBase.length; i++) {
             FACTORY.createMarket(IUniswapV3Pool(poolsBase[i]));
+        }
+        vm.stopBroadcast();
+
+        vm.createSelectFork(vm.rpcUrl("linea"));
+        vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
+        for (uint256 i = 0; i < poolsLinea.length; i++) {
+            FACTORY.createMarket(IUniswapV3Pool(poolsLinea[i]));
+        }
+        vm.stopBroadcast();
+
+        vm.createSelectFork(vm.rpcUrl("scroll"));
+        vm.startBroadcast(vm.envUint("PRIVATE_KEY"));
+        for (uint256 i = 0; i < poolsScroll.length; i++) {
+            FACTORY.createMarket(IUniswapV3Pool(poolsScroll[i]));
         }
         vm.stopBroadcast();
     }

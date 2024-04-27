@@ -57,6 +57,8 @@ goerli = "${RPC_URL_GOERLI}"
 optimism = "${RPC_URL_OPTIMISM}"
 arbitrum = "${RPC_URL_ARBITRUM}"
 base = "${RPC_URL_BASE}"
+linea = "${RPC_URL_LINEA}"
+scroll = "${RPC_URL_SCROLL}"
 anvil = "http://127.0.0.1:8545"
 
 [etherscan]
@@ -64,7 +66,9 @@ mainnet = { key = "${ETHERSCAN_API_KEY}" }
 goerli = { key = "${ETHERSCAN_API_KEY}" }
 optimism = { key = "${ETHERSCAN_API_KEY_OPTIMISM}" }
 arbitrum = { key = "${ETHERSCAN_API_KEY_ARBITRUM}" }
-base = { key = "${ETHERSCAN_API_KEY_BASE}", url = "https://api.basescan.org/api" }
+base = { key = "${ETHERSCAN_API_KEY_BASE}" }
+linea = { key = "${ETHERSCAN_API_KEY_LINEA}" }
+scroll = { key = "${ETHERSCAN_API_KEY_SCROLL}" }
 
 [profile.gambit.invariant]
 runs = 5
