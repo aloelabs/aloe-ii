@@ -25,10 +25,10 @@ bytes32 constant TAG = 0x0000000000000000000000000000000000000000A10EA10EA10EA10
 
 contract DeployScript is Script {
     /// @dev Aloe II `Factory`, constant across chains
-    Factory constant FACTORY = Factory(0x000000009efdB26b970bCc0085E126C9dfc16ee8);
+    Factory constant FACTORY = Factory(0x00000000333288eBA83426245D144B966Fd7e82E);
 
     /// @dev Aloe II `IBorrowerURISource`, constant across chains
-    IBorrowerURISource constant BORROWER_URI_SOURCE = IBorrowerURISource(0xb932F8c0474c307a8fc780FaA86eCB05F7D8F3d6);
+    IBorrowerURISource constant BORROWER_URI_SOURCE = IBorrowerURISource(0x0A0cfc724330B4BA1a3C79a707D43da23504fAb3);
 
     /// @dev Uniswap `Permit2`, constant across chains
     IPermit2 constant PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
@@ -41,6 +41,8 @@ contract DeployScript is Script {
         uniswapPositionNfts[10] = IUniswapPositionNFT(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
         uniswapPositionNfts[42161] = IUniswapPositionNFT(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
         uniswapPositionNfts[8453] = IUniswapPositionNFT(0x03a520b32C04BF3bEEf7BEb72E919cf822Ed34f1);
+        uniswapPositionNfts[59144] = IUniswapPositionNFT(0x4615C383F85D0a2BbED973d83ccecf5CB7121463);
+        uniswapPositionNfts[534352] = IUniswapPositionNFT(0xB39002E4033b162fAc607fc3471E205FA2aE5967);
         IUniswapPositionNFT uniswapPositionNft = uniswapPositionNfts[block.chainid];
 
         bytes32 saltA = vm.envBytes32("saltA");
