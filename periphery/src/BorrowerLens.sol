@@ -45,9 +45,8 @@ contract BorrowerLens {
             uint256 balance1,
             uint256 liabilities0,
             uint256 liabilities1,
-            int24[] memory positions,
-            uint128[] memory liquidity,
-            Prices memory prices
+            uint256 slot0,
+            uint128[] memory liquidity
         )
     {
         balanceEth = address(account).balance;
@@ -55,8 +54,9 @@ contract BorrowerLens {
         balance1 = account.TOKEN1().balanceOf(address(account));
 
         (liabilities0, liabilities1) = account.getLiabilities();
-        (positions, liquidity, ) = getUniswapPositions(account);
-        (prices, , , ) = account.getPrices(1 << 32);
+        slot0 = account.slot0();
+
+        (, liquidity, ) = getUniswapPositions(account);
     }
 
     /// @dev Mirrors the logic in `BalanceSheet.isHealthy`, but returns numbers instead of a boolean
